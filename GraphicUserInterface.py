@@ -62,10 +62,10 @@ class SettingsBox(CTkFrame):
         self.grid_rowconfigure((0,1), weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-        self.settings_frame = CTkFrame(self)
+        self.settings_frame = CTkFrame(self, fg_color="#2F2F2F")
         self.settings_frame.grid(row=0, column=0, padx=10, pady=(10, 5), sticky = "nswe")
 
-        self.theme_frame = CTkFrame(self)
+        self.theme_frame = CTkFrame(self, fg_color="#2F2F2F")
         self.theme_frame.grid(row=1, column=0, padx=10, pady=(5, 10), sticky = "nswe")
         
 
@@ -77,7 +77,7 @@ class DialogeBox(CTkScrollableFrame):
         self.message_row = 0
         self.grid_columnconfigure((0, 1), weight=1)
 
-        self.last_date = DataExchange.get_config().get("last_messege_send", "")
+        self.last_date = DataExchange.get_config().get("last_message_send", "")
         self.chat_history = DataExchange.get_chat_history()
         self.load_chat_history()
         
@@ -91,11 +91,12 @@ class DialogeBox(CTkScrollableFrame):
             column = 0
             fg_color = "#1f6aa5"
         
-        if(self.last_date != date):
+        if(self.last_date != date or not self.winfo_children()):
             date_label = CTkLabel(self, text=date, font=("Arial", 14), fg_color="#444444", corner_radius=10)
             date_label.grid(row=self.message_row, column=0, columnspan=2, pady=5)
             self.message_row += 1
             self.last_date = date
+            DataExchange.modify_config("last_message_send", date)
 
         message_frame = CTkFrame(self, fg_color=fg_color, corner_radius=10)
         message_frame.grid(row=self.message_row, column=column, sticky=sticky_side, padx=5, pady=2)
