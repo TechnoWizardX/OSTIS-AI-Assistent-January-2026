@@ -2,12 +2,12 @@ import json
 from datetime import datetime
 
 class DataExchange():
-    def update_chat_history(text, author):
+    def update_chat_history(text, author, day, time):
         message = {
             "author" : author,
             "text" : text,
-            "hour" : datetime.now().strftime("%H:%M"),
-            "day" : datetime.now().strftime("%Y-%m-%d")
+            "time" : time,
+            "day" : day
         }
 
         with open("chat_history.json", "r", encoding="utf-8") as file:
