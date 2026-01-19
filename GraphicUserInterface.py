@@ -2,6 +2,7 @@ from customtkinter import *
 from DataExchange import *
 from datetime import datetime
 import tkinter.messagebox as messagebox
+from VoiceRecognizer import VoiceRecognizer
 
 
 
@@ -10,6 +11,8 @@ class GraphicUserInterface():
         self.gui_main = CTk()
         self.gui_main.geometry("900x675+400+100")
         self.gui_main.title("AI-Ассистент")
+        self.gui_main.minsize(600, 300)
+        self.gui_main.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         self.gui_main.grid_columnconfigure((1, 2), weight=1)
         self.gui_main.grid_rowconfigure((0, 1), weight=1)
@@ -30,7 +33,7 @@ class GraphicUserInterface():
         self.message_send_box = MessageSendBox(self.chat_box, self.dialoge_box)
 
         #фрейм опций слева
-        self.option_list_box = OptionsListBox(self.gui_main, self)
+        self.option_list_box = OptionsListBox(self.gui_main, self, self.message_send_box)
 
         #размещение фреймов опций, контент бокса и чат бокса как бокс по умолчанию
         self.option_list_box.grid(row = 0, column = 0, padx=(10, 5), pady=(10, 10), sticky = "snew", rowspan = 3)
@@ -50,7 +53,11 @@ class GraphicUserInterface():
 
     def gui_start(self):
         self.gui_main.mainloop()
-        
+
+    def on_closing(self):
+        self.option_list_box.voice_recognizer.stop_recording()
+        self.gui_main.destroy()
+
     def update_config(self):
         self.config = DataExchange.get_config()
 
@@ -156,7 +163,17 @@ class MessageSendBox(CTkFrame):
         if self.textbox_text.strip() != "":
             DataExchange.update_chat_history(self.textbox_text, "user", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
             self.dialoge_box.add_message_to_box("user", self.textbox_text, datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
-             
+            DataExchange.send_to_nika(self.textbox_text)
+            DataExchange.update_chat_history("Здесь будет ответ от NIKA", "nika", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
+            self.dialoge_box.add_message_to_box("nika", "Здесь будет ответ от NIKA", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
+            
+    def send_voice_message(self, text):
+            DataExchange.update_chat_history(text, "user", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
+            self.dialoge_box.add_message_to_box("user", text, datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
+            DataExchange.send_to_nika(text)
+            DataExchange.update_chat_history("Здесь будет ответ от NIKA", "nika", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
+            self.dialoge_box.add_message_to_box("nika", "Здесь будет ответ от NIKA", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
+
     def on_enter_pressed(self, event):
         if event.state & 0x0001:  # Shift нажат
             self.message_textbox.insert("insert", "\n")
@@ -175,14 +192,49 @@ class MessageSendBox(CTkFrame):
 
 
 class OptionsListBox(CTkFrame):
-    def __init__(self, master, gui_instance):
+    def __init__(self, master, gui_instance, message_send_box):
         super().__init__(master)
         self.gui_instance = gui_instance
+        self.message_send_box_instance = message_send_box
+
+        DataExchange.modify_config("recording_enabled", False)
+        self.config = DataExchange.get_config()
+        self.voice_recognizer = VoiceRecognizer()  # Инициализируем VoiceRecognizer
+
         self.settings_button = CTkButton(self, text = "Settings", command=self.change_to_settings, font=("Arial", 16))
         self.settings_button.grid(row = 0, column = 0, padx = 10, pady = 10, sticky = "n")
 
         self.chat_button = CTkButton(self, text="Chat", command=self.change_to_chat, font=("Arial", 16))
         self.chat_button.grid(row = 1, column = 0, padx = 10, pady = (0, 10), sticky = "n")
+
+        self.recording_button = CTkButton(self, text= "Voice Enter: Off", font=("Arial", 16), command=self.recording_status_change)
+        self.recording_button.grid(row = 2, column = 0, padx = 10, pady = (0, 10), sticky = "n")
+
+        self.check_errors()  # запуск проверки на ошибки
+        self.check_voice_text()  # запуск проверки на текст
+
+    def recording_status_change(self):
+        self.config = DataExchange.get_config()
+        if self.config.get("recording_enabled", False):
+            DataExchange.modify_config("recording_enabled", False)
+            self.recording_button.configure(text="Voice Enter: Off")
+            self.voice_recognizer.stop_recording() 
+        else:
+            DataExchange.modify_config("recording_enabled", True)
+            self.recording_button.configure(text="Voice Enter: On")
+            self.voice_recognizer.start_recording() 
+
+    def check_errors(self):
+        error = self.voice_recognizer.get_error()  
+        if error:
+            messagebox.showerror("Ошибка", error)  
+        self.after(1000, self.check_errors) 
+
+    def check_voice_text(self):
+        text = self.voice_recognizer.get_text()  
+        if text:
+            self.message_send_box_instance.send_voice_message(text)
+        self.after(100, self.check_voice_text) 
 
     def change_to_settings(self):
         self.gui_instance.settings_box.tkraise()

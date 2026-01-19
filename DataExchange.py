@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 
 class DataExchange():
+    # функции работы с историей чата
     def update_chat_history(text, author, day, time):
         message = {
             "author" : author,
@@ -27,12 +28,12 @@ class DataExchange():
             history = json.load(file)
         return history
     
-    def modify_config(data_key, theme):
+    # функции работы с конфигурацией
+    def modify_config(data_key, new_data):
         with open("config.json", "r", encoding="utf-8") as file:
             config = json.load(file)
 
-        config[data_key] = theme
-
+        config[data_key] = new_data
         with open("config.json", "w", encoding="utf-8") as file:
             json.dump(config, file, ensure_ascii=False, indent = 4)
 
@@ -40,3 +41,15 @@ class DataExchange():
         with open("config.json", "r", encoding="utf-8") as file:
             config = json.load(file)
         return config
+
+    # функции работы с NIKA
+    def send_to_nika(text):
+        pass
+
+    def get_text_from_nika():
+        text = "Здесь будет ответ от NIKA"
+        return text
+    
+    def get_data_from_nika():
+        # здесь будут поулчаться данные от nika
+        pass
