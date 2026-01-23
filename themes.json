@@ -1,11 +1,38 @@
 {
-    "dark" : [
-        
-    ],
-    "light" : [
-
-    ],
-    "users" : [
-
-    ]
+    "dark": {
+        "gui_foreground": "#242424",
+        "options_frame": "#2B2B2B",
+        "other_frame": "#2F2F2F",
+        "message_send_frame": "#2F2F2F",
+        "dialog_frame": "#2B2B2B",
+        "text": "#DCE4EE",
+        "button": "#1F6AA5",
+        "assistent_message": "#1f8a70",
+        "user_message": "#1F6AA5",
+        "border_color": "transparent"
+    },
+    "light": {
+        "gui_foreground": "#FFFFFF",
+        "options_frame": "#FFFFFF",
+        "other_frame": "#FFFFFF",
+        "message_send_frame": "#FFFFFF",
+        "dialog_frame": "#FFFFFF",
+        "text": "#000000",
+        "button": "#1F6AA5",
+        "assistent_message": "#1f8a70",
+        "user_message": "#1F6AA5",
+        "border_color": "transparent"
+    },
+    "user": {
+        "gui_foreground": "#242424",
+        "options_frame": "#2B2B2B",
+        "other_frame": "#2F2F2F",
+        "message_send_frame": "#2F2F2F",
+        "dialog_frame": "#2B2B2B",
+        "text": "#DCE4EE",
+        "button": "#1F6AA5",
+        "assistent_message": "#1f8a70",
+        "user_message": "#1F6AA5",
+        "border_color": "transparent"
+    }
 }

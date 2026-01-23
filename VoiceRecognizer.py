@@ -1,33 +1,56 @@
 from threading import Thread
 from queue import Queue
-import speech_recognition as sr
+import sounddevice as sd
+from vosk import Model, KaldiRecognizer
+import json
+import os
 from DataExchange import DataExchange
-from datetime import datetime
 
 
-class VoiceRecognizer():
+class VoiceRecognizer:
     def __init__(self):
-        self.confing = DataExchange.get_config()
+        self.config = DataExchange.get_config()
 
-        self.recognizer = sr.Recognizer()
-        self.microphone = sr.Microphone()
+        # === ПУТЬ К МОДЕЛИ ===
+        self.model_path = "vosk-model-small-ru-0.22"
 
+        self.text_queue = Queue()
+        self.error_queue = Queue()
+
+        if not os.path.exists(self.model_path):
+            self.model = None
+            self.recognizer = None
+            self.error_queue.put(
+                "Модель Vosk не найдена. Скачайте модель с https://alphacephei.com/vosk/models"
+            )
+            return
+
+        # === VOSK ===
+        self.model = Model(self.model_path)
+        self.recognizer = KaldiRecognizer(self.model, 16000)
+        self.recognizer.SetWords(True)
+
+        # === ПОТОК ===
         self.listening_status = False
         self.thread = None
-        self.text_queue = Queue()
-        self.error_queue = Queue()  # Очередь для ошибок, чтобы передавать в основной поток
+
+        # Аудио очередь
+        self.audio_queue = Queue()
+
+    # ===============================
+    # PUBLIC API
+    # ===============================
 
     def start_recording(self):
-        if not self.listening_status:
-            self.listening_status = True
+        if self.listening_status:
+            return
 
-            self.thread = Thread(target=self._recognize_voice)
-            self.thread.start()
+        self.listening_status = True
+        self.thread = Thread(target=self._recognize_loop, daemon=True)
+        self.thread.start()
 
     def stop_recording(self):
         self.listening_status = False
-        if self.thread and self.thread.is_alive():
-            self.thread.join(timeout=0.1) 
 
     def get_text(self):
         if not self.text_queue.empty():
@@ -39,28 +62,38 @@ class VoiceRecognizer():
             return self.error_queue.get()
         return None
 
-    def _recognize_voice(self):
-        with self.microphone as source:
-            self.recognizer.adjust_for_ambient_noise(source, duration=1)  # Увеличиваем калибровку для лучшего шума
-            self.recognizer.dynamic_energy_threshold = True  # Автоматическая настройка чувствительности
-            self.recognizer.energy_threshold = 200  # Снижаем порог для тихой речи
-            self.recognizer.pause_threshold = 1.5  # Увеличиваем паузу для длинных фраз
-            
-            while self.listening_status:
-                try:
-                    audio = self.recognizer.listen(source, timeout=3, phrase_time_limit=10)  # Увеличиваем лимиты для длинных фраз
-                    text = self.recognizer.recognize_google(audio, language="ru-RU")
+    # ===============================
+    # INTERNAL
+    # ===============================
 
-                    self.text_queue.put(text)
+    def _audio_callback(self, indata, frames, time, status):
+        if status:
+            self.error_queue.put(str(status))
+        self.audio_queue.put(bytes(indata))
 
-                    DataExchange.update_chat_history(text, "user", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
-                    DataExchange.send_to_nika(text)
+    def _recognize_loop(self):
+        try:
+            with sd.RawInputStream(
+                samplerate=16000,
+                blocksize=8000,
+                dtype="int16",
+                channels=1,
+                callback=self._audio_callback
+            ):
+                while self.listening_status:
+                    data = self.audio_queue.get()
 
-                except sr.WaitTimeoutError:
-                    continue
-                except sr.UnknownValueError:
-                    continue
-                except sr.RequestError:
-                    self.error_queue.put("Ошибка подключения к интернету или сервиса распознавания.")  # Помещаем ошибку в очередь
-                    break  # Останавливаем цикл при ошибке подключения
+                    if self.recognizer.AcceptWaveform(data):
+                        result = json.loads(self.recognizer.Result())
+                        text = result.get("text", "").strip()
+                        if text:
+                            self.text_queue.put(text)
 
+                    # PartialResult можно использовать при необходимости
+                    # else:
+                    #     partial = json.loads(self.recognizer.PartialResult())
+                    #     print(partial.get("partial", ""))
+
+        except Exception as e:
+            self.error_queue.put(f"VoiceRecognizer error: {e}")
+            self.listening_status = False

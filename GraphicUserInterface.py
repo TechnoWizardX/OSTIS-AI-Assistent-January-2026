@@ -2,16 +2,19 @@ from customtkinter import *
 from DataExchange import *
 from datetime import datetime
 import tkinter.messagebox as messagebox
+import tkinter.colorchooser as colorchooser
 from VoiceRecognizer import VoiceRecognizer
 
 
 
 class GraphicUserInterface():
     def __init__(self):
-        self.gui_main = CTk()
+        self.theme_config = DataExchange.get_themes()["user"]
+
+        self.gui_main = CTk(fg_color=self.theme_config["gui_foreground"])
         self.gui_main.geometry("900x675+400+100")
         self.gui_main.title("AI-Ассистент")
-        self.gui_main.minsize(600, 300)
+        self.gui_main.minsize(620, 300)
         self.gui_main.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         self.gui_main.grid_columnconfigure((1, 2), weight=1)
@@ -51,30 +54,172 @@ class GraphicUserInterface():
 
         self.config = DataExchange.get_config()
 
+        # старт GUI
     def gui_start(self):
         self.gui_main.mainloop()
-
+        # при закрытии окна останавливаем распознавание голоса
     def on_closing(self):
         self.option_list_box.voice_recognizer.stop_recording()
         self.gui_main.destroy()
-
+        # обновление конфигурации
     def update_config(self):
         self.config = DataExchange.get_config()
 
-
+# ===============================
+# Фрейм с настройками
+# ===============================
 
 class SettingsBox(CTkFrame):
     def __init__(self, master):
         super().__init__(master)
-        self.grid_rowconfigure((0,1), weight=1)
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(3, weight=2)
         self.grid_columnconfigure(0, weight=1)
 
-        self.settings_frame = CTkFrame(self, fg_color="#2F2F2F")
-        self.settings_frame.grid(row=0, column=0, padx=10, pady=(10, 5), sticky = "nswe")
-
-        self.theme_frame = CTkFrame(self, fg_color="#2F2F2F")
-        self.theme_frame.grid(row=1, column=0, padx=10, pady=(5, 10), sticky = "nswe")
+        self.theme_config = DataExchange.get_themes()["user"]
+        # фрейм настроек
+        self.settings_frame = CTkFrame(self, fg_color=self.theme_config["other_frame"])
+        self.settings_frame.grid(row=1, column=0, padx=10, pady=(5, 5), sticky = "nswe")
+        # текст настроек
+        self.setting_label = CTkLabel(self, text="Settings", font=("Arial", 16), fg_color=self.theme_config["other_frame"], corner_radius=5)
+        self.setting_label.grid(row=0, column=0, padx=10, pady = (10, 2), sticky = "new")
+        # менджер тем
+        self.theme_frame = CTkFrame(self, fg_color=self.theme_config["other_frame"])
+        self.theme_frame.grid(row=3, column=0, padx=10, pady=(5, 10), sticky = "nswe")
         
+        self.interface_theme_manager_label = CTkLabel(self, text="Interface Theme Manager", font=("Arial", 16), 
+                                                      fg_color=self.theme_config["other_frame"], corner_radius=5)
+        self.interface_theme_manager_label.grid(row=2, column=0, padx=10, pady = 2, sticky = "new")
+
+        self.load_dark_theme_button = CTkButton(self.theme_frame, text="Dark", font = ("Arial", 14), command=self.change_to_dark_theme,
+                                                fg_color=self.theme_config["button"])
+        self.load_light_theme_button = CTkButton(self.theme_frame, text="Light", font = ("Arial", 14), command=self.change_to_light_theme,
+                                                 fg_color=self.theme_config["button"])
+
+        self.load_dark_theme_button.grid(row=0, column=0, padx=5, pady=5, sticky="w", columnspan=2)
+        self.load_light_theme_button.grid(row=0, column=2, padx=5, pady=5, sticky="w", columnspan=2)
+
+        self.create_change_color_buttons()
+        self.create_change_color_labels()
+    
+    def create_change_color_buttons(self):
+        # кнопки для смены цветов(может быть переопределить в одну функцию)
+        self.gui_frame_color_btn = CTkButton(self.theme_frame, border_width=4,
+                                                  border_color="#181818", text="",
+                                                  width=30, height=30, fg_color=self.theme_config["gui_foreground"],
+                                                  command=lambda : self.choose_new_color(self.gui_frame_color_btn, "gui_foreground"))
+        self.gui_frame_color_btn.grid(row=1, column = 0, padx=10, pady=5, sticky = "w")
+
+        self.options_frame_color_btn = CTkButton(self.theme_frame, border_width=4,
+                                                  border_color="#181818", text="",
+                                                  width=30, height=30, fg_color=self.theme_config["options_frame"],
+                                                  command=lambda : self.choose_new_color(self.options_frame_color_btn, "options_frame"))
+        self.options_frame_color_btn.grid(row=2, column = 0, padx=10, pady=5, sticky = "w")
+
+        self.other_frame_color_btn = CTkButton(self.theme_frame, border_width=4,
+                                                  border_color="#181818", text="",
+                                                  width=30, height=30, fg_color=self.theme_config["other_frame"],
+                                                  command=lambda : self.choose_new_color(self.other_frame_color_btn, "other_frame"))
+        self.other_frame_color_btn.grid(row=3, column = 0, padx=10, pady=5, sticky = "w")
+
+        self.dialog_frame_color_btn = CTkButton(self.theme_frame, border_width=4,
+                                                  border_color="#181818", text="",
+                                                  width=30, height=30, fg_color=self.theme_config["dialog_frame"],
+                                                  command=lambda : self.choose_new_color(self.dialog_frame_color_btn, "dialog_frame"))
+        self.dialog_frame_color_btn.grid(row=4, column = 0, padx=10, pady=5, sticky = "w")
+
+        self.send_message_frame_color_btn = CTkButton(self.theme_frame, border_width=4,
+                                                  border_color="#181818", text="",
+                                                  width=30, height=30, fg_color=self.theme_config["message_send_frame"],
+                                                  command=lambda : self.choose_new_color(self.send_message_frame_color_btn, "message_send_frame"))
+        self.send_message_frame_color_btn.grid(row=5, column = 0, padx=10, pady=5, sticky = "w")
+
+
+        self.border_color_btn = CTkButton(self.theme_frame, border_width=4,
+                                                  border_color="#181818", text="",
+                                                  width=30, height=30, fg_color=self.theme_config["border_color"],
+                                                  command=lambda : self.choose_new_color(self.border_color_btn, "border_color"))
+        self.border_color_btn.grid(row=1, column = 2, padx=10, pady=5, sticky = "w")
+
+        self.text_color_btn = CTkButton(self.theme_frame, border_width=4, border_color="#181818", text = "",
+                                        width=30, height=30, fg_color=self.theme_config["text"],
+                                        command=lambda : self.choose_new_color(self.text_color_btn, "text"))
+        self.text_color_btn.grid(row=2, column=2, padx=10, pady=5, sticky="w")
+
+        self.button_color_btn = CTkButton(self.theme_frame, border_width=4, border_color="#181818", text = "",
+                                        width=30, height=30, fg_color=self.theme_config["button"],
+                                        command=lambda : self.choose_new_color(self.button_color_btn, "button"))
+        self.button_color_btn.grid(row=3, column=2, padx=10, pady=5, sticky="w")
+
+        self.user_message_color_btn = CTkButton(self.theme_frame, border_width=4, border_color="#181818", text = "",
+                                            width=30, height=30, fg_color=self.theme_config["user_message"],
+                                            command=lambda : self.choose_new_color(self.user_message_color_btn, "user_message"))
+        self.user_message_color_btn.grid(row=4, column=2, padx=10, pady=5, sticky="w")
+
+        self.assistent_message_color_btn = CTkButton(self.theme_frame, border_width=4, border_color="#181818", text = "",
+                                            width=30, height=30, fg_color=self.theme_config["assistent_message"],
+                                            command=lambda : self.choose_new_color(self.assistent_message_color_btn, "assistent_message"))
+        self.assistent_message_color_btn.grid(row=5, column=2, padx=10, pady=5, sticky="w")
+
+    def create_change_color_labels(self):
+        self.gui_frame_color_label = CTkLabel(self.theme_frame, text="GUI Frame Color", font=("Arial", 14),
+                                                fg_color=self.theme_config["other_frame"])
+        self.gui_frame_color_label.grid(row=1, column = 1, padx=10, pady=5, sticky = "w")
+        
+        self.options_frame_color_label = CTkLabel(self.theme_frame, text="Options Frame Color", font=("Arial", 14),
+                                                fg_color=self.theme_config["other_frame"])
+        self.options_frame_color_label.grid(row=2, column = 1, padx=10, pady=5, sticky = "w")
+
+        self.other_frame_color_label = CTkLabel(self.theme_frame, text="Other Frame Color", font=("Arial", 14),
+                                                fg_color=self.theme_config["other_frame"])
+        self.other_frame_color_label.grid(row=3, column = 1, padx=10, pady=5, sticky = "w")
+
+        self.dialog_frame_color_label = CTkLabel(self.theme_frame, text="Dialog Frame Color", font=("Arial", 14),
+                                                fg_color=self.theme_config["other_frame"])
+        self.dialog_frame_color_label.grid(row=4, column = 1, padx=10, pady=5, sticky = "w")
+
+        self.send_message_frame_color_label = CTkLabel(self.theme_frame, text="Send Message Frame Color", font=("Arial", 14),
+                                                fg_color=self.theme_config["other_frame"])
+        self.send_message_frame_color_label.grid(row=5, column = 1, padx=10, pady=5, sticky = "w")
+
+
+        self.border_color_label = CTkLabel(self.theme_frame, text="Border Color", font=("Arial", 14),
+                                                fg_color=self.theme_config["other_frame"])
+        self.border_color_label.grid(row=1, column = 3, padx=10, pady=5, sticky = "w")      
+
+        self.text_color_label = CTkLabel(self.theme_frame, text="Text Color", font=("Arial", 14),
+                                                fg_color=self.theme_config["other_frame"])
+        self.text_color_label.grid(row=2, column = 3, padx=10, pady=5, sticky = "w")
+
+        self.button_color_label = CTkLabel(self.theme_frame, text="Button Color", font=("Arial", 14),
+                                                fg_color=self.theme_config["other_frame"])
+        self.button_color_label.grid(row=3, column = 3, padx=10, pady=5, sticky = "w")  
+
+        self.user_message_color_label = CTkLabel(self.theme_frame, text="User Message Color", font=("Arial", 14),
+                                                fg_color=self.theme_config["other_frame"])
+        self.user_message_color_label.grid(row=4, column = 3, padx=10, pady=5, sticky = "w")
+
+        self.assistent_message_color_label = CTkLabel(self.theme_frame, text="Assistent Message Color", font=("Arial", 14),
+                                                fg_color=self.theme_config["other_frame"])
+        self.assistent_message_color_label.grid(row=5, column = 3, padx=10, pady=5, sticky = "w")
+
+    def choose_new_color(self, widget, fg_key):
+        try:
+            color = colorchooser.askcolor()[1]
+            widget.configure(fg_color=color)
+            self.theme_config[fg_key] = color
+            DataExchange.save_themes(self.theme_config)
+        except:
+            pass
+
+    def change_to_dark_theme(self):
+        self.theme_config = DataExchange.get_themes()["dark"]
+        DataExchange.save_themes(self.theme_config)
+
+    def change_to_light_theme(self):
+        self.theme_config = DataExchange.get_themes()["light"]
+        DataExchange.save_themes(self.theme_config)
+
 
 
 class DialogeBox(CTkScrollableFrame):
@@ -83,6 +228,8 @@ class DialogeBox(CTkScrollableFrame):
 
         self.message_row = 0
         self.grid_columnconfigure((0, 1), weight=1)
+        self.theme_config = DataExchange.get_themes()["user"]
+        self.configure(fg_color=self.theme_config["dialog_frame"])
 
         self.last_date = DataExchange.get_config().get("last_message_send", "")
         self.chat_history = DataExchange.get_chat_history()
@@ -91,27 +238,30 @@ class DialogeBox(CTkScrollableFrame):
     def add_message_to_box(self, author, message, date, time):
         if author == "user":
             sticky_side = "e"
-            fg_color ="#1f6aa5"
+            fg_color = self.theme_config["user_message"]
             column = 1
         else:
             sticky_side = "w"
             column = 0
-            fg_color = "#1f6aa5"
+            fg_color = self.theme_config["assistent_message"]
         
         if(self.last_date != date or not self.winfo_children()):
-            date_label = CTkLabel(self, text=date, font=("Arial", 14), fg_color="#444444", corner_radius=10)
+            date_label = CTkLabel(self, text=date, font=("Arial", 14), fg_color=self.theme_config["other_frame"], corner_radius=10)
             date_label.grid(row=self.message_row, column=0, columnspan=2, pady=5)
             self.message_row += 1
             self.last_date = date
             DataExchange.modify_config("last_message_send", date)
 
         message_frame = CTkFrame(self, fg_color=fg_color, corner_radius=10)
-        message_frame.grid(row=self.message_row, column=column, sticky=sticky_side, padx=5, pady=2)
+        message_frame.grid(row=self.message_row, column=column, sticky=sticky_side, padx=5, pady=2,
+                           columnspan=2)
         
-        message_label = CTkLabel(message_frame, text=message, font=("Arial", 16), wraplength=500, justify="left")
+        message_label = CTkLabel(message_frame, text=message, font=("Arial", 16), wraplength=400, 
+                                 justify="left", fg_color="transparent", bg_color="transparent")
         message_label.grid(row=0, column=0, padx=10)
 
-        time_label = CTkLabel(message_frame, text=time, font=("Arial", 10), anchor="e")
+        time_label = CTkLabel(message_frame, text=time, font=("Arial", 10), anchor="e", 
+                              fg_color="transparent", bg_color="transparent")
         time_label.grid(row=1, column=0, padx=10, sticky="e")
 
         self.message_row += 1
@@ -141,18 +291,23 @@ class MessageSendBox(CTkFrame):
         super().__init__(master)
         self.dialoge_box = dialoge_box
         self.grid_columnconfigure((0, 1), weight=1)
+        self.theme_config = DataExchange.get_themes()["user"]
 
-        self.message_textbox = CTkTextbox(self, font=("Arial", 16), fg_color="#2F2F2F", text_color="#ECECEC", height=80, corner_radius=10)
+        self.configure(fg_color=self.theme_config["dialog_frame"])
+
+        self.message_textbox = CTkTextbox(self, font=("Arial", 16), fg_color=self.theme_config["message_send_frame"], 
+                                          text_color="#ECECEC", height=80, corner_radius=10)
         self.message_textbox.grid(row = 0, column = 0, padx = (10, 10), pady = 10, sticky = "new", columnspan = 2)
 
         self.message_textbox.bind("<Return>", self.on_enter_pressed)
 
         self.send_message_button = CTkButton(self, width=40, height=40, text = "Send", 
-                                             command=self.send_message, font=("Arial", 16))
+                                             command=self.send_message, font=("Arial", 16),
+                                             fg_color=self.theme_config["button"])
         self.send_message_button.grid(row = 1, column = 1, pady = (0, 10), padx = 10, sticky = "es")
 
         self.delete_chat_history = CTkButton(self, text = "Delete Chat History",  height=40,
-                                             command=self.delete_chat_history_command,
+                                             command=self.delete_chat_history_command, fg_color=self.theme_config["button"],
                                              font=("Arial", 16))
         self.delete_chat_history.grid(row = 1, column = 0, pady = (0, 10), padx = 10, sticky = "ws")
 
@@ -166,7 +321,7 @@ class MessageSendBox(CTkFrame):
             DataExchange.send_to_nika(self.textbox_text)
             DataExchange.update_chat_history("Здесь будет ответ от NIKA", "nika", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
             self.dialoge_box.add_message_to_box("nika", "Здесь будет ответ от NIKA", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
-            
+        #ТУТ НУЖНО БУДЕТ ДОБАВИТЬ ВЫЗОВ NIKA       !!!!!  
     def send_voice_message(self, text):
             DataExchange.update_chat_history(text, "user", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
             self.dialoge_box.add_message_to_box("user", text, datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
@@ -198,16 +353,23 @@ class OptionsListBox(CTkFrame):
         self.message_send_box_instance = message_send_box
 
         DataExchange.modify_config("recording_enabled", False)
+
+        self.theme_config = DataExchange.get_themes()["user"]
+        self.configure(fg_color=self.theme_config["options_frame"])
+        
         self.config = DataExchange.get_config()
         self.voice_recognizer = VoiceRecognizer()  # Инициализируем VoiceRecognizer
 
-        self.settings_button = CTkButton(self, text = "Settings", command=self.change_to_settings, font=("Arial", 16))
+        self.settings_button = CTkButton(self, text = "Settings", command=self.change_to_settings, font=("Arial", 16),
+                                         fg_color=self.theme_config["button"])
         self.settings_button.grid(row = 0, column = 0, padx = 10, pady = 10, sticky = "n")
 
-        self.chat_button = CTkButton(self, text="Chat", command=self.change_to_chat, font=("Arial", 16))
+        self.chat_button = CTkButton(self, text="Chat", command=self.change_to_chat, font=("Arial", 16), 
+                                     fg_color=self.theme_config["button"])
         self.chat_button.grid(row = 1, column = 0, padx = 10, pady = (0, 10), sticky = "n")
 
-        self.recording_button = CTkButton(self, text= "Voice Enter: Off", font=("Arial", 16), command=self.recording_status_change)
+        self.recording_button = CTkButton(self, text= "Voice Enter: Off", font=("Arial", 16), command=self.recording_status_change,
+                                          fg_color=self.theme_config["button"])
         self.recording_button.grid(row = 2, column = 0, padx = 10, pady = (0, 10), sticky = "n")
 
         self.check_errors()  # запуск проверки на ошибки

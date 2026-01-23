@@ -42,6 +42,18 @@ class DataExchange():
             config = json.load(file)
         return config
 
+    def get_themes():
+        with open("themes.json", "r", encoding="utf-8") as file:
+            return json.load(file)
+    
+    def save_themes(new_user_theme_config):
+        with open("themes.json", "r", encoding="utf-8") as file:
+            new_theme_config = json.load(file)
+        new_theme_config["user"] = new_user_theme_config
+
+        with open("themes.json", "w", encoding="utf-8") as file:
+            json.dump(new_theme_config, file, ensure_ascii=False, indent=4)
+
     # функции работы с NIKA
     def send_to_nika(text):
         pass
