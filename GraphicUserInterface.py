@@ -4,12 +4,16 @@ from datetime import datetime
 import tkinter.messagebox as messagebox
 import tkinter.colorchooser as colorchooser
 from VoiceRecognizer import VoiceRecognizer
+from threading import Thread
 
 
 
 class GraphicUserInterface():
     def __init__(self):
         self.theme_config = DataExchange.get_themes()["user"]
+
+        self.sc_connector = ScConnection()
+        self.sc_connector.connect_to_sc_server()
 
         self.gui_main = CTk(fg_color=self.theme_config["gui_foreground"])
         self.gui_main.geometry("900x675+400+100")
@@ -54,17 +58,23 @@ class GraphicUserInterface():
 
         self.config = DataExchange.get_config()
 
+        self.new_response_subscriptions = DataExchange.subscribe_to_message(self.dialoge_box.add_message_to_box) 
+
         # старт GUI
     def gui_start(self):
         self.gui_main.mainloop()
+
+
         # при закрытии окна останавливаем распознавание голоса
     def on_closing(self):
+        self.sc_connector.disconnect_from_sc_server()
         self.option_list_box.voice_recognizer.stop_recording()
         self.gui_main.destroy()
         # обновление конфигурации
     def update_config(self):
         self.config = DataExchange.get_config()
 
+    
 # ===============================
 # Фрейм с настройками
 # ===============================
@@ -319,15 +329,11 @@ class MessageSendBox(CTkFrame):
             DataExchange.update_chat_history(self.textbox_text, "user", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
             self.dialoge_box.add_message_to_box("user", self.textbox_text, datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
             DataExchange.send_to_nika(self.textbox_text)
-            DataExchange.update_chat_history("Здесь будет ответ от NIKA", "nika", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
-            self.dialoge_box.add_message_to_box("nika", "Здесь будет ответ от NIKA", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
-        #ТУТ НУЖНО БУДЕТ ДОБАВИТЬ ВЫЗОВ NIKA       !!!!!  
+
     def send_voice_message(self, text):
             DataExchange.update_chat_history(text, "user", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
             self.dialoge_box.add_message_to_box("user", text, datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
             DataExchange.send_to_nika(text)
-            DataExchange.update_chat_history("Здесь будет ответ от NIKA", "nika", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
-            self.dialoge_box.add_message_to_box("nika", "Здесь будет ответ от NIKA", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
 
     def on_enter_pressed(self, event):
         if event.state & 0x0001:  # Shift нажат

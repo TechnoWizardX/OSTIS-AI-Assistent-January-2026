@@ -11,7 +11,6 @@ class VoiceRecognizer:
     def __init__(self):
         self.config = DataExchange.get_config()
 
-        # === ПУТЬ К МОДЕЛИ ===
         self.model_path = "vosk-model-small-ru-0.22"
 
         self.text_queue = Queue()
@@ -25,21 +24,19 @@ class VoiceRecognizer:
             )
             return
 
-        # === VOSK ===
+        # vosk
         self.model = Model(self.model_path)
         self.recognizer = KaldiRecognizer(self.model, 16000)
         self.recognizer.SetWords(True)
 
-        # === ПОТОК ===
+        # поток
         self.listening_status = False
         self.thread = None
 
         # Аудио очередь
         self.audio_queue = Queue()
 
-    # ===============================
-    # PUBLIC API
-    # ===============================
+
 
     def start_recording(self):
         if self.listening_status:
@@ -62,9 +59,6 @@ class VoiceRecognizer:
             return self.error_queue.get()
         return None
 
-    # ===============================
-    # INTERNAL
-    # ===============================
 
     def _audio_callback(self, indata, frames, time, status):
         if status:
@@ -88,11 +82,6 @@ class VoiceRecognizer:
                         text = result.get("text", "").strip()
                         if text:
                             self.text_queue.put(text)
-
-                    # PartialResult можно использовать при необходимости
-                    # else:
-                    #     partial = json.loads(self.recognizer.PartialResult())
-                    #     print(partial.get("partial", ""))
 
         except Exception as e:
             self.error_queue.put(f"VoiceRecognizer error: {e}")
