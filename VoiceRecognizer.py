@@ -48,9 +48,32 @@ class VoiceRecognizer:
         self.listening_status = False
 
     def get_text(self):
-        if not self.text_queue.empty():
-            return self.text_queue.get()
-        return None
+            if not self.text_queue.empty():
+                return self.replace_number_in_phrase(self.text_queue.get())
+            return None
+
+    def replace_number_in_phrase(self, text):
+        numbers = {
+        "ноль": 0, "один": 1, "два": 2, "три": 3, "четыре": 4, "пять": 5,
+        "шесть": 6, "семь": 7, "восемь": 8, "девять": 9, "десять": 10,
+        "одиннадцать": 11, "двенадцать": 12, "тринадцать": 13, "четырнадцать": 14,
+        "пятнадцать": 15, "шестнадцать": 16, "семнадцать": 17, "восемнадцать": 18,
+        "девятнадцать": 19,
+        "двадцать": 20, "тридцать": 30, "сорок": 40,
+        "пятьдесят": 50, "шестьдесят": 60, "семьдесят": 70,
+        "восемьдесят": 80, "девяносто": 90,
+        "сто": 100
+        }
+        words = text.split()
+        result_words = []
+
+        for word in words:
+            if word in numbers:
+                result_words.append(str(numbers[word]))
+            else:
+                result_words.append(word)
+
+        return " ".join(result_words)
 
     def get_error(self):
         if not self.error_queue.empty():

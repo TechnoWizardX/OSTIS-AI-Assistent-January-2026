@@ -1,0 +1,66 @@
+import warnings
+
+from sc_client.constants import sc_type
+from sc_client.constants.sc_type.sc_type import ScType
+
+warnings.warn(f"Module {__name__} is deprecated. Use sc_type instead.", DeprecationWarning)
+
+# deprecated
+UNKNOWN = ScType(sc_type.UNKNOWN)
+
+CONST = ScType(sc_type.CONST)
+VAR = ScType(sc_type.VAR)
+
+EDGE_U_COMMON = ScType(sc_type.COMMON_EDGE)
+EDGE_D_COMMON = ScType(sc_type.COMMON_ARC)
+
+EDGE_U_COMMON_CONST = ScType(sc_type.CONST_COMMON_EDGE)
+EDGE_D_COMMON_CONST = ScType(sc_type.CONST_COMMON_ARC)
+
+EDGE_ACCESS = ScType(sc_type.MEMBERSHIP_ARC)
+EDGE_ACCESS_CONST_POS_PERM = ScType(sc_type.CONST_PERM_POS_ARC)
+EDGE_ACCESS_CONST_NEG_PERM = ScType(sc_type.CONST_PERM_NEG_ARC)
+EDGE_ACCESS_CONST_FUZ_PERM = ScType(sc_type.CONST_FUZ_ARC)
+EDGE_ACCESS_CONST_POS_TEMP = ScType(sc_type.CONST_TEMP_POS_ARC)
+EDGE_ACCESS_CONST_NEG_TEMP = ScType(sc_type.CONST_TEMP_NEG_ARC)
+EDGE_ACCESS_CONST_FUZ_TEMP = ScType(sc_type.CONST_FUZ_ARC)
+
+EDGE_U_COMMON_VAR = ScType(sc_type.VAR_COMMON_EDGE)
+EDGE_D_COMMON_VAR = ScType(sc_type.VAR_COMMON_ARC)
+EDGE_ACCESS_VAR_POS_PERM = ScType(sc_type.VAR_PERM_POS_ARC)
+EDGE_ACCESS_VAR_NEG_PERM = ScType(sc_type.VAR_PERM_NEG_ARC)
+EDGE_ACCESS_VAR_FUZ_PERM = ScType(sc_type.VAR_FUZ_ARC)
+EDGE_ACCESS_VAR_POS_TEMP = ScType(sc_type.VAR_TEMP_POS_ARC)
+EDGE_ACCESS_VAR_NEG_TEMP = ScType(sc_type.VAR_TEMP_NEG_ARC)
+EDGE_ACCESS_VAR_FUZ_TEMP = ScType(sc_type.VAR_FUZ_ARC)
+
+NODE = ScType(sc_type.NODE)
+NODE_CONST = ScType(sc_type.CONST_NODE)
+NODE_VAR = ScType(sc_type.VAR_NODE)
+
+LINK = ScType(sc_type.NODE_LINK)
+LINK_CLASS = ScType(sc_type.NODE_LINK_CLASS)
+NODE_TUPLE = ScType(sc_type.NODE_TUPLE)
+NODE_STRUCT = ScType(sc_type.NODE_STRUCTURE)
+NODE_ROLE = ScType(sc_type.NODE_ROLE)
+NODE_NOROLE = ScType(sc_type.NODE_NON_ROLE)
+NODE_CLASS = ScType(sc_type.NODE_CLASS)
+NODE_MATERIAL = ScType(sc_type.NODE_MATERIAL)
+
+LINK_CONST = ScType(sc_type.CONST_NODE_LINK)
+LINK_CONST_CLASS = ScType(sc_type.CONST_NODE_LINK_CLASS)
+NODE_CONST_TUPLE = ScType(sc_type.CONST_NODE_TUPLE)
+NODE_CONST_STRUCT = ScType(sc_type.CONST_NODE_STRUCTURE)
+NODE_CONST_ROLE = ScType(sc_type.CONST_NODE_ROLE)
+NODE_CONST_NOROLE = ScType(sc_type.CONST_NODE_NON_ROLE)
+NODE_CONST_CLASS = ScType(sc_type.CONST_NODE_CLASS)
+NODE_CONST_MATERIAL = ScType(sc_type.CONST_NODE_MATERIAL)
+
+LINK_VAR = ScType(sc_type.VAR_NODE_LINK)
+LINK_VAR_CLASS = ScType(sc_type.VAR_NODE_LINK_CLASS)
+NODE_VAR_STRUCT = ScType(sc_type.VAR_NODE_STRUCTURE)
+NODE_VAR_TUPLE = ScType(sc_type.VAR_NODE_TUPLE)
+NODE_VAR_ROLE = ScType(sc_type.VAR_NODE_ROLE)
+NODE_VAR_NOROLE = ScType(sc_type.VAR_NODE_NON_ROLE)
+NODE_VAR_CLASS = ScType(sc_type.VAR_NODE_CLASS)
+NODE_VAR_MATERIAL = ScType(sc_type.VAR_NODE_MATERIAL)

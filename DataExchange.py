@@ -12,9 +12,9 @@ from sc_client.models import (ScAddr, ScLinkContent, ScConstruction,
                             ScEventSubscriptionParams)
 import time
 from sc_client.constants.common import ScEventType
-from SystemControl import SystemControler
 
 
+#py-sc-client, py-sc-kpm, sounddevice, vosk
 class DataExchanger():
     # функции работы с историей чата
     @staticmethod
