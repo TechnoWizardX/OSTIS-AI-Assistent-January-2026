@@ -12,9 +12,10 @@ from sc_client.models import (ScAddr, ScLinkContent, ScConstruction,
                             ScEventSubscriptionParams)
 import time
 from sc_client.constants.common import ScEventType
-import SystemControler
+from SystemControl import SystemControler
 
-class DataExchange():
+
+class DataExchanger():
     # функции работы с историей чата
     @staticmethod
     def update_chat_history(text, author, day, time):
@@ -73,6 +74,19 @@ class DataExchange():
 
         with open("themes.json", "w", encoding="utf-8") as file:
             json.dump(new_theme_config, file, ensure_ascii=False, indent=4)
+    
+    @staticmethod
+    def save_name_exe_pair(name, exe):
+        with open("name_exe_pair.json", "r", encoding="utf-8") as file:
+            list = json.load(file)
+        list[name] = exe
+        with open("name_exe_pair.json", "w", encoding="utf-8") as file:
+            json.dump(list, file, ensure_ascii=False, indent=4)
+
+    @staticmethod
+    def get_name_exe_pair():
+        with open("name_exe_pair.json", "r", encoding="utf-8") as file:
+            return json.load(file)
 
     # функции исполнительной системы
     @staticmethod
@@ -82,8 +96,6 @@ class DataExchange():
     @staticmethod
     def start_system_instuctions(message):
         SystemControler.classify_action(message)
-
-
 
     # функции работы с NIKA
     @staticmethod
@@ -106,45 +118,10 @@ class DataExchange():
             keynodes
         )
         result = generate_by_template(template)
-
     
-    @staticmethod
-    def dialog_agent(user_addr: ScAddr):
-        base_keynodes = ["concept_dialogue", 
-                         "nrel_dialogue_participants",
-                         "myself"]
-
-        keynodes = ScKeynodes(base_keynodes)
-
-        dialogue = "_dialogue"
-        participants = "_participants"
-        template = ScTemplate()
-        template.triple(
-            keynodes["concept_dialogue"],
-            sc_type.VAR_POS_ARC,
-            sc_type.VAR_NODE >> dialogue
-        )
-        template.quintuple(
-            dialogue,
-            sc_type.VAR_COMMON_ARC,
-            sc_type.VAR_NODE >> participants,
-            sc_type.VAR_POS_ARC,
-            keynodes["nrel_dialogue_participants"]
-        )
-        template.triple(
-            participants,
-            sc_type.VAR_POS_ARC,
-            user_addr
-        )
-        result = search_by_template(template)
-        if result:
-            return result[0].get(dialogue)
-    
-
     @staticmethod
     def resolve_user_agent():
         return ScKeynodes["Ivanov"]
-    
     
     @staticmethod
     def subscribe_to_message(message_adder) -> list:
@@ -172,7 +149,7 @@ class DataExchange():
             reply_message_addr = result[0].get(reply_message_alias)
             text = get_link_content(reply_message_addr)[0].data
 
-            DataExchange.update_chat_history(text, "nika", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
+            DataExchanger.update_chat_history(text, "nika", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
             author = "nika"
             date = datetime.now().strftime("%Y-%m-%d")
             current_time = datetime.now().strftime("%H:%M")
@@ -181,6 +158,8 @@ class DataExchange():
         event_params = ScEventSubscriptionParams(keynode_nrel_reply_to_message, 
                                                     ScEventType.AFTER_GENERATE_OUTGOING_ARC, on_message_replied)
         return create_elementary_event_subscriptions(event_params)
+
+
 
 class ScConnection():
     

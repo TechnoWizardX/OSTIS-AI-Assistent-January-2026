@@ -3,6 +3,7 @@ from DataExchange import *
 from datetime import datetime
 import tkinter.messagebox as messagebox
 import tkinter.colorchooser as colorchooser
+import tkinter.filedialog as filedialog
 from VoiceRecognizer import VoiceRecognizer
 from threading import Thread
 
@@ -10,7 +11,7 @@ from threading import Thread
 
 class GraphicUserInterface():
     def __init__(self):
-        self.theme_config = DataExchange.get_themes()["user"]
+        self.theme_config = DataExchanger.get_themes()["user"]
 
         self.sc_connector = ScConnection()
         self.sc_connector.connect_to_sc_server()
@@ -56,9 +57,9 @@ class GraphicUserInterface():
         self.dialoge_box.grid(row = 0, column = 0, pady=(0, 5), sticky="snew", columnspan = 2, rowspan=2)
         self.message_send_box.grid(row = 2, column = 0, pady=(5, 0), sticky="snew", columnspan = 2)
 
-        self.config = DataExchange.get_config()
+        self.config = DataExchanger.get_config()
 
-        self.new_response_subscriptions = DataExchange.subscribe_to_message(self.dialoge_box.add_message_to_box) 
+        self.new_response_subscriptions = DataExchanger.subscribe_to_message(self.dialoge_box.add_message_to_box) 
 
         # старт GUI
     def gui_start(self):
@@ -72,7 +73,7 @@ class GraphicUserInterface():
         self.gui_main.destroy()
         # обновление конфигурации
     def update_config(self):
-        self.config = DataExchange.get_config()
+        self.config = DataExchanger.get_config()
 
     
 # ===============================
@@ -82,17 +83,48 @@ class GraphicUserInterface():
 class SettingsBox(CTkFrame):
     def __init__(self, master):
         super().__init__(master)
-        self.grid_rowconfigure(1, weight=1)
-        self.grid_rowconfigure(3, weight=2)
+        self.grid_rowconfigure(1, weight=3)
+        self.grid_rowconfigure(3, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-        self.theme_config = DataExchange.get_themes()["user"]
+        self.theme_config = DataExchanger.get_themes()["user"]
+        
+        self.settings_manager_frame()
+        self.theme_manager_frame()
+
+    def settings_manager_frame(self):
         # фрейм настроек
         self.settings_frame = CTkFrame(self, fg_color=self.theme_config["other_frame"])
         self.settings_frame.grid(row=1, column=0, padx=10, pady=(5, 5), sticky = "nswe")
         # текст настроек
         self.setting_label = CTkLabel(self, text="Settings", font=("Arial", 16), fg_color=self.theme_config["other_frame"], corner_radius=5)
         self.setting_label.grid(row=0, column=0, padx=10, pady = (10, 2), sticky = "new")
+        self.name_exe_pair_label = CTkLabel(self.settings_frame, fg_color=self.theme_config["button"], text="Add Name -> Exe", 
+                                              font = ("Arial", 14), corner_radius=5)
+        self.name_exe_pair_label.grid(row = 0, column = 0, padx=10, pady=5, sticky="we", columnspan=2)
+
+        self.app_name_label = CTkLabel(self.settings_frame, fg_color=self.theme_config["button"], text="Name", 
+                                              font = ("Arial", 14), corner_radius=5, width=75)
+        self.app_name_label.grid(row = 1, column = 0, padx=10, pady=5, sticky="w")
+
+        self.app_name_entry = CTkEntry(self.settings_frame, width=100, fg_color=self.theme_config["message_send_frame"], 
+                                   font=("Arial", 14), corner_radius=5)
+        self.app_name_entry.grid(row = 2, column = 0, padx=10, pady=5,sticky="w")
+        
+        self.app_exe_label = CTkLabel(self.settings_frame, fg_color=self.theme_config["button"], text="Exe File", 
+                                              font = ("Arial", 14), corner_radius=5, width=75)
+        self.app_exe_label.grid(row = 1, column = 1, padx=10, pady=5, sticky="w")
+
+        self.app_exe_entry = CTkEntry(self.settings_frame, width=200, fg_color=self.theme_config["message_send_frame"], 
+                                   font=("Arial", 14), corner_radius=5)
+        self.app_exe_entry.grid(row = 2, column = 1, padx=10, pady=5,sticky="w")
+
+        self.save_app_exe_button = CTkButton(self.settings_frame, fg_color=self.theme_config["button"], text="Add", font=("Arial", 14),
+                                             corner_radius=5, 
+                                             command= lambda : DataExchanger.save_name_exe_pair(self.app_name_entry.get(), self.app_exe_entry.get()))
+        self.save_app_exe_button.grid(row = 3, column = 0, columnspan=2)
+
+    def theme_manager_frame(self):
         # менджер тем
         self.theme_frame = CTkFrame(self, fg_color=self.theme_config["other_frame"])
         self.theme_frame.grid(row=3, column=0, padx=10, pady=(5, 10), sticky = "nswe")
@@ -111,7 +143,7 @@ class SettingsBox(CTkFrame):
 
         self.create_change_color_buttons()
         self.create_change_color_labels()
-    
+        
     def create_change_color_buttons(self):
         # кнопки для смены цветов(может быть переопределить в одну функцию)
         self.gui_frame_color_btn = CTkButton(self.theme_frame, border_width=4,
@@ -218,17 +250,17 @@ class SettingsBox(CTkFrame):
             color = colorchooser.askcolor()[1]
             widget.configure(fg_color=color)
             self.theme_config[fg_key] = color
-            DataExchange.save_themes(self.theme_config)
+            DataExchanger.save_themes(self.theme_config)
         except:
             pass
 
     def change_to_dark_theme(self):
-        self.theme_config = DataExchange.get_themes()["dark"]
-        DataExchange.save_themes(self.theme_config)
+        self.theme_config = DataExchanger.get_themes()["dark"]
+        DataExchanger.save_themes(self.theme_config)
 
     def change_to_light_theme(self):
-        self.theme_config = DataExchange.get_themes()["light"]
-        DataExchange.save_themes(self.theme_config)
+        self.theme_config = DataExchanger.get_themes()["light"]
+        DataExchanger.save_themes(self.theme_config)
 
 
 
@@ -238,11 +270,11 @@ class DialogeBox(CTkScrollableFrame):
 
         self.message_row = 0
         self.grid_columnconfigure((0, 1), weight=1)
-        self.theme_config = DataExchange.get_themes()["user"]
+        self.theme_config = DataExchanger.get_themes()["user"]
         self.configure(fg_color=self.theme_config["dialog_frame"])
 
-        self.last_date = DataExchange.get_config().get("last_message_send", "")
-        self.chat_history = DataExchange.get_chat_history()
+        self.last_date = DataExchanger.get_config().get("last_message_send", "")
+        self.chat_history = DataExchanger.get_chat_history()
         self.load_chat_history()
         
     def add_message_to_box(self, author, message, date, time):
@@ -260,7 +292,7 @@ class DialogeBox(CTkScrollableFrame):
             date_label.grid(row=self.message_row, column=0, columnspan=2, pady=5)
             self.message_row += 1
             self.last_date = date
-            DataExchange.modify_config("last_message_send", date)
+            DataExchanger.modify_config("last_message_send", date)
 
         message_frame = CTkFrame(self, fg_color=fg_color, corner_radius=10)
         message_frame.grid(row=self.message_row, column=column, sticky=sticky_side, padx=5, pady=2,
@@ -301,7 +333,7 @@ class MessageSendBox(CTkFrame):
         super().__init__(master)
         self.dialoge_box = dialoge_box
         self.grid_columnconfigure((0, 1), weight=1)
-        self.theme_config = DataExchange.get_themes()["user"]
+        self.theme_config = DataExchanger.get_themes()["user"]
 
         self.configure(fg_color=self.theme_config["dialog_frame"])
 
@@ -326,14 +358,14 @@ class MessageSendBox(CTkFrame):
         self.message_textbox.delete("0.0", "end")
 
         if self.textbox_text.strip() != "":
-            DataExchange.update_chat_history(self.textbox_text, "user", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
+            DataExchanger.update_chat_history(self.textbox_text, "user", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
             self.dialoge_box.add_message_to_box("user", self.textbox_text, datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
-            DataExchange.send_to_nika(self.textbox_text)
+            DataExchanger.send_to_nika(self.textbox_text)
 
     def send_voice_message(self, text):
-            DataExchange.update_chat_history(text, "user", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
+            DataExchanger.update_chat_history(text, "user", datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
             self.dialoge_box.add_message_to_box("user", text, datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"))
-            DataExchange.send_to_nika(text)
+            DataExchanger.send_to_nika(text)
 
     def on_enter_pressed(self, event):
         if event.state & 0x0001:  # Shift нажат
@@ -345,7 +377,7 @@ class MessageSendBox(CTkFrame):
 
     def delete_chat_history_command(self):
         if messagebox.askyesno("Подтверждение", "Вы уверены, что хотите удалить историю чата?"):
-            DataExchange.clear_chat_history()
+            DataExchanger.clear_chat_history()
             self.dialoge_box.clear_chat_history()
             self.dialoge_box.update_idletasks()
             self.dialoge_box._parent_canvas.yview_moveto(1.0)
@@ -358,12 +390,12 @@ class OptionsListBox(CTkFrame):
         self.gui_instance = gui_instance
         self.message_send_box_instance = message_send_box
 
-        DataExchange.modify_config("recording_enabled", False)
+        DataExchanger.modify_config("recording_enabled", False)
 
-        self.theme_config = DataExchange.get_themes()["user"]
+        self.theme_config = DataExchanger.get_themes()["user"]
         self.configure(fg_color=self.theme_config["options_frame"])
         
-        self.config = DataExchange.get_config()
+        self.config = DataExchanger.get_config()
         self.voice_recognizer = VoiceRecognizer()  # Инициализируем VoiceRecognizer
 
         self.settings_button = CTkButton(self, text = "Settings", command=self.change_to_settings, font=("Arial", 16),
@@ -382,13 +414,13 @@ class OptionsListBox(CTkFrame):
         self.check_voice_text()  # запуск проверки на текст
 
     def recording_status_change(self):
-        self.config = DataExchange.get_config()
+        self.config = DataExchanger.get_config()
         if self.config.get("recording_enabled", False):
-            DataExchange.modify_config("recording_enabled", False)
+            DataExchanger.modify_config("recording_enabled", False)
             self.recording_button.configure(text="Voice Enter: Off")
             self.voice_recognizer.stop_recording() 
         else:
-            DataExchange.modify_config("recording_enabled", True)
+            DataExchanger.modify_config("recording_enabled", True)
             self.recording_button.configure(text="Voice Enter: On")
             self.voice_recognizer.start_recording() 
 

@@ -4,12 +4,12 @@ import sounddevice as sd
 from vosk import Model, KaldiRecognizer
 import json
 import os
-from DataExchange import DataExchange
+from DataExchange import DataExchanger
 
 
 class VoiceRecognizer:
     def __init__(self):
-        self.config = DataExchange.get_config()
+        self.config = DataExchanger.get_config()
 
         self.model_path = "vosk-model-small-ru-0.22"
 
@@ -35,8 +35,6 @@ class VoiceRecognizer:
 
         # Аудио очередь
         self.audio_queue = Queue()
-
-
 
     def start_recording(self):
         if self.listening_status:
