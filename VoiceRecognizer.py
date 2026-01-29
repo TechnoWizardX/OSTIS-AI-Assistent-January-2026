@@ -48,9 +48,9 @@ class VoiceRecognizer:
         self.listening_status = False
 
     def get_text(self):
-            if not self.text_queue.empty():
-                return self.replace_number_in_phrase(self.text_queue.get())
-            return None
+        if not self.text_queue.empty():
+            return self.replace_number_in_phrase(self.text_queue.get())
+        return None
 
     def replace_number_in_phrase(self, text):
         numbers = {
@@ -79,7 +79,6 @@ class VoiceRecognizer:
         if not self.error_queue.empty():
             return self.error_queue.get()
         return None
-
 
     def _audio_callback(self, indata, frames, time, status):
         if status:

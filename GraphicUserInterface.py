@@ -3,10 +3,7 @@ from DataExchange import *
 from datetime import datetime
 import tkinter.messagebox as messagebox
 import tkinter.colorchooser as colorchooser
-import tkinter.filedialog as filedialog
 from VoiceRecognizer import VoiceRecognizer
-from threading import Thread
-
 
 
 class GraphicUserInterface():
@@ -67,7 +64,7 @@ class GraphicUserInterface():
 
 
         # при закрытии окна останавливаем распознавание голоса
-    def on_closing(self):
+    def on_closing(self):   
         self.sc_connector.disconnect_from_sc_server()
         self.option_list_box.voice_recognizer.stop_recording()
         self.gui_main.destroy()
@@ -75,10 +72,7 @@ class GraphicUserInterface():
     def update_config(self):
         self.config = DataExchanger.get_config()
 
-    
-# ===============================
-# Фрейм с настройками
-# ===============================
+
 
 class SettingsBox(CTkFrame):
     def __init__(self, master):
@@ -396,7 +390,7 @@ class OptionsListBox(CTkFrame):
         self.configure(fg_color=self.theme_config["options_frame"])
         
         self.config = DataExchanger.get_config()
-        self.voice_recognizer = VoiceRecognizer()  # Инициализируем VoiceRecognizer
+        self.voice_recognizer = VoiceRecognizer()  
 
         self.settings_button = CTkButton(self, text = "Settings", command=self.change_to_settings, font=("Arial", 16),
                                          fg_color=self.theme_config["button"])

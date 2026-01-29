@@ -1,10 +1,7 @@
 import screen_brightness_control as sbc
 import subprocess
 import os
-import winreg
-import shutil
 import webbrowser
-import ctypes
 import json
 
 class SystemControler():

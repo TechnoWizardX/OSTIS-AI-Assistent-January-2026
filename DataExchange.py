@@ -1,7 +1,6 @@
 import json
 from datetime import datetime
 from sc_kpm import ScKeynodes
-from sc_kpm.utils import search_element_by_non_role_relation
 from sc_client.client import (connect, disconnect, is_connected,
                               generate_elements, generate_by_template,
                               search_links_by_contents, search_by_template, 
@@ -10,11 +9,10 @@ from sc_client.constants import sc_type
 from sc_client.models import (ScAddr, ScLinkContent, ScConstruction, 
                             ScLinkContentType, ScTemplate,
                             ScEventSubscriptionParams)
-import time
 from sc_client.constants.common import ScEventType
+from SystemControl import SystemControler
 
 
-#py-sc-client, py-sc-kpm, sounddevice, vosk
 class DataExchanger():
     # функции работы с историей чата
     @staticmethod
