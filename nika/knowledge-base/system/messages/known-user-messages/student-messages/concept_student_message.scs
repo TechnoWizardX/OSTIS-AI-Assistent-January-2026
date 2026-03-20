@@ -1,0 +1,9 @@
+concept_student_message
+<- sc_node_class;
+=> nrel_main_idtf:
+    [класс сообщений, отправленных учащимися]
+    (*
+        <- lang_ru;;
+    *);
+<= nrel_inclusion:
+    concept_known_user_message;;

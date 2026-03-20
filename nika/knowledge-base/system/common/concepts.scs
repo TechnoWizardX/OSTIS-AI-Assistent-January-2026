@@ -1,0 +1,437 @@
+concept
+<- sc_node_class;
+<- concept_class;
+=> nrel_main_idtf:
+    [понятие]
+    (*
+        <- lang_ru;;
+    *);;
+
+lang_ru
+<- sc_node_class;
+<- concept_class;
+=> nrel_main_idtf:
+    [Русский язык]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_main_idtf
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_binary_relation;
+=> nrel_main_idtf:
+    [основной идентификатор*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_inclusion
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_binary_relation;
+=> nrel_main_idtf:
+    [включение*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_idtf
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_binary_relation;
+=> nrel_main_idtf:
+    [идентификатор*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_full_name
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_binary_relation;
+=> nrel_main_idtf:
+    [полное название*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_abbreviation
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_binary_relation;
+=> nrel_main_idtf:
+    [аббревиатура*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_definition
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_binary_relation;
+=> nrel_main_idtf:
+    [определение*]
+    (*
+        <- lang_ru;;
+    *);;
+
+concept_definition
+<- sc_node_class;
+<- concept_class;
+<= nrel_inclusion:
+    lang_ru;
+=> nrel_main_idtf:
+    [определение]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_explanation
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_binary_relation;
+=> nrel_main_idtf:
+    [пояснение*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_simple_explanation
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_binary_relation;
+=> nrel_main_idtf:
+    [простое пояснение*]
+    (*
+        <- lang_ru;;
+    *);;
+
+concept_explanation
+<- sc_node_class;
+<- concept_class;
+<= nrel_inclusion:
+    lang_ru;
+=> nrel_main_idtf:
+    [пояснение]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_note
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_binary_relation;
+=> nrel_main_idtf:
+    [примечание*]
+    (*
+        <- lang_ru;;
+    *);;
+
+concept_note
+<- sc_node_class;
+<- concept_class;
+<= nrel_inclusion:
+    lang_ru;
+=> nrel_main_idtf:
+    [примечание]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_purpose
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_binary_relation;
+=> nrel_main_idtf:
+    [цель*]
+    (*
+        <- lang_ru;;
+    *);;
+
+concept_purpose
+<- sc_node_class;
+<- concept_class;
+<= nrel_inclusion:
+    lang_ru;
+=> nrel_main_idtf:
+    [цель]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_stages
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [стадии*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_rules
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [правила*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_principles
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [принципы*]
+    (*
+        <- lang_ru;;
+    *);;
+
+concept_principle
+<- sc_node_class;
+<- concept_class;
+<= nrel_inclusion:
+    lang_ru;
+=> nrel_main_idtf:
+    [принцип]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_example
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_binary_relation;
+=> nrel_main_idtf:
+    [пример*]
+    (*
+        <- lang_ru;;
+    *);;
+
+concept_example
+<- sc_node_class;
+<- concept_class;
+=> nrel_main_idtf:
+    [пример]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_materials
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [полезные материалы*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_decomposition
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [декомпозиция*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_subdividing
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [разбиение*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_structure
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [структура*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_related_concepts
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [связанные понятия*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_key_concepts
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [ключевые понятия*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_key_questions
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [рассматриваемые вопросы*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_usage_cases
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [примеры использования*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_implementation_tools
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [средства реализации*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_characteristics
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [характеристики*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_components
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [компоненты*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_products
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [продукты*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_advantages
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [преимущества*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_disadvantages
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [недостатки*]
+    (*
+        <- lang_ru;;
+    *);;
+
+nrel_application_areas
+<- sc_node_non_role_relation;
+<- concept_non_role_relation;
+<- concept_quasibinary_relation;
+=> nrel_main_idtf:
+    [сферы применения*]
+    (*
+        <- lang_ru;;
+    *);;
+
+concept_quasibinary_relation
+<- sc_node_class;
+<- concept_class;
+=> nrel_main_idtf:
+    [квазибинарное отношение]
+    (*
+        <- lang_ru;;
+    *);;
+
+concept_binary_relation
+<- sc_node_class;
+<- concept_class;
+=> nrel_main_idtf:
+    [бинарное отношение]
+    (*
+        <- lang_ru;;
+    *);;
+
+concept_application
+<- sc_node_class;
+<- concept_class;
+=> nrel_main_idtf:
+    [приложение]
+    (*
+        <- lang_ru;;
+    *);;    
+
+concept_parametr
+<- sc_node_class;
+<- concept_class;
+=> nrel_main_idtf:
+    [параметр]
+    (*
+        <- lang_ru;;
+    *);;    
+
+concept_value
+<- sc_node_class;
+<- concept_class;
+<= nrel_inclusion:
+    concept_link;
+=> nrel_main_idtf:
+    [значение]
+    (*
+        <- lang_ru;;
+    *);; 
+
+concept_units
+<- sc_node_class;
+<= nrel_inclusion:
+    concept_link;
+=> nrel_main_idtf:
+    [число]
+    (*
+        <- lang_ru;;
+    *);; 
+
+concept_button
+<- sc_node_class;
+<- concept_class;
+=> nrel_main_idtf:
+    [кнопка]
+    (*
+        <- lang_ru;;
+    *);; 

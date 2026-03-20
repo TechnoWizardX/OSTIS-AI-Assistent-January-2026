@@ -1,0 +1,76 @@
+//////////////////////////////////////
+// Search concepts
+//////////////////////////////////////
+
+// --- First production: concepts found
+
+@concept_found_reply_template = [📚 Я разбираюсь в <b>следующих понятиях</b> 😊:
+#foreach
+- ${concept}#if(${foreach.hasNext}),#else.#endif
+#cwb#endfor
+
+🤔 Какое понятие тебя интересует?];;
+
+@if_concept_found_production = {
+    rrel_condition_template: {
+        rrel_template: [*
+            @sort_param = (.._concept <-_ concept);;
+        *];
+        rrel_sort_param:
+            @sort_param
+    } (* <- nrel_search_set_template;; *);
+    rrel_reply_template: {
+		rrel_message_template: @concept_found_reply_template;
+        rrel_message_class: concept_system_reply_message_with_question;
+        rrel_expected_user_reply_message_classes: {
+            {
+                rrel_reply_message_class: concept_unknown_message;
+                rrel_context_message_class: concept_student_message_about_searching_concept_information
+            };
+            {
+                rrel_reply_message_class: concept_student_negative_reply_message;
+                rrel_context_message_class: concept_student_message_about_help
+            }
+        }
+	}
+};;
+@if_concept_found_production <- nrel_reply_production;;
+
+// ---- Message topic class
+
+concept_student_message_about_searching_concepts
+<- sc_node_class;
+=> nrel_main_idtf:
+    [класс сообщений учащихся о запросе понятий]
+    (*
+        <- lang_ru;;
+    *);
+<- concept_message_topic;
+<= nrel_inclusion:
+    concept_student_message;
+=> nrel_corresponding_skill:
+    ...
+    (*
+        => nrel_main_idtf:
+            [найти все понятия, о которых я знаю]
+            (*
+                <- lang_ru;;
+            *);;
+        <- concept_skill;;
+        <- .process_materials;;
+    *);
+=> nrel_example:
+    [Какие понятия ты знаешь?]
+    (*
+        <- concept_example;;
+    *);
+=> nrel_reply_production_chain: <
+    @if_concept_found_production
+>;
+=> nrel_message_keywords: [
+    какие понятия;
+    какую информацию;
+    что знаешь;
+];
+=> nrel_message_patterns: [
+];;

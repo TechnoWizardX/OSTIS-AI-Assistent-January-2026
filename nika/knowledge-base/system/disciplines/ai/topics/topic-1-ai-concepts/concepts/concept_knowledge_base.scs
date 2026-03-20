@@ -1,0 +1,14 @@
+concept_knowledge_base
+=> nrel_main_idtf:
+    [база знаний]
+    (*
+        <- lang_ru;;
+    *);
+<- sc_node_class;
+<- concept;
+<- concept_class;
+=> nrel_definition:
+    [База знаний - компонент интеллектуальной системы, хранящий формализованные знания, используемые системой в процессе вывода и рассуждения.]
+    (*
+        <- concept_definition;;
+    *);;

@@ -1,0 +1,26 @@
+concept_expert_system
+=> nrel_main_idtf:
+    [экспертная система]
+    (*
+        <- lang_ru;;
+    *);
+<- sc_node_class;
+<- concept;
+<- concept_class;
+<= nrel_inclusion:
+    concept_intelligent_system;
+=> nrel_definition:
+    [Экспертная система — интеллектуальная система, использующая знания специалистов для решения задач в узкой предметной области.]
+    (*
+        <- concept_definition;;
+    *);
+=> nrel_explanation:
+    [Основные компоненты: база знаний, механизм вывода и интерфейс пользователя.]
+    (*
+        <- concept_explanation;;
+    *);
+=> nrel_example:
+    [MYCIN — экспертная система диагностики инфекций.]
+    (*
+        <- concept_example;;
+    *);;

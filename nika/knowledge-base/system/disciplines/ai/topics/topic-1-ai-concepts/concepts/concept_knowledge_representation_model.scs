@@ -1,0 +1,26 @@
+concept_knowledge_representation_model
+=> nrel_main_idtf:
+    [модель представления знаний]
+    (*
+        <- lang_ru;;
+    *);
+<- sc_node_class;
+<- concept;
+<- concept_class;
+<= nrel_inclusion:
+    concept_knowledge_representation;
+=> nrel_definition:
+    [Модель представления знаний — формализованный способ описания структуры знаний и взаимосвязей между ними.]
+    (*
+        <- concept_definition;;
+    *);
+=> nrel_explanation:
+    [Тип модели определяет способ хранения и обработки знаний: логический, продукционный, фреймовый, сетевой и т. д.]
+    (*
+        <- concept_explanation;;
+    *);
+=> nrel_example:
+    [Семантическая сеть для описания отношений объектов.]
+    (*
+        <- concept_example;;
+    *);;

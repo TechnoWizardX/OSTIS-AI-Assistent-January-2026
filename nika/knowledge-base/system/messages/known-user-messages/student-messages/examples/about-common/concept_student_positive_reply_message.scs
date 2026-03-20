@@ -1,0 +1,38 @@
+//////////////////////////////////////
+// Positive reply
+//////////////////////////////////////
+
+// --- Message topic class
+
+concept_student_positive_reply_message
+<- sc_node_class;
+=> nrel_main_idtf:
+    [класс положительных ответов, отправленных учащимися]
+    (*
+        <- lang_ru;;
+    *);
+<- concept_message_topic;
+<= nrel_inclusion:
+    concept_student_message;
+=> nrel_reply_production_chain: ...;
+=> nrel_message_keywords: [
+    да;
+    давай;
+    согласен;
+    ну давай;
+    может быть;
+    наверно;
+    ок;
+    окей;
+    хорошо;
+    интересно;
+    разберем;
+    попробуем;
+    хочу;
+    хочу узнать;
+    расскажи;
+    покажи;
+    го
+];
+=> nrel_message_patterns: [
+];;

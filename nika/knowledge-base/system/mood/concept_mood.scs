@@ -1,0 +1,47 @@
+concept_mood
+<- sc_node_class;
+=> nrel_main_idtf:
+    [настроение]
+    (*
+        <- lang_ru;;
+    *);;
+
+concept_mood_positive
+<- sc_node_class;
+=> nrel_main_idtf:
+    [позитивное настроение]
+    (*
+        <- lang_ru;;
+    *);
+<= nrel_inclusion:
+    concept_mood;;
+
+concept_mood_neutral
+<- sc_node_class;
+=> nrel_main_idtf:
+    [нейтральное настроение]
+    (*
+        <- lang_ru;;
+    *);
+<= nrel_inclusion:
+    concept_mood;;
+
+concept_mood_tired
+<- sc_node_class;
+=> nrel_main_idtf:
+    [усталое настроение]
+    (*
+        <- lang_ru;;
+    *);
+<= nrel_inclusion:
+    concept_mood;;
+
+concept_mood_humorous
+<- sc_node_class;
+=> nrel_main_idtf:
+    [шутливое настроение]
+    (*
+        <- lang_ru;;
+    *);
+<= nrel_inclusion:
+    concept_mood;;

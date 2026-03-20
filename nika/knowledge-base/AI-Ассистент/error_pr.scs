@@ -1,0 +1,37 @@
+@error_reply_template = [Неправильный ввод команды];;
+
+@if_error_production = {
+    rrel_reply_template: {
+        rrel_message_template: @error_reply_template
+    }
+};;
+
+@if_error_production <- nrel_reply_production;;
+
+concept_error_message
+<- sc_node_class;
+=> nrel_main_idtf:
+    [некорректная команда]
+    (* <- lang_ru;; *);
+<- concept_message_topic;//
+<= nrel_inclusion:
+    concept_student_message;
+=> nrel_corresponding_skill://
+    ...
+    (*
+        => nrel_main_idtf:
+            [обработка некорректных команд]
+            (*
+                <- lang_ru;;
+            *);;
+        <- concept_skill;;
+        <- .process_errors;;
+    *);
+=> nrel_example:
+    [DROP DATABASE]
+    (*
+        <- concept_example;;
+    *);//
+=> nrel_reply_production_chain: <
+   @if_error_production//
+>;;

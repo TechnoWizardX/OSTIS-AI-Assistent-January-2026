@@ -1,0 +1,12 @@
+...
+<- sc_node_class;
+<- concept_parametr; 
+
+=> nrel_main_idtf:
+    [яркость]
+    (*
+        <- lang_ru;;
+    *);
+-> operation_system;
+=> nrel_value:
+    [100] (* <- concept_value;; *);;

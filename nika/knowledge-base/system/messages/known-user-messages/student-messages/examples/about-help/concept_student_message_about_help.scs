@@ -1,0 +1,89 @@
+//////////////////////////////////////
+// Search help skills
+//////////////////////////////////////
+
+// --- First production: help skills found
+
+@help_skills_found_reply_template = [🛟 Я могу помочь тебе в <b>следующих задачах</b>:
+#foreach
+• <u>${concept_skill}</u> ⚙️:
+
+    ❓ Примеры вопросов:
+    #foreach
+        ◦ <i>"${concept_example}"</i>#if(${foreach.hasNext}),#cwf#else.#endif
+    #endfor
+#cwb#endfor
+
+❗️ Просто задай одину из перечисленных команд — и я сразу помогу! 🤗];;
+
+@if_help_skills_found_production = {
+    rrel_condition_template: {
+        rrel_init_template: {
+            rrel_template: [*
+                .._skill <-_ .help_students;;
+                @output_param1 = (.._skill <-_ concept_skill);;
+            *];
+            rrel_template_output_params: {
+                @output_param1
+            }
+        } (* <- nrel_search_set_template;; *);
+        rrel_next_template: {
+            rrel_init_template: {
+                rrel_template: [*
+                    @input_param1 = (.._skill <-_ concept_skill);;
+                    nrel_corresponding_skill _-> (.._message_class _=> .._skill);;
+                    nrel_inclusion _-> (concept_student_message _=> .._message_class);;
+                    nrel_example _-> (.._example <=_ .._message_class);;
+                    .._example <-_ concept_example;;
+                *];
+                rrel_template_input_params: {
+                    @input_param1
+                }
+            } (* <- nrel_search_set_template;; *)
+        } (* <- nrel_fixed_search_strategy_template;; *)
+    } (* <- nrel_fixed_search_strategy_template;; *);
+    rrel_reply_template: {
+		rrel_message_template: @help_skills_found_reply_template
+	}
+};;
+@if_help_skills_found_production <- nrel_reply_production;;
+
+// --- Message topic class
+
+concept_student_message_about_help
+<- sc_node_class;
+=> nrel_main_idtf:
+    [класс сообщений учащихся о запросе моих навыков]
+    (*
+        <- lang_ru;;
+    *);
+<- concept_message_topic;
+<= nrel_inclusion:
+    concept_student_message;
+=> nrel_corresponding_skill:
+    ...
+    (*
+        => nrel_main_idtf:
+            [помочь тебе в работе со мной]
+            (*
+                <- lang_ru;;
+            *);;
+        <- concept_skill;;
+        <- .help_students;;
+    *);
+=> nrel_example:
+    [Мне нужна помощь]
+    (*
+        <- concept_example;;
+    *);
+=> nrel_reply_production_chain: <
+    @if_help_skills_found_production
+>;
+=> nrel_message_keywords: [
+    мне нужна помощь;
+    помощь;
+    помоги мне;
+    я не знаю, что делать;
+];
+=> nrel_message_patterns: [
+];;

@@ -1,0 +1,33 @@
+concept_basic_specification
+=> nrel_main_idtf:
+    [базовая спецификация]
+    (*
+        <- lang_ru;;
+    *);
+<- sc_node_class;
+<- concept_class;
+=> nrel_objects_order: <
+    nrel_abbreviation;
+    nrel_key_concepts;
+    nrel_related_concepts;
+    nrel_definition;
+    nrel_purpose;
+    nrel_explanation;
+    nrel_simple_explanation;
+    nrel_key_questions;
+    nrel_decomposition;
+    nrel_subdividing;
+    nrel_structure;
+    nrel_principles;
+    nrel_rules;
+    nrel_implementation_tools;
+    nrel_stages;
+    nrel_products;
+    nrel_advantages;
+    nrel_disadvantages;
+    nrel_note;
+    nrel_materials
+> (*
+    => nrel_system_identifier:
+        [basic_specification_objects_order];;
+*);;

@@ -1,0 +1,14 @@
+concept_problem_solver
+=> nrel_main_idtf:
+    [решатель задач]
+    (*
+        <- lang_ru;;
+    *);
+<- sc_node_class;
+<- concept;
+<- concept_class;
+=> nrel_definition:
+    [Решатель задач - компонент интеллектуальной системы, ответственный за применение знаний и алгоритмов для поиска решений.]
+    (*
+        <- concept_definition;;
+    *);;

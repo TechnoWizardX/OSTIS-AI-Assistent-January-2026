@@ -1,0 +1,11 @@
+concept_unknown_user
+<- sc_node_class;
+=> nrel_main_idtf:
+    [неизвестный пользователь]
+    (*
+        <- lang_ru;;
+    *);
+<= nrel_inclusion:
+    concept_user;
+=> nrel_author_message_class:
+    concept_unknown_user_message;;

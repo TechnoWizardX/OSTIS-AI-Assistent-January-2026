@@ -1,0 +1,81 @@
+//////////////////////////////////////
+// Search studied disciplines
+//////////////////////////////////////
+
+// --- First production: disciplines found
+
+@studied_disciplines_found_reply_template = [📚 Я предоставляю информацию по следующим дисциплинам 😊:
+#foreach
+- ${concept_discipline}#if(${foreach.hasNext}),#else.#endif
+#endfor
+🤔 Какая из них тебя интересует?];;
+
+@if_studied_disciplines_found_production = {
+    rrel_condition_template: {
+        rrel_template: [*
+            @sort_param = (.._discipline <-_ concept_discipline);;
+        *];
+        rrel_sort_param: @sort_param
+    } (* <- nrel_search_set_template;; *);
+    rrel_reply_template: {
+		rrel_message_template: @studied_disciplines_found_reply_template;
+        rrel_message_class: concept_system_reply_message_with_question;
+        rrel_expected_user_reply_message_classes: {
+            {
+                rrel_reply_message_class: concept_unknown_message;
+                rrel_context_message_class: concept_student_message_about_searching_discipline_information
+            };
+            {
+                rrel_reply_message_class: concept_student_negative_reply_message;
+                rrel_context_message_class: concept_student_message_about_help
+            }
+        }
+	}
+};;
+@if_studied_disciplines_found_production <- nrel_reply_production;;
+
+// ---- Message topic class
+
+concept_student_message_about_searching_studied_disciplines
+<- sc_node_class;
+=> nrel_main_idtf:
+    [класс сообщений учащихся о запросе изучаемых дисциплин]
+    (*
+        <- lang_ru;;
+    *);
+<- concept_message_topic;
+<= nrel_inclusion:
+    concept_student_message;
+=> nrel_corresponding_skill:
+    ...
+    (*
+        => nrel_main_idtf:
+            [найти изучаемые дисциплины]
+            (*
+                <- lang_ru;;
+            *);;
+        <- concept_skill;;
+        <- .process_disciplines;;
+    *);
+=> nrel_example:
+    [Какие дисциплины доступны для изучения?]
+    (*
+        <- concept_example;;
+    *);
+=> nrel_reply_production_chain: <
+    @if_studied_disciplines_found_production
+>;
+=> nrel_message_keywords: [
+    какие дисциплины;
+    какие дисциплины изучаем;
+    какие дисциплины изучаю;
+    какие дисциплины доступны для изучения;
+    как дисциплины проходим;
+];
+=> nrel_message_patterns: [
+];
+=> nrel_entity_class_descriptions: {
+    {
+        rrel_entity_class: concept_student
+    }
+};;

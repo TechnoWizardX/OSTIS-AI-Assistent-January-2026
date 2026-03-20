@@ -1,0 +1,143 @@
+//////////////////////////////////////
+// Search discipline information
+//////////////////////////////////////
+
+// --- First production: discipline information found
+
+@discipline_information_found_reply_template = [📚 Вот информация по дисциплине "<b>${concept_discipline}</b>":
+
+${concept_definition}
+
+${concept_explanation}
+
+${concept_purpose}
+
+🤔 Хочешь узнать подробнее?];;
+
+@if_discipline_information_found_production = {
+    rrel_condition_template: {
+        rrel_template: [*
+            @input_param1 = (.._discipline <-_ concept_discipline);;
+            .._discipline _=> nrel_definition:: .._definition;;
+            .._definition <-_ concept_definition;;
+            .._discipline _=> nrel_explanation:: .._explanation;;
+            .._explanation <-_ concept_explanation;;
+            .._discipline _=> nrel_purpose:: .._purpose;;
+            .._purpose <-_ concept_purpose;;
+        *];
+        rrel_template_input_params: {
+            @input_param1
+        }
+    } (* <- nrel_search_template;; *);
+    rrel_reply_template: {
+		rrel_message_template: @discipline_information_found_reply_template;
+        rrel_message_class: concept_system_reply_message_with_question;
+        rrel_expected_user_reply_message_classes: {
+            {
+                rrel_reply_message_class: concept_student_positive_reply_message;
+                rrel_context_message_class: concept_student_message_about_searching_discipline_topics
+            };
+            {
+                rrel_reply_message_class: concept_student_negative_reply_message;
+                rrel_context_message_class: concept_student_message_about_help
+            }
+        }
+	}
+};;
+@if_discipline_information_found_production <- nrel_reply_production;;
+
+// --- Fourth production: discipline information not found
+
+@discipline_information_not_found_reply_template = [🤔 Хм, интересный запрос! К сожалению, в моей базе знаний <b>мало информации</b> по этой дисциплине. 😔
+
+❗ Попробуй переформулировать вопрос или задать его немного по-другому.
+
+Возможно, стоит использовать синонимы или описать то, что вас интересует, другими словами. Я обязательно постараюсь найти что-то полезное!];;
+
+@if_discipline_information_not_found_production = {
+    rrel_condition_template: {
+        rrel_template: [*
+            @input_param1 = (.._concept <-_ concept_discipline);;
+        *];
+        rrel_template_input_params: {
+            @input_param1
+        }
+    } (* <- nrel_search_template;; *);
+    rrel_reply_template: {
+		rrel_message_template: @discipline_information_not_found_reply_template
+	}
+};;
+@if_discipline_information_not_found_production <- nrel_reply_production;;
+
+// --- Fifth production: concept not found
+
+@discipline_not_found_reply_template = [🔍 <b>Я не знаю</b> такой дисциплины. 😔
+
+❗ Но не переживай — такое случается! Возможно, в термине есть опечатка, или стоит попробовать другую формулировку?
+
+Я всегда готов помочь найти нужную информацию, даже если с первого раза не получилось.];;
+
+@if_discipline_not_found_production = {
+    rrel_reply_template: {
+		rrel_message_template: @discipline_not_found_reply_template;
+        rrel_message_class: concept_system_reply_message_with_question;
+        rrel_expected_user_reply_message_classes: {
+            {
+                rrel_reply_message_class: concept_unknown_message;
+                rrel_context_message_class: concept_student_message_about_searching_discipline_information
+            };
+            {
+                rrel_reply_message_class: concept_student_negative_reply_message;
+                rrel_context_message_class: concept_student_message_about_help
+            }
+        }
+	}
+};;
+@if_discipline_not_found_production <- nrel_reply_production;;
+
+// ---- Message topic class
+
+concept_student_message_about_searching_discipline_information
+<- sc_node_class;
+=> nrel_main_idtf:
+    [класс сообщений учащихся о запросе информации по дисциплине]
+    (*
+        <- lang_ru;;
+    *);
+<- concept_message_topic;
+<= nrel_inclusion:
+    concept_student_message;
+=> nrel_corresponding_skill:
+    ...
+    (*
+        => nrel_main_idtf:
+            [найти информацию по указанной дисциплине]
+            (*
+                <- lang_ru;;
+            *);;
+        <- concept_skill;;
+        <- .process_disciplines;;
+    *);
+=> nrel_example:
+    [Что надо делать по дисциплине ИИ?]
+    (*
+        <- concept_example;;
+    *);
+=> nrel_reply_production_chain: <
+    @if_discipline_information_found_production;
+    @if_discipline_information_not_found_production;
+    @if_discipline_not_found_production
+>;
+=> nrel_message_keywords: [
+    что ты знаешь про дисциплину;
+    что ты знаешь о дисциплине;
+    пришли информацию по дисциплине;
+    что надо делать по дисциплине;
+];
+=> nrel_message_patterns: [
+];
+=> nrel_entity_class_descriptions: {
+    {
+        rrel_entity_class: concept_discipline
+    }
+};;

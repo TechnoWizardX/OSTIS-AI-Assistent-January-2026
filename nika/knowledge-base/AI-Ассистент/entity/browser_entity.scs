@@ -1,0 +1,12 @@
+...
+<- sc_node_class;
+<- concept_application; 
+
+=> nrel_main_idtf:
+    [браузер]
+    (*
+        <- lang_ru;;
+    *);;
+
+
+   

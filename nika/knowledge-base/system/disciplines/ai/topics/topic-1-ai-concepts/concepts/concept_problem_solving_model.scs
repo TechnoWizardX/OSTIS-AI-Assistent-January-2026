@@ -1,0 +1,14 @@
+concept_problem_solving_model
+=> nrel_main_idtf:
+    [модель решения задач]
+    (*
+        <- lang_ru;;
+    *);
+<- sc_node_class;
+<- concept;
+<- concept_class;
+=> nrel_definition:
+    [Модель решения задач - cвязь, определяющая соотношение между задачей, методами и процессом поиска решения.]
+    (*
+        <- concept_definition;;
+    *);;

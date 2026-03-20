@@ -1,0 +1,64 @@
+//////////////////////////////////////
+// Search personal info
+//////////////////////////////////////
+
+// --- First production: personal info found
+
+@if_personal_info_found_reply_template = [😊 Вот информация из твоего профиля:
+
+${concept_personal_info}];;
+
+@if_personal_info_found_production = {
+    rrel_condition_template: {
+        rrel_template: [*
+            @input_param1 = (.._student <-_ concept_student);;
+            @input_param2 = (.._personal_info <-_ concept_personal_info);;
+            nrel_student_profile _-> (.._student _=> .._personal_info);;
+        *];
+        rrel_template_input_params: {
+            @input_param1;
+            @input_param2
+        }
+    } (* <- nrel_search_template;; *);
+    rrel_reply_template: {
+		rrel_message_template: @if_personal_info_found_reply_template
+	}
+};;
+@if_personal_info_found_production <- nrel_reply_production;;
+
+// --- Message topic class
+
+concept_student_message_about_searching_personal_info
+<- sc_node_class;
+=> nrel_main_idtf:
+    [класс сообщений учащихся о запросе персональной информации]
+    (*
+        <- lang_ru;;
+    *);
+<- concept_message_topic;
+<= nrel_inclusion:
+    concept_student_message;
+=> nrel_reply_production_chain: <
+    @if_personal_info_found_production
+>;
+=> nrel_message_keywords: [
+    что знаешь обо мне;
+    моя информация;
+    мой профиль;
+    личная информация;
+    что обо мне;
+    какая информация;
+    мои сведения;
+    что помнишь
+];
+=> nrel_message_patterns: [
+    что.*знаешь.*мне;
+    какая.*информация;
+    мой.*профиль;
+    обо.*мне
+];
+=> nrel_entity_class_descriptions: {
+    {
+        rrel_entity_class: concept_student
+    }
+};;

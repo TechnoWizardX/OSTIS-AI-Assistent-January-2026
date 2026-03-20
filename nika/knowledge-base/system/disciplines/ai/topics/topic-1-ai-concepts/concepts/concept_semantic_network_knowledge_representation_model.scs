@@ -1,0 +1,18 @@
+concept_semantic_network_knowledge_representation_model
+=> nrel_main_idtf:
+    [семантическая сеть]
+    (*
+        <- lang_ru;;
+    *);
+<= nrel_inclusion:
+    concept_knowledge_representation_model;
+=> nrel_definition:
+    [Семантическая сеть — графовая структура, представляющая объекты и их связи в виде узлов и дуг с семантическими отношениями.]
+    (*
+        <- concept_definition;;
+    *);
+=> nrel_example:
+    [Узел «Кошка» связан с узлом «Животное» через дугу «является».]
+    (*
+        <- concept_example;;
+    *);;
