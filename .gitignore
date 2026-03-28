@@ -16,7 +16,7 @@ sc-web
 
 kb.bin
 .env
-*.json
+
 
 .DS_Store
 
