@@ -19,3 +19,7 @@ kb.bin
 *.json
 
 .DS_Store
+
+pycache
+.venv
+__pycache__
