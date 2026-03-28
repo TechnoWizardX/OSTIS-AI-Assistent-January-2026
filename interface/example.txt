@@ -1,0 +1,5 @@
+answer = {"message_to_user" : "Здесь будет ответ от NIKA",
+                  "action" : "dec", #decrease, turn_on, turn_off, open, close
+                  "component" : "brightness", #volume, application, website
+                  "value" : "30" #true/false - turn_off/on, application/site name, value to increase/decrease
+                  } 
