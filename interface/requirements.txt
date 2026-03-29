@@ -3,3 +3,5 @@ py-sc-kpm
 screen-brightness-control
 sounddevice
 vosk
+mediapipe
+opencv-python
