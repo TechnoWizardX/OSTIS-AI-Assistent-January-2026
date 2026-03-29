@@ -1,2 +1,6 @@
 argparse
 websocket-client
+mediapipe==0.10.33
+opencv-python
+numpy
+Pillow

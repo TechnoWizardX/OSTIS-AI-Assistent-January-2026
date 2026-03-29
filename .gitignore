@@ -23,3 +23,10 @@ kb.bin
 pycache
 .venv
 __pycache__
+
+.venv_mp/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
