@@ -1,12 +1,11 @@
 from pathlib import Path
-
 import cv2
 import mediapipe as mp
 
 MODEL_PATH = Path(__file__).with_name("hand_landmarker.task")
 
 
-def draw_landmarks(frame, hand_landmarks_list):
+def draw_landmarks(frame, hand_landmarks_list : list):
     height, width, _ = frame.shape
 
     for hand_landmarks in hand_landmarks_list:
@@ -40,13 +39,75 @@ def draw_landmarks(frame, hand_landmarks_list):
             x2 = int(hand[i+1].x * width)
             y2 = int(hand[i+1].y * height)
             cv2.line(frame, (x1, y1), (x2, y2), (105, 105, 105), 1, cv2.LINE_AA)
-    check_state(hand_landmarks)
+    states = check_hand_state(hand_landmarks_list)
+    check_gesture(states)
+    
 
                 
-def check_state(hand_landmarks):
-    pass
+def check_hand_state(hand_landmarks_list : list) -> list:
+    for hand_landmarks in hand_landmarks_list:
+        finger_1 = hand_landmarks[0:5]   # Большой: 0,1,2,3,4
+        finger_2 = hand_landmarks[5:9]   # Указательный: 5,6,7,8
+        finger_3 = hand_landmarks[9:13]  # Средний: 9,10,11,12
+        finger_4 = hand_landmarks[13:17] # Безымянный: 13,14,15,16
+        finger_5 = hand_landmarks[17:21]   # Мизинец: 17, 18, 19, 20
+        # state = 2: палец разогнут, 1: полусогнут, 0: согнут
+        state1 = check_thumb_state(finger_1)
+        state2 = check_finger_state(finger_2)
+        state3 = check_finger_state(finger_3)
+        state4 = check_finger_state(finger_4)
+        state5 = check_finger_state(finger_5)
+        return [state1, state2, state3, state4, state5]
         
+def check_finger_state(finger_landmarks: list) -> int:
+    state = 2
+    if (finger_landmarks[3].y <= finger_landmarks[2].y and
+        finger_landmarks[2].y <= finger_landmarks[1].y and
+        finger_landmarks[1].y <= finger_landmarks[0].y):
+        state = 2
 
+    elif (finger_landmarks[3].y >= finger_landmarks[2].y and
+        finger_landmarks[3].y <= finger_landmarks[0].y):
+        state = 1
+    else:
+        state = 0
+    return state
+
+def check_thumb_state(thumb_landmarks: list) -> int:
+    state = 2
+    if ((thumb_landmarks[4].x >= thumb_landmarks[3].x and
+        thumb_landmarks[3].x >= thumb_landmarks[2].x and
+        thumb_landmarks[2].x >= thumb_landmarks[1].x) or 
+        (thumb_landmarks[4].x <= thumb_landmarks[3].x and
+        thumb_landmarks[2].x <= thumb_landmarks[2].x and
+        thumb_landmarks[1].x <= thumb_landmarks[1].x)):
+        state = 2
+
+    elif ((thumb_landmarks[4].x <= thumb_landmarks[3].x and
+        thumb_landmarks[4].x >= thumb_landmarks[1].x) or 
+        (thumb_landmarks[4].x >= thumb_landmarks[3].x and
+        thumb_landmarks[4].x <= thumb_landmarks[1].x)):
+        state = 1
+    else:
+        state = 0
+    return state
+
+def check_gesture(states: list) -> str:
+    if(states[0] == 2 and states[1] == 0 and states[2] == 0 and states[3] == 0 and states[4] == 0):
+        print("close app")
+    if(states[0] == 2 and states[1] == 1 and states[2] == 2 and states[3] == 2 and states[4] == 2):
+        print("open browser")
+    if(states[0] == 0 and states[1] == 1 and states[2] == 2 and states[3] == 0 and states[4] == 0):
+        print("up volume")
+    if(states[0] == 0 and states[1] == 2 and states[2] == 1 and states[3] == 0 and states[4] == 0):
+        print("down volume")
+    if(states[0] == 2 and states[1] == 1 and states[2] == 2 and states[3] == 0 and states[4] == 0):
+        print("up brightness")
+    if(states[0] == 2 and states[1] == 2 and states[2] == 1 and states[3] == 0 and states[4] == 0):
+        print("down brightness")
+    if(states[0] == 2 and states[1] == 1 and states[2] == 1 and states[3] == 2 and states[4] == 2):
+        print("open settings")
+    
 
 def main():
     if not MODEL_PATH.exists():
