@@ -1,0 +1,70 @@
+{
+    "gestures": {
+        "one_finger": {
+            "name": "1 палец",
+            "description": "Активация режима яркости",
+            "finger_pattern": [false, true, false, false, false],
+            "action": "activate_brightness",
+            "hint": "Режим яркости активирован"
+        },
+        "three_fingers": {
+            "name": "3 пальца",
+            "description": "Активация режима звука",
+            "finger_pattern": [false, true, true, true, false],
+            "action": "activate_sound",
+            "hint": "Режим звука активирован"
+        },
+        "like": {
+            "name": "Лайк",
+            "description": "Подтверждение активации",
+            "finger_pattern": [true, false, false, false, false],
+            "action": "confirm",
+            "hint": "Подтверждено"
+        },
+        "dislike": {
+            "name": "Дизлайк",
+            "description": "Отмена / деактивация",
+            "finger_pattern": [false, false, false, false, false],
+            "action": "deactivate",
+            "hint": "Режим деактивирован"
+        },
+        "two_fingers": {
+            "name": "2 пальца",
+            "description": "Выход из режима",
+            "finger_pattern": [false, true, true, false, false],
+            "action": "exit",
+            "hint": "Выход из режима"
+        }
+    },
+    "modes": {
+        "brightness": {
+            "name": "Яркость",
+            "control_fingers": ["thumb", "index"],
+            "slider_color": [0, 255, 0],
+            "label": "Яркость: {}%"
+        },
+        "sound": {
+            "name": "Звук",
+            "control_fingers": ["thumb", "index"],
+            "slider_color": [255, 165, 0],
+            "label": "Звук: {}%"
+        }
+    },
+    "ui_texts": {
+        "title": "Жестовое управление",
+        "mode_active": "РЕЖИМ АКТИВЕН",
+        "confirm_hint": "Лайк - подтвердить | Дизлайк - отмена"
+    },
+    "settings": {
+        "gesture_cooldown": 30,
+        "gesture_display_time": 60,
+        "min_distance": 30,
+        "max_distance": 200,
+        "camera_width": 1280,
+        "camera_height": 720,
+        "detection_confidence": 0.7,
+        "tracking_confidence": 0.6,
+        "max_hands": 2,
+        "smoothing_factor": 0.3
+    }
+}
