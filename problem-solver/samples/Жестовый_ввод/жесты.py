@@ -15,9 +15,7 @@ except ImportError:
 
 try:
     import pycaw.pycaw as pycaw
-    from ctypes import cast, POINTER
-    from comtypes import CLSCTX_ALL
-    from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+    from pycaw.pycaw import AudioUtilities
     SOUND_AVAILABLE = True
 except ImportError:
     SOUND_AVAILABLE = False
@@ -155,46 +153,52 @@ FONT_CANDIDATES = [
 # ============================================================
 class SoundController:
     """Контроллер для управления звуком системы."""
-    
+
     def __init__(self):
-        self.device = None
-        self.interface = None
+        self.volume_interface = None
         self.initialized = False
-        
+
         if not SOUND_AVAILABLE:
+            print("  [ЗВУК] pycaw не установлен (SOUND_AVAILABLE = False)")
             return
-        
+
         try:
-            devices = AudioUtilities.GetSpeakers()
-            if devices is None:
+            print("  [ЗВУК] Попытка инициализации...")
+            # Новый API pycaw: GetSpeakers().EndpointVolume
+            from pycaw.pycaw import AudioUtilities
+            device = AudioUtilities.GetSpeakers()
+            if device is None:
+                print("  [ЗВУК] GetSpeakers() вернул None")
                 return
-            self.device = devices
-            self.interface = self.device.Activate(
-                IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-            self.interface = cast(self.interface, POINTER(IAudioEndpointVolume))
+            self.volume_interface = device.EndpointVolume
             self.initialized = True
+            current_vol = self.get_volume()
+            print(f"  [ЗВУК] Инициализация успешна! Текущая громкость: {current_vol}%")
         except Exception as e:
             print(f"Ошибка инициализации звука: {e}")
+            import traceback
+            traceback.print_exc()
             self.initialized = False
-    
+
     def set_volume(self, value):
         """Устанавливает громкость (0-100)."""
         if not self.initialized:
+            print(f"  [ЗВУК] Не инициализирован, пропускаю установку {value}%")
             return
-        
+
         try:
             volume = value / 100.0
-            self.interface.SetMasterVolumeLevelScalar(volume, None)
+            self.volume_interface.SetMasterVolumeLevelScalar(volume, None)
         except Exception as e:
             print(f"Ошибка установки звука: {e}")
-    
+
     def get_volume(self):
         """Получает текущую громкость (0-100)."""
         if not self.initialized:
             return 50
-        
+
         try:
-            volume = self.interface.GetMasterVolumeLevelScalar()
+            volume = self.volume_interface.GetMasterVolumeLevelScalar()
             return int(volume * 100)
         except Exception:
             return 50
@@ -689,7 +693,10 @@ def main():
                 smoothed_sound = smooth_value(smoothed_sound, raw_value, smoothing_factor)
                 sound_value = int(smoothed_sound)
                 current_value = sound_value
-                
+
+                # Отладка: выводим значение
+                print(f"  >>> Звук: {sound_value}% (raw: {raw_value})")
+
                 sound_controller.set_volume(sound_value)
             
             # Сохраняем распознанный жест
