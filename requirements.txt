@@ -6,3 +6,5 @@ numpy
 Pillow
 screen-brightness-control
 pycaw
+psutil
+comtypes
