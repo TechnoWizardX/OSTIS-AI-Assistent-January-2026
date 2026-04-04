@@ -8,3 +8,7 @@ screen-brightness-control
 pycaw
 psutil
 comtypes
+py-sc-kpm
+sounddevice
+vosk
+pyqt6

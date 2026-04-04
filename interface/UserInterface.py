@@ -22,7 +22,9 @@ class UserInterface(QMainWindow):
 
         self.main_widget = QWidget(self)
         self.setCentralWidget(self.main_widget)
-        self.main_grid_layaout = QGridLayout(self.main_widget)
+        self.main_grid_layaout = QHBoxLayout(self.main_widget)
+
+        self.side_panel_frame = QFrame(self.main_grid_layaout)
         
         
         
