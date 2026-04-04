@@ -31,43 +31,35 @@ class UserInterface(QMainWindow):
         self.main_layout.setContentsMargins(10, 10, 10, 10)
         self.main_layout.setSpacing(15)
 
-# АРТЁМ ТЫ ТУТ?
 
+        
         # Боковая панель
         self.side_panel = QWidget(self.main_widget)
-        self.side_panel.setFixedWidth(200) 
+        self.side_panel.setFixedWidth(190) 
+        self.side_panel.setStyleSheet("""
+            background-color: #FFFFFF;
+            border-radius: 16px;
+            """)
         
         self.main_layout.addWidget(self.side_panel, 2)
         
         # Лайаут боковой панели
         self.side_panel_layout = QVBoxLayout(self.side_panel)
 
-        self.side_panel_frame = QFrame(self.side_panel)
-        self.side_panel_frame.setStyleSheet("""
-            background-color: #FFFFFF;
-            border-radius: 16px;
-            """)
-        self.side_panel_layout.addWidget(self.side_panel_frame)
-
-        self.side_panel_frame_layout = QVBoxLayout(self.side_panel_frame)
-        self.side_panel_frame_layout.setContentsMargins(0, 0, 0, 0)
-
-
-
-
-        # Виджеты на панели контента
-        self.settings_widget = QWidget(self)
-        self.profile_widget = QWidget(self)
-        self.voice_input_widget = QWidget(self)
-        self.text_input_widget = QWidget(self)
-        self.gestures_input_widget = QWidget(self)
-        self.dictator_widget = QWidget(self)
         
         
+
         
         # Панель контента
         self.content_panel = QStackedWidget(self.main_widget)
+        self.setFixedWidth(600)
+        self.content_panel.setStyleSheet("""
+            background-color: #FFFFFF;
+            border-radius: 16px;
+            """)
         self.main_layout.addWidget(self.content_panel, 7)
+
+
         
         
         
@@ -80,14 +72,7 @@ class UserInterface(QMainWindow):
             Dictator()
         ]
         
-        self.buttons = [
-            QPushButton("Настройки"),
-            QPushButton("Профиль"),
-            QPushButton("Голосовой ввод"),
-            QPushButton("Текстовый ввод"),
-            QPushButton("Жестовый ввод"),
-            QPushButton("Экранный диктор")
-        ]
+
 
 
 # ===========================================================
