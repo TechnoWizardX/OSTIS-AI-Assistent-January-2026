@@ -19,12 +19,55 @@ class UserInterface(QMainWindow):
         self.setWindowTitle("IAMOS")
         self.setGeometry(100, 100, 820, 690)
         self.setMinimumSize(800, 600)
-
+        self.setStyleSheet("""
+                           background-color: #D9D9D9;
+                           """)
+        # Основное окно
         self.main_widget = QWidget(self)
         self.setCentralWidget(self.main_widget)
-        self.main_grid_layaout = QHBoxLayout(self.main_widget)
 
-        self.side_panel_frame = QFrame(self.main_grid_layaout)
+        # Основной лайаут: размещает боковую панель и панель контента горизонтально
+        self.main_layout = QHBoxLayout(self.main_widget)
+        self.main_layout.setContentsMargins(10, 10, 10, 10)
+        self.main_layout.setSpacing(15)
+
+# АРТЁМ ТЫ ТУТ?
+
+        # Боковая панель
+        self.side_panel = QWidget(self.main_widget)
+        self.side_panel.setFixedWidth(200) 
+        
+        self.main_layout.addWidget(self.side_panel, 2)
+        
+        # Лайаут боковой панели
+        self.side_panel_layout = QVBoxLayout(self.side_panel)
+
+        self.side_panel_frame = QFrame(self.side_panel)
+        self.side_panel_frame.setStyleSheet("""
+            background-color: #FFFFFF;
+            border-radius: 16px;
+            """)
+        self.side_panel_layout.addWidget(self.side_panel_frame)
+
+        self.side_panel_frame_layout = QVBoxLayout(self.side_panel_frame)
+        self.side_panel_frame_layout.setContentsMargins(0, 0, 0, 0)
+
+
+
+
+        # Виджеты на панели контента
+        self.settings_widget = QWidget(self)
+        self.profile_widget = QWidget(self)
+        self.voice_input_widget = QWidget(self)
+        self.text_input_widget = QWidget(self)
+        self.gestures_input_widget = QWidget(self)
+        self.dictator_widget = QWidget(self)
+        
+        
+        
+        # Панель контента
+        self.content_panel = QStackedWidget(self.main_widget)
+        self.main_layout.addWidget(self.content_panel, 7)
         
         
         
@@ -50,7 +93,7 @@ class UserInterface(QMainWindow):
 # ===========================================================
 # НАСТРОЙКИ
 # ===========================================================
-class Settings(QMainWindow):
+class Settings(QWidget):
     def __init__(self):
         super().__init__()
 
@@ -58,7 +101,7 @@ class Settings(QMainWindow):
 # ===========================================================
 # ПРОФИЛЬ
 # ===========================================================
-class Profile(QMainWindow):
+class Profile(QWidget):
     def __init__(self):
         super().__init__()
 
@@ -66,7 +109,7 @@ class Profile(QMainWindow):
 # ===========================================================
 # ГОЛОСОВОЙ ВВОД
 # ===========================================================
-class VoiceInput(QMainWindow):
+class VoiceInput(QWidget):
     def __init__(self):
         super().__init__()
 
@@ -74,7 +117,7 @@ class VoiceInput(QMainWindow):
 # ===========================================================
 # ТЕКСТОВЫЙ ВВОД
 # ===========================================================
-class TextInput(QMainWindow):
+class TextInput(QWidget):
     def __init__(self):
         super().__init__()
 
@@ -82,7 +125,7 @@ class TextInput(QMainWindow):
 # ===========================================================
 # ЖЕСТОВЫЙ ВВОД
 # ===========================================================
-class GesturesInput(QMainWindow):
+class GesturesInput(QWidget):
     def __init__(self):
         super().__init__()
 
@@ -90,7 +133,7 @@ class GesturesInput(QMainWindow):
 # ===========================================================
 # ДИКТОР
 # ===========================================================
-class Dictator(QMainWindow):
+class Dictator(QWidget):
     def __init__(self):
         super().__init__()
 
