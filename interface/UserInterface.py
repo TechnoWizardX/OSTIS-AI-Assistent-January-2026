@@ -194,7 +194,7 @@ class Settings(ContentPageWidget):
         self.grid_lay.addWidget(self.camera_frame, 0, 0)
         # лайаут фрейма камер
         self.camera_frame_lay = QHBoxLayout(self.camera_frame)
-        self.camera_frame_lay.setContentsMargins(10, 0, 0, 10)
+        self.camera_frame_lay.setContentsMargins(10, 5, 5, 10)
         self.camera_frame_lay.setSpacing(10)
 
         # текстовая метка "Камера"
@@ -203,8 +203,10 @@ class Settings(ContentPageWidget):
         # выпадающий список камер
         self.camera_dropbox = QComboBox()
         self.camera_dropbox.setStyleSheet(self.dropbox_qss)
+        self.camera_dropbox.setMinimumHeight(30)
 
         available = get_available_cameras()
+        
         if available:
             self.camera_dropbox.addItems(available)
         else:
