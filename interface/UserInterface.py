@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont, QIcon
 import sys
-from AssistentCore import get_available_cameras
+from AssistentCore import get_available_cameras, get_available_microphones
 
 """
 ====================================================
@@ -57,10 +57,7 @@ class UserInterface(QMainWindow):
          # Панель контента(является лэйаутом)
         self.content_panel = QStackedWidget(self.main_widget)
         self.content_panel.setMinimumWidth(330)
-        self.content_panel.setStyleSheet("""
-            background-color: #FFFFFF;
-            border-radius: 16px;
-            """)
+
         
 
         
@@ -95,6 +92,7 @@ class UserInterface(QMainWindow):
             self.side_panel_lay.addWidget(btn)
 
 
+
         self.side_panel_lay.addStretch(1)
 
 
@@ -106,11 +104,18 @@ class UserInterface(QMainWindow):
 
 
 
-
+class ChatSendBox(QWidget):
+    def __init__(self):
+        super().__init__()
+        
        
-
         
 
+
+        
+#==========================================================
+#Основание для панелей контента
+#==========================================================
 class ContentPageWidget(QWidget):
     def __init__(self):
         super().__init__()
@@ -124,7 +129,7 @@ class ContentPageWidget(QWidget):
                 font-size: 14px;
                 font-family: "Roboto";
                 border: 3px solid transparent; 
-                padding: 5px;
+                padding: 5px 5px 5px 15px;
             }
             QPushButton:hover {
                 background-color: #C8C8C8;
@@ -193,10 +198,14 @@ class Settings(ContentPageWidget):
     def __init__(self):
         super().__init__()
         self.side_panel_btn.setText("Настройки")
-        
+        self.setStyleSheet("""
+                background-color: #FFFFFF;
+                border-radius: 16px;
+        """)
         # сетка-панель настроек
         self.grid_lay = QGridLayout(self)
         self.grid_lay.setContentsMargins(10, 10, 10, 10)
+        
         # фрейм для выбора камеры
         self.camera_frame = QFrame()
         self.camera_frame.setStyleSheet("""
@@ -230,14 +239,39 @@ class Settings(ContentPageWidget):
         self.camera_frame_lay.addStretch(1)
 
         
-
-
         self.microphone_frame = QFrame()
-        self.microphone_frame_lay = QHBoxLayout(self.microphone_frame)
-        self.microphone_label = QLabel("Микрофон:")
-        self.microphone_frame_lay.addWidget(self.microphone_label)
-
+        self.microphone_frame.setStyleSheet("""
+            background-color: #D3D3D3;
+            border-radius: 12px;
+        """)
+        self.microphone_frame.setFixedHeight(40)
         self.grid_lay.addWidget(self.microphone_frame, 1, 0)
+        # лайаут фрейма микрофона
+        self.microphone_frame_lay = QHBoxLayout(self.microphone_frame)
+        self.microphone_frame_lay.setContentsMargins(10, 5, 5, 10)
+        self.microphone_frame_lay.setSpacing(10)
+
+        # текстовая метка "Микрофон"
+        self.microphone_label = QLabel("Микрофон:")
+        self.microphone_label.setStyleSheet(self.settings_text_qss)
+        # выпадающий список микрофонов
+        self.microphone_dropbox = QComboBox()
+        self.microphone_dropbox.setStyleSheet(self.dropbox_qss)
+        self.microphone_dropbox.setMinimumHeight(30)
+
+        available_mics = get_available_microphones()
+
+        if available_mics:
+            self.microphone_dropbox.addItems(available_mics)
+        else:
+            self.microphone_dropbox.addItem("Нет доступных микрофонов")
+
+        self.microphone_frame_lay.addWidget(self.microphone_label, 1)
+        self.microphone_frame_lay.addWidget(self.microphone_dropbox, 1)
+        self.microphone_frame_lay.addStretch(1)
+        
+        
+        
         self.speaker_frame = QFrame()
         self.grid_lay.addWidget(self.speaker_frame, 2, 0)
 
@@ -261,6 +295,9 @@ class Profile(ContentPageWidget):
     def __init__(self):
         super().__init__()
         self.side_panel_btn.setText("Профиль") 
+        self.side_panel_btn.setIcon(QIcon("icons/profile.png"))
+        self.side_panel_btn.setIconSize(QSize(32, 32))
+        self.side_panel_btn.update()
 
 # ===========================================================
 # ГОЛОСОВОЙ ВВОД
@@ -276,7 +313,16 @@ class VoiceInput(ContentPageWidget):
 class TextInput(ContentPageWidget):
     def __init__(self):
         super().__init__()
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #D9D9D9;
+                border-radius: 16px;
+               }
+        """)
         self.side_panel_btn.setText("Текстовый Ввод") 
+        self.text_input_lay = QVBoxLayout(self)
+        self.chat_box = ChatSendBox()
+        self.text_input_lay.addWidget(self.chat_box)
 
 # ===========================================================
 # ЖЕСТОВЫЙ ВВОД

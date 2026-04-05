@@ -1,5 +1,5 @@
 import cv2
-
+import pyaudio
 def get_available_cameras():
     cameras = []
     index = 0
@@ -12,3 +12,7 @@ def get_available_cameras():
         cap.release()
         index += 1
     return cameras
+
+def get_available_microphones():
+    
+    return []
