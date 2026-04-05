@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox
+    QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox, QButtonGroup, QTextEdit, QLineEdit
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont, QIcon
@@ -78,12 +78,17 @@ class UserInterface(QMainWindow):
         self.side_panel_lay.setContentsMargins(10, 10, 10, 10)
         
         self.side_panel_lay.setSpacing(10)
-    
 
+        #создаём группу кнопок
+        self.button_group = QButtonGroup(self)
 
         # линкование кнопок
         for page in self.content_pages:
             btn = self.content_pages[page]
+            
+            # добавляем кнопку в группу
+            self.button_group.addButton(btn)
+            
             # Фиксируем p=page, чтобы каждая кнопка запомнила свою страницу
             btn.clicked.connect(lambda checked, p=page: self.content_panel.setCurrentWidget(p))
             self.content_panel.addWidget(page)
@@ -109,7 +114,7 @@ class UserInterface(QMainWindow):
 class ContentPageWidget(QWidget):
     def __init__(self):
         super().__init__()
-        
+
         self.side_panel_btn = QPushButton()
         self.side_panel_btn.setStyleSheet("""
             QPushButton {
@@ -128,6 +133,11 @@ class ContentPageWidget(QWidget):
             QPushButton:pressed {
                 background-color: #B8B8B8;
                 border: 3px solid #666666; 
+            }
+            /*Для изменения цвета кнопки при нажатии*/
+            QPushButton:checked {
+                background-color: #AAFF00;  /* цвет активной кнопки */
+                border: 3px solid #666666;
             }
         """)          
         self.settings_text_qss = """
@@ -173,13 +183,16 @@ class ContentPageWidget(QWidget):
         """
         self.side_panel_btn.setMinimumSize(160, 60)
         
+        # состояние кнопки при нажатии
+        self.side_panel_btn.setCheckable(True) 
+        
 # ===========================================================
 # НАСТРОЙКИ
 # ===========================================================
 class Settings(ContentPageWidget):
     def __init__(self):
         super().__init__()
-        self.side_panel_btn.setText("Настройки") 
+        self.side_panel_btn.setText("Настройки")
         
         # сетка-панель настроек
         self.grid_lay = QGridLayout(self)
@@ -267,9 +280,119 @@ class TextInput(ContentPageWidget):
 # ЖЕСТОВЫЙ ВВОД
 # ===========================================================
 class GesturesInput(ContentPageWidget):
+
     def __init__(self):
         super().__init__()
-        self.side_panel_btn.setText("Жестовый Ввод") 
+        self.side_panel_btn.setText("Жестовый Ввод")
+
+        # Вертикальный лайаут всей страницы
+        self.chat_lay = QVBoxLayout(self)
+        self.chat_lay.setContentsMargins(15, 15, 15, 15)
+        self.chat_lay.setSpacing(10)
+
+        # Чат(временно)
+        self.chat_frame = QFrame()
+        self.chat_frame.setStyleSheet("""
+            background-color: #D3D3D3;
+            border-radius: 12px;
+        """)
+        self.chat_lay.addWidget(self.chat_frame, stretch=1)
+
+        self.chat_frame_lay = QVBoxLayout(self.chat_frame)
+        self.chat_frame_lay.setContentsMargins(10, 10, 10, 10)
+        self.chat_frame_lay.setSpacing(10)
+
+        self.chat_message = QTextEdit()
+        self.chat_message.setStyleSheet("""
+            QTextEdit {
+                background-color: #FFFFFF;
+                border-radius: 8px;
+            }
+        """)
+        self.chat_message.setReadOnly(True)
+        self.chat_message.setPlaceholderText("Сообщения появятся здесь...")
+        self.chat_frame_lay.addWidget(self.chat_message, stretch=1)
+
+        # Разделение для демки с камеры и вводом текста
+        self.bottom_lay = QHBoxLayout()
+        self.bottom_lay.setSpacing(10)
+
+        # Поле ввода
+        self.send_message_frame = QFrame()
+        self.send_message_frame.setStyleSheet("""
+            background-color: #D9D9D9;
+            border-radius: 12px;
+        """)
+        self.send_message_frame.setFixedHeight(150)
+        self.bottom_lay.addWidget(self.send_message_frame, stretch=1)
+
+        # Вертикальный лайаут внутри фрейма ввода
+        self.send_message_frame_lay = QVBoxLayout(self.send_message_frame)
+        self.send_message_frame_lay.setContentsMargins(12, 12, 12, 12)
+        self.send_message_frame_lay.setSpacing(0)
+
+        # Многострочное поле ввода текста
+        self.chat_input = QTextEdit()
+        self.chat_input.setPlaceholderText("Введите сообщение...")
+        self.chat_input.setStyleSheet("""
+            QTextEdit {
+                background-color: #FFFFFF;
+                border: none;
+                font-size: 14px;
+                font-family: "Roboto";
+                color: #000000;
+            }
+        """)
+        self.send_message_frame_lay.addWidget(self.chat_input, stretch=1)
+
+        # Горизонтальный лайаут для кнопки (прижата вправо)
+        self.send_btn_lay = QHBoxLayout()
+        self.send_btn_lay.addStretch(1)
+
+        # Кнопка отправки
+        self.send_btn = QPushButton("Отправить  \u2191")
+        self.send_btn.setFixedHeight(36)
+        self.send_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #D3D3D3;
+                border-radius: 18px;
+                color: #000000;
+                font-size: 14px;
+                font-family: "Roboto";
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+            QPushButton:hover {
+                background-color: #C0C0C0;
+            }
+            QPushButton:pressed {
+                background-color: #A8A8A8;
+            }
+        """)
+
+        self.send_btn_lay.addWidget(self.send_btn)
+        self.send_message_frame_lay.addLayout(self.send_btn_lay)
+
+        # Превью камеры
+        self.camera_preview_frame = QFrame()
+        self.camera_preview_frame.setStyleSheet("""
+            background-color: #D3D3D3;
+            border-radius: 12px;
+        """)
+        self.bottom_lay.addWidget(self.camera_preview_frame, stretch=1)
+
+        # Вертикальный лайаут внутри превью камеры
+        self.camera_preview_lay = QVBoxLayout(self.camera_preview_frame)
+        self.camera_preview_lay.setContentsMargins(10, 10, 10, 10)
+        self.camera_preview_lay.setSpacing(5)
+
+        # Картинка с камеры(пока просто текст)
+        self.camera_preview_label = QLabel("Картинка с камеры")
+        self.camera_preview_label.setStyleSheet(self.settings_text_qss)
+        self.camera_preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.camera_preview_lay.addWidget(self.camera_preview_label, stretch=1)
+
+        self.chat_lay.addLayout(self.bottom_lay)
 
 # ===========================================================
 # ДИКТОР
