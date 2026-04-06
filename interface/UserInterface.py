@@ -66,7 +66,6 @@ class UserInterface(QMainWindow):
         self.content_panel = QStackedWidget(self.main_widget)
         self.content_panel.setMinimumWidth(330)
 
-        
 
         
         # Боковая панель
@@ -123,11 +122,80 @@ class ChatSendBox(QWidget):
             """)
         self.chats_send_box_lay.addWidget(self.main_frame)
         self.main_frame_lay = QVBoxLayout(self.main_frame)
-        self.main_frame_lay.setContentsMargins(0, 0, 0, 0)
+        self.main_frame_lay.setContentsMargins(10, 10, 10, 10)
         self.main_frame_lay.setSpacing(10)
         self.chat_send_input = QTextEdit()
-        self.main_frame_lay.addWidget(self.chat_send_input)
-       
+        self.chat_send_input.setStyleSheet("""
+            QTextEdit {
+                background-color: transparent;
+                border: none;
+                font-size: 14px;
+                font-family: "Roboto";
+                color: #000000;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background-color: #CCCCCC;
+                width: 8px;
+                margin: 0px;
+                border-radius: 3px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #B0B0B0;
+                border-radius: 3px;
+                min-height: 30px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+                subcontrol-position: bottom;
+            }
+        """)
+        self.main_frame_lay.addWidget(self.chat_send_input, 1)
+        self.send_btn = QPushButton("Отправить")
+        self.send_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #D9D9D9;
+                border-radius: 12px;
+                color: #000000;
+                font-size: 14px;
+                font-family: "Roboto";
+                border: 3px solid transparent;
+                padding: 10px 10px 10px 20px;
+            }
+            QPushButton:hover {
+                background-color: #C8C8C8;
+                border: 3px solid #888888; 
+            }
+            QPushButton:pressed {
+                background-color: #B8B8B8;
+                border: 3px solid #666666; 
+            }
+        """)
+        self.send_btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.send_btn.setIcon(QIcon(icon_path("send.png")))
+        self.main_frame_lay.addWidget(self.send_btn, 1, Qt.AlignmentFlag.AlignRight)
+        self.send_btn.clicked.connect(self.send_message)
+
+        self.chat_send_input.installEventFilter(self)
+    def send_message(self):
+        text = self.chat_send_input.toPlainText()
+        if not text:
+            return
+        self.chat_send_input.clear()
+
+    def eventFilter(self, obj, event):
+        if obj == self.chat_send_input and event.type() == event.Type.KeyPress:
+        # Проверяем, нажат ли Enter (обычный или на NumPad)
+            if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+            # Проверяем, НЕ зажат ли Shift (чтобы Shift+Enter делал новую строку)
+                if not event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                    self.send_message()
+                    return True  # Возвращаем True, чтобы QTextEdit не вставил перенос строки
+    
+    # Для всех остальных событий используем стандартную обработку
+        return super().eventFilter(obj, event)
+        
+        
         
 
 
@@ -148,7 +216,8 @@ class ContentPageWidget(QWidget):
                 font-size: 14px;
                 font-family: "Roboto";
                 border: 3px solid transparent;
-                padding: 8px 8px 8px 16px;
+                padding: 5px 5px 5px 16px;
+                text-align: left;
             }
             QPushButton:hover {
                 background-color: #C8C8C8;
@@ -223,7 +292,7 @@ class Settings(ContentPageWidget):
     def __init__(self):
         super().__init__()
         self.side_panel_btn.setText("Настройки")
-        self.side_panel_btn.setIcon(QIcon(icon_path("Settings.png")))
+        self.side_panel_btn.setIcon(QIcon(icon_path("settings.png")))
         self.main_lay = QVBoxLayout(self)
         self.main_lay.setContentsMargins(0, 0, 0, 0)
         
@@ -342,7 +411,7 @@ class Profile(ContentPageWidget):
     def __init__(self):
         super().__init__()
         self.side_panel_btn.setText("Профиль")
-        self.side_panel_btn.setIcon(QIcon(icon_path("ProfileInButton.png")))
+        self.side_panel_btn.setIcon(QIcon(icon_path("profile.png")))
 
 # ===========================================================
 # ГОЛОСОВОЙ ВВОД
@@ -351,6 +420,7 @@ class VoiceInput(ContentPageWidget):
     def __init__(self):
         super().__init__()
         self.side_panel_btn.setText("Голосовой Ввод")
+        self.side_panel_btn.setIcon(QIcon(icon_path("microphone.png"))) 
 
 # ===========================================================
 # ТЕКСТОВЫЙ ВВОД
@@ -365,7 +435,7 @@ class TextInput(ContentPageWidget):
                }
         """)
         self.side_panel_btn.setText("Текстовый Ввод")
-        self.side_panel_btn.setIcon(QIcon(icon_path("TextInput.png"))) 
+        self.side_panel_btn.setIcon(QIcon(icon_path("text.png"))) 
         self.text_input_lay = QVBoxLayout(self)
         self.chat_box = ChatSendBox()
         self.text_input_lay.addWidget(self.chat_box)
@@ -378,7 +448,7 @@ class GesturesInput(ContentPageWidget):
     def __init__(self):
         super().__init__()
         self.side_panel_btn.setText("Жестовый Ввод")
-        self.side_panel_btn.setIcon(QIcon(icon_path("GestureInput.png")))
+        self.side_panel_btn.setIcon(QIcon(icon_path("camera.png")))
         
         # Вертикальный лайаут всей страницы
         self.chat_lay = QVBoxLayout(self)
