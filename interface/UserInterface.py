@@ -5,7 +5,15 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont, QIcon
 import sys
+import os
 from AssistentCore import get_available_cameras, get_available_microphones
+
+# Базовый путь для иконок
+ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
+
+def icon_path(filename):
+    """Возвращает абсолютный путь к иконке"""
+    return os.path.join(ICONS_DIR, filename)
 
 """
 ====================================================
@@ -119,7 +127,7 @@ class ChatSendBox(QWidget):
         self.main_frame_lay.setSpacing(10)
         self.chat_send_input = QTextEdit()
         self.main_frame_lay.addWidget(self.chat_send_input)
-
+       
         
 
 
@@ -139,8 +147,8 @@ class ContentPageWidget(QWidget):
                 color: #000000;
                 font-size: 14px;
                 font-family: "Roboto";
-                border: 3px solid transparent; 
-                padding: 5px 5px 5px 15px;
+                border: 3px solid transparent;
+                padding: 8px 8px 8px 16px;
             }
             QPushButton:hover {
                 background-color: #C8C8C8;
@@ -198,9 +206,15 @@ class ContentPageWidget(QWidget):
             }
         """
         self.side_panel_btn.setMinimumSize(160, 60)
-        
+
         # состояние кнопки при нажатии
-        self.side_panel_btn.setCheckable(True) 
+        self.side_panel_btn.setCheckable(True)
+        
+        # единый размер иконок
+        self._icon_size = QSize(25, 25)
+        
+        self.side_panel_btn.setIconSize(self._icon_size)
+
         
 # ===========================================================
 # НАСТРОЙКИ
@@ -209,6 +223,7 @@ class Settings(ContentPageWidget):
     def __init__(self):
         super().__init__()
         self.side_panel_btn.setText("Настройки")
+        self.side_panel_btn.setIcon(QIcon(icon_path("Settings.png")))
         self.main_lay = QVBoxLayout(self)
         self.main_lay.setContentsMargins(0, 0, 0, 0)
         
@@ -326,10 +341,8 @@ class Settings(ContentPageWidget):
 class Profile(ContentPageWidget):
     def __init__(self):
         super().__init__()
-        self.side_panel_btn.setText("Профиль") 
-        self.side_panel_btn.setIcon(QIcon("icons/profile.png"))
-        self.side_panel_btn.setIconSize(QSize(32, 32))
-        self.side_panel_btn.update()
+        self.side_panel_btn.setText("Профиль")
+        self.side_panel_btn.setIcon(QIcon(icon_path("ProfileInButton.png")))
 
 # ===========================================================
 # ГОЛОСОВОЙ ВВОД
@@ -337,7 +350,7 @@ class Profile(ContentPageWidget):
 class VoiceInput(ContentPageWidget):
     def __init__(self):
         super().__init__()
-        self.side_panel_btn.setText("Голосовой Ввод") 
+        self.side_panel_btn.setText("Голосовой Ввод")
 
 # ===========================================================
 # ТЕКСТОВЫЙ ВВОД
@@ -351,7 +364,8 @@ class TextInput(ContentPageWidget):
                 border-radius: 16px;
                }
         """)
-        self.side_panel_btn.setText("Текстовый Ввод") 
+        self.side_panel_btn.setText("Текстовый Ввод")
+        self.side_panel_btn.setIcon(QIcon(icon_path("TextInput.png"))) 
         self.text_input_lay = QVBoxLayout(self)
         self.chat_box = ChatSendBox()
         self.text_input_lay.addWidget(self.chat_box)
@@ -364,7 +378,8 @@ class GesturesInput(ContentPageWidget):
     def __init__(self):
         super().__init__()
         self.side_panel_btn.setText("Жестовый Ввод")
-
+        self.side_panel_btn.setIcon(QIcon(icon_path("GestureInput.png")))
+        
         # Вертикальный лайаут всей страницы
         self.chat_lay = QVBoxLayout(self)
         self.chat_lay.setContentsMargins(15, 15, 15, 15)
