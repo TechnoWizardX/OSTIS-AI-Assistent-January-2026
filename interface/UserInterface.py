@@ -108,11 +108,18 @@ class ChatSendBox(QWidget):
     def __init__(self):
         super().__init__()
         self.chats_send_box_lay = QVBoxLayout(self)
-        self.chats_send_box_lay.setContentsMargins(10, 10, 10, 10)
-        self.chats_send_box_lay.setSpacing(10)
+        self.main_frame = QFrame()
+        self.main_frame.setStyleSheet("""
+            background-color: #FFFFFF;
+            border-radius: 16px;
+            """)
+        self.chats_send_box_lay.addWidget(self.main_frame)
+        self.main_frame_lay = QVBoxLayout(self.main_frame)
+        self.main_frame_lay.setContentsMargins(0, 0, 0, 0)
+        self.main_frame_lay.setSpacing(10)
         self.chat_send_input = QTextEdit()
-        self.chats_send_box_lay.addWidget(self.chat_send_input)
-       
+        self.main_frame_lay.addWidget(self.chat_send_input)
+
         
 
 
