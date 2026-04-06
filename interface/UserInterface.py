@@ -107,7 +107,11 @@ class UserInterface(QMainWindow):
 class ChatSendBox(QWidget):
     def __init__(self):
         super().__init__()
-        
+        self.chats_send_box_lay = QVBoxLayout(self)
+        self.chats_send_box_lay.setContentsMargins(10, 10, 10, 10)
+        self.chats_send_box_lay.setSpacing(10)
+        self.chat_send_input = QTextEdit()
+        self.chats_send_box_lay.addWidget(self.chat_send_input)
        
         
 
@@ -198,12 +202,17 @@ class Settings(ContentPageWidget):
     def __init__(self):
         super().__init__()
         self.side_panel_btn.setText("Настройки")
-        self.setStyleSheet("""
+        self.main_lay = QVBoxLayout(self)
+        self.main_lay.setContentsMargins(0, 0, 0, 0)
+        
+        self.main_frame = QFrame()
+        self.main_frame.setStyleSheet("""
                 background-color: #FFFFFF;
                 border-radius: 16px;
         """)
         # сетка-панель настроек
-        self.grid_lay = QGridLayout(self)
+        self.main_lay.addWidget(self.main_frame)
+        self.grid_lay = QGridLayout(self.main_frame)
         self.grid_lay.setContentsMargins(10, 10, 10, 10)
         
         # фрейм для выбора камеры
@@ -236,7 +245,6 @@ class Settings(ContentPageWidget):
 
         self.camera_frame_lay.addWidget(self.camera_label, 1)
         self.camera_frame_lay.addWidget(self.camera_dropbox, 1)
-        self.camera_frame_lay.addStretch(1)
 
         
         self.microphone_frame = QFrame()
@@ -268,16 +276,33 @@ class Settings(ContentPageWidget):
 
         self.microphone_frame_lay.addWidget(self.microphone_label, 1)
         self.microphone_frame_lay.addWidget(self.microphone_dropbox, 1)
-        self.microphone_frame_lay.addStretch(1)
         
         
         
         self.speaker_frame = QFrame()
+        self.speaker_frame.setStyleSheet("""
+            background-color: #D3D3D3;
+            border-radius: 12px;
+        """)
+        self.speaker_frame.setFixedHeight(40)
         self.grid_lay.addWidget(self.speaker_frame, 2, 0)
-
+        # лайаут фрейма микрофона
         self.speaker_frame_lay = QHBoxLayout(self.speaker_frame)
-        self.speaker_label = QLabel("Спикер:")
-        self.speaker_frame_lay.addWidget(self.speaker_label)
+        self.speaker_frame_lay.setContentsMargins(10, 5, 5, 10)
+        self.speaker_frame_lay.setSpacing(10)
+
+        # текстовая метка "Микрофон"
+        self.speaker_label = QLabel("Диктор:")
+        self.speaker_label.setStyleSheet(self.settings_text_qss)
+        # выпадающий список микрофонов
+        self.speaker_dropbox = QComboBox()
+        self.speaker_dropbox.setStyleSheet(self.dropbox_qss)
+        self.speaker_dropbox.setMinimumHeight(30)
+
+        self.speaker_frame_lay.addWidget(self.speaker_label, 1)
+        self.speaker_frame_lay.addWidget(self.speaker_dropbox, 1)
+        self.grid_lay.setRowStretch(3, 1)
+
 
     def get_current_camera(self):
         return self.camera_dropbox.currentText()
