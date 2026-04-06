@@ -1,9 +1,10 @@
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox, QButtonGroup, QTextEdit, QLineEdit
+    QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox, QButtonGroup, QTextEdit, QLineEdit,
+    QGraphicsDropShadowEffect
 )
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtGui import QFont, QIcon, QColor
 import sys
 import os
 from AssistentCore import get_available_cameras, get_available_microphones
@@ -212,8 +213,22 @@ class ContentPageWidget(QWidget):
         
         # единый размер иконок
         self._icon_size = QSize(25, 25)
-        
+
         self.side_panel_btn.setIconSize(self._icon_size)
+        
+        # Тень при наведении
+        self._shadow = QGraphicsDropShadowEffect(self.side_panel_btn)
+        self._shadow.setBlurRadius(20)
+        self._shadow.setXOffset(0)
+        self._shadow.setYOffset(4)
+        self._shadow.setColor(QColor(0, 0, 0, 120))
+        
+        self.side_panel_btn.setGraphicsEffect(self._shadow)
+        self._shadow.setEnabled(False)
+        
+        # Обработка наведения
+        self.side_panel_btn.enterEvent = lambda e: self._shadow.setEnabled(True)
+        self.side_panel_btn.leaveEvent = lambda e: self._shadow.setEnabled(False)
 
         
 # ===========================================================
@@ -385,7 +400,7 @@ class GesturesInput(ContentPageWidget):
         self.chat_lay.setContentsMargins(15, 15, 15, 15)
         self.chat_lay.setSpacing(10)
 
-        # Чат(временно)
+        # Чат(временно)===============================================================
         self.chat_frame = QFrame()
         self.chat_frame.setStyleSheet("""
             background-color: #D3D3D3;
@@ -407,7 +422,8 @@ class GesturesInput(ContentPageWidget):
         self.chat_message.setReadOnly(True)
         self.chat_message.setPlaceholderText("Сообщения появятся здесь...")
         self.chat_frame_lay.addWidget(self.chat_message, stretch=1)
-
+        #===============================================================================
+        
         # Разделение для демки с камеры и вводом текста
         self.bottom_lay = QHBoxLayout()
         self.bottom_lay.setSpacing(10)
@@ -415,10 +431,10 @@ class GesturesInput(ContentPageWidget):
         # Поле ввода
         self.send_message_frame = QFrame()
         self.send_message_frame.setStyleSheet("""
-            background-color: #D9D9D9;
+            background-color: #C2C2C2;
             border-radius: 12px;
         """)
-        self.send_message_frame.setFixedHeight(150)
+        self.send_message_frame.setMaximumHeight(400)
         self.bottom_lay.addWidget(self.send_message_frame, stretch=1)
 
         # Вертикальный лайаут внутри фрейма ввода
@@ -464,6 +480,19 @@ class GesturesInput(ContentPageWidget):
                 background-color: #A8A8A8;
             }
         """)
+        
+        # Тень
+        self._shadow_send_btn = QGraphicsDropShadowEffect(self.side_panel_btn)
+        self._shadow_send_btn.setBlurRadius(20)
+        self._shadow_send_btn.setXOffset(0)
+        self._shadow_send_btn.setYOffset(4)
+        self._shadow_send_btn.setColor(QColor(0, 0, 0, 80))
+        
+        self.send_btn.setGraphicsEffect(self._shadow_send_btn)
+        self._shadow_send_btn.setEnabled(True)
+        
+
+
 
         self.send_btn_lay.addWidget(self.send_btn)
         self.send_message_frame_lay.addLayout(self.send_btn_lay)
