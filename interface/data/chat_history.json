@@ -1,0 +1,14 @@
+[
+  {
+    "author" : "user",
+    "message" : "hello",
+    "time" : "12:00",
+    "day" : "2023-01-01"
+  },
+  {
+    "author" : "assistent",
+    "message" : "hi",
+    "time" : "12:01",
+    "day" : "2023-01-01"
+  }
+]

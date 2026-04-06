@@ -6,10 +6,12 @@ from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont, QIcon
 import sys
 import os
-from AssistentCore import get_available_cameras, get_available_microphones
+from AssistentCore import BasicFunctions
 
 # Базовый путь для иконок
 ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
+
+
 
 def icon_path(filename):
     """Возвращает абсолютный путь к иконке"""
@@ -45,7 +47,7 @@ class UserInterface(QMainWindow):
 
         # Основной лайаут: размещает боковую панель и панель контента горизонтально
         self.main_lay = QHBoxLayout(self.main_widget)
-        self.main_lay.setContentsMargins(15, 15, 15, 15)
+        self.main_lay.setContentsMargins(10, 10, 10, 10)
         self.main_lay.setSpacing(10)
 
 
@@ -110,7 +112,9 @@ class UserInterface(QMainWindow):
 
 
 
-
+# ==========================================================
+# Виджет отправки сообщений (текстовое поле)
+# ==========================================================
 class ChatSendBox(QWidget):
     def __init__(self):
         super().__init__()
@@ -173,14 +177,16 @@ class ChatSendBox(QWidget):
         """)
         self.send_btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self.send_btn.setIcon(QIcon(icon_path("send.png")))
-        self.main_frame_lay.addWidget(self.send_btn, 1, Qt.AlignmentFlag.AlignRight)
+        self.main_frame_lay.addWidget(self.send_btn, 1, Qt.AlignmentFlag.AlignLeft)
         self.send_btn.clicked.connect(self.send_message)
 
         self.chat_send_input.installEventFilter(self)
     def send_message(self):
         text = self.chat_send_input.toPlainText()
+        
         if not text:
             return
+        BasicFunctions.add_message("user", text)
         self.chat_send_input.clear()
 
     def eventFilter(self, obj, event):
@@ -194,7 +200,7 @@ class ChatSendBox(QWidget):
     
     # Для всех остальных событий используем стандартную обработку
         return super().eventFilter(obj, event)
-        
+
         
         
 
@@ -327,7 +333,7 @@ class Settings(ContentPageWidget):
         self.camera_dropbox.setStyleSheet(self.dropbox_qss)
         self.camera_dropbox.setMinimumHeight(30)
 
-        available = get_available_cameras()
+        available = BasicFunctions.get_available_cameras()
         
         if available:
             self.camera_dropbox.addItems(available)
@@ -358,7 +364,7 @@ class Settings(ContentPageWidget):
         self.microphone_dropbox.setStyleSheet(self.dropbox_qss)
         self.microphone_dropbox.setMinimumHeight(30)
 
-        available_mics = get_available_microphones()
+        available_mics = BasicFunctions.get_available_microphones()
 
         if available_mics:
             self.microphone_dropbox.addItems(available_mics)
@@ -483,61 +489,8 @@ class GesturesInput(ContentPageWidget):
         self.bottom_lay.setSpacing(10)
 
         # Поле ввода
-        self.send_message_frame = QFrame()
-        self.send_message_frame.setStyleSheet("""
-            background-color: #D9D9D9;
-            border-radius: 12px;
-        """)
-        self.send_message_frame.setFixedHeight(150)
-        self.bottom_lay.addWidget(self.send_message_frame, stretch=1)
-
-        # Вертикальный лайаут внутри фрейма ввода
-        self.send_message_frame_lay = QVBoxLayout(self.send_message_frame)
-        self.send_message_frame_lay.setContentsMargins(12, 12, 12, 12)
-        self.send_message_frame_lay.setSpacing(0)
-
-        # Многострочное поле ввода текста
-        self.chat_input = QTextEdit()
-        self.chat_input.setPlaceholderText("Введите сообщение...")
-        self.chat_input.setStyleSheet("""
-            QTextEdit {
-                background-color: #FFFFFF;
-                border: none;
-                font-size: 14px;
-                font-family: "Roboto";
-                color: #000000;
-            }
-        """)
-        self.send_message_frame_lay.addWidget(self.chat_input, stretch=1)
-
-        # Горизонтальный лайаут для кнопки (прижата вправо)
-        self.send_btn_lay = QHBoxLayout()
-        self.send_btn_lay.addStretch(1)
-
-        # Кнопка отправки
-        self.send_btn = QPushButton("Отправить  \u2191")
-        self.send_btn.setFixedHeight(36)
-        self.send_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #D3D3D3;
-                border-radius: 18px;
-                color: #000000;
-                font-size: 14px;
-                font-family: "Roboto";
-                padding-left: 16px;
-                padding-right: 16px;
-            }
-            QPushButton:hover {
-                background-color: #C0C0C0;
-            }
-            QPushButton:pressed {
-                background-color: #A8A8A8;
-            }
-        """)
-
-        self.send_btn_lay.addWidget(self.send_btn)
-        self.send_message_frame_lay.addLayout(self.send_btn_lay)
-
+        self.send_box = ChatSendBox()
+        self.bottom_lay.addWidget(self.send_box, stretch=1)
         # Превью камеры
         self.camera_preview_frame = QFrame()
         self.camera_preview_frame.setStyleSheet("""
