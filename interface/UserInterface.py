@@ -7,6 +7,7 @@ from PyQt6.QtGui import QFont, QIcon
 import sys
 import os
 from AssistentCore import BasicFunctions
+import datetime
 
 # Базовый путь для иконок
 ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
@@ -187,6 +188,7 @@ class ChatSendBox(QWidget):
         if not text:
             return
         BasicFunctions.add_message("user", text)
+        DialogBox.add_message("user", text)
         self.chat_send_input.clear()
 
     def eventFilter(self, obj, event):
@@ -201,8 +203,68 @@ class ChatSendBox(QWidget):
     # Для всех остальных событий используем стандартную обработку
         return super().eventFilter(obj, event)
 
+class Message(QWidget):
+    def __init__(self, author, text):
+        super().__init__()
+        self.messege_lay = QVBoxLayout(self)
+        self.main_frame = QFrame()
+        self.main_frame.setStyleSheet("""
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            """)
+        self.main_frame_lay = QVBoxLayout(self.main_frame)
+        self.main_frame_lay.setContentsMargins(10, 10, 10, 10)
+        self.main_frame_lay.setSpacing(10)
+        self.messege_lay.addWidget(self.main_frame)
         
+        if author == "user":
+            self.author = "Вы"
+        else:
+            self.author = author
+        self.text = text
+        self.time = datetime.now().strftime("%H:%M")
+
+        self.author_label = QLabel(self.author)
+        self.author_label.setStyleSheet("""
+            color: #000000;
+            font-size: 10px;
+            font-family: "Roboto";
+        """)
+        self.main_frame_lay.addWidget(self.author_label, 1, Qt.AlignmentFlag.AlignLeft)
+
+        self.text_label = QLabel(self.text)
+        self.text_label.setStyleSheet("""
+            color: #000000;
+            font-size: 14px;
+            font-family: "Roboto";
+        """)
+        self.main_frame_lay.addWidget(self.text_label, 1, Qt.AlignmentFlag.AlignLeft)
+
+        self.time_label = QLabel(self.time)
+        self.time_label.setStyleSheet("""   
+            color: #D9D9D9;
+            font-size: 10px;
+            font-family: "Roboto";
+        """)
+        self.main_frame_lay.addWidget(self.time_label, 1, Qt.AlignmentFlag.AlignRight)
         
+class DialogBox(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.dialog_box_lay = QVBoxLayout(self)       
+        self.main_frame = QFrame()
+        self.main_frame.setStyleSheet("""
+            background-color: #FFFFFF;
+            border-radius: 16px;
+            """)
+        self.main_frame_lay = QVBoxLayout(self.main_frame)
+        self.main_frame_lay.setContentsMargins(10, 10, 10, 10)
+        self.main_frame_lay.setSpacing(10)
+        self.dialog_box_lay.addWidget(self.main_frame)
+
+    def add_message(self, author, text):
+        message = Message(author, text)
+        self.main_frame_lay.addWidget(message)
 
 
         
@@ -443,8 +505,12 @@ class TextInput(ContentPageWidget):
         self.side_panel_btn.setText("Текстовый Ввод")
         self.side_panel_btn.setIcon(QIcon(icon_path("text.png"))) 
         self.text_input_lay = QVBoxLayout(self)
+
+        self.dialog_box = DialogBox()
         self.chat_box = ChatSendBox()
-        self.text_input_lay.addWidget(self.chat_box)
+
+        self.text_input_lay.addWidget(self.dialog_box, 2)
+        self.text_input_lay.addWidget(self.chat_box, 1)
 
 # ===========================================================
 # ЖЕСТОВЫЙ ВВОД
