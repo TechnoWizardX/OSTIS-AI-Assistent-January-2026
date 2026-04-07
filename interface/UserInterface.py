@@ -3,12 +3,12 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox, QButtonGroup, QTextEdit, QLineEdit,
     QGraphicsDropShadowEffect
 )
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon, QColor
 import sys
 import os
 from AssistentCore import BasicFunctions
-import datetime
+from datetime import datetime
 
 # Базовый путь для иконок
 ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
@@ -118,6 +118,8 @@ class UserInterface(QMainWindow):
 # Виджет отправки сообщений (текстовое поле)
 # ==========================================================
 class ChatSendBox(QWidget):
+    # Сигнал о создании сообщения
+    message_sent = pyqtSignal(str, str)
     def __init__(self):
         super().__init__()
         self.chats_send_box_lay = QVBoxLayout(self)
@@ -189,8 +191,9 @@ class ChatSendBox(QWidget):
         if not text:
             return
         BasicFunctions.add_message("user", text)
-        DialogBox.add_message("user", text)
         self.chat_send_input.clear()
+    # Посылаем сигнал
+        self.message_sent.emit("user", text)
 
     def eventFilter(self, obj, event):
         if obj == self.chat_send_input and event.type() == event.Type.KeyPress:
@@ -228,7 +231,7 @@ class Message(QWidget):
         self.author_label = QLabel(self.author)
         self.author_label.setStyleSheet("""
             color: #000000;
-            font-size: 10px;
+            font-size: 14px;
             font-family: "Roboto";
         """)
         self.main_frame_lay.addWidget(self.author_label, 1, Qt.AlignmentFlag.AlignLeft)
@@ -263,9 +266,14 @@ class DialogBox(QWidget):
         self.main_frame_lay.setSpacing(10)
         self.dialog_box_lay.addWidget(self.main_frame)
 
-    def add_message(self, author, text):
+    def add_message(self, author: str, text: str):
         message = Message(author, text)
-        self.main_frame_lay.addWidget(message)
+        alignment = Qt.AlignmentFlag.AlignLeft
+        if author == "user":
+            alignment = Qt.AlignmentFlag.AlignRight
+        else:
+            alignment = Qt.AlignmentFlag.AlignLeft
+        self.main_frame_lay.addWidget(message, 1, alignment)
 
 
         
@@ -523,6 +531,8 @@ class TextInput(ContentPageWidget):
 
         self.dialog_box = DialogBox()
         self.chat_box = ChatSendBox()
+        #Подключаем сигналы 
+        self.chat_box.message_sent.connect(self.dialog_box.add_message)
 
         self.text_input_lay.addWidget(self.dialog_box, 2)
         self.text_input_lay.addWidget(self.chat_box, 1)
