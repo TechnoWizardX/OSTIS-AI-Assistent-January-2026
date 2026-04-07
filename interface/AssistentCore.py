@@ -3,6 +3,7 @@ import pyaudio
 import json
 from pathlib import Path
 from datetime import datetime
+import UserInterface
 
 CHAT_FILE = Path(__file__).parent / "data" / "chat_history.json"
 CHAT_FILE.parent.mkdir(exist_ok=True)
@@ -49,3 +50,9 @@ class BasicFunctions:
             "day": datetime.now().strftime("%D-%m-%Y")
         })
         BasicFunctions.save_chat_history(history)
+
+    
+
+class AssistentCore():
+    pass
+
