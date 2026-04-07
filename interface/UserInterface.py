@@ -4,11 +4,18 @@ from PyQt6.QtWidgets import (
     QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon, QColor
+from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap
 import sys
 import os
 from AssistentCore import BasicFunctions
 from datetime import datetime
+
+# Добавляем путь к жестам для импорта
+GESTURES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "problem-solver", "samples", "Жестовый_ввод")
+if GESTURES_DIR not in sys.path:
+    sys.path.insert(0, GESTURES_DIR)
+
+from gestures import GestureCameraThread
 
 # Базовый путь для иконок
 ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
@@ -93,10 +100,10 @@ class UserInterface(QMainWindow):
         # линкование кнопок
         for page in self.content_pages:
             btn = self.content_pages[page]
-            
+
             # добавляем кнопку в группу
             self.button_group.addButton(btn)
-            
+
             # Фиксируем p=page, чтобы каждая кнопка запомнила свою страницу
             btn.clicked.connect(lambda checked, p=page: self.content_panel.setCurrentWidget(p))
             self.content_panel.addWidget(page)
@@ -110,6 +117,20 @@ class UserInterface(QMainWindow):
         self.main_lay.addWidget(self.side_panel, 2)
         self.main_lay.addWidget(self.content_panel, 7)
         self.content_panel.setCurrentIndex(0)
+
+        # Подключаемся на переключение страниц — останавливаем камеру при уходе с жестов
+        self.content_panel.currentChanged.connect(self._on_page_changed)
+
+    def _on_page_changed(self, index):
+        """При переключении на другую страницу — останавливаем камеру."""
+        page = self.content_panel.widget(index)
+        if page is not self.gestures_input_page:
+            self.gestures_input_page.stop_camera()
+
+    def closeEvent(self, event):
+        """При закрытии окна — останавливаем камеру."""
+        self.gestures_input_page.stop_camera()
+        super().closeEvent(event)
 
 
 
@@ -615,7 +636,10 @@ class GesturesInput(ContentPageWidget):
         super().__init__()
         self.side_panel_btn.setText("Жестовый Ввод")
         self.side_panel_btn.setIcon(QIcon(icon_path("camera.png")))
-        
+
+        # Поток камеры (создаётся при старте)
+        self.camera_thread = None
+
         # Вертикальный лайаут всей страницы
         self.chat_lay = QVBoxLayout(self)
         self.chat_lay.setContentsMargins(15, 15, 15, 15)
@@ -635,26 +659,149 @@ class GesturesInput(ContentPageWidget):
         self.chat_lay.addWidget(self.dialog_box, stretch=2)
         self.bottom_lay.addWidget(self.send_box, stretch=1)
 
-        # Превью камеры
-        self.camera_preview_frame = QFrame()
-        self.camera_preview_frame.setStyleSheet("""
-            background-color: #D3D3D3;
-            border-radius: 12px;
+        # Правая часть: превью камеры + кнопки управления
+        self.camera_frame = QFrame()
+        self.camera_frame.setStyleSheet("""
+            QFrame {
+                background-color: #D3D3D3;
+                border-radius: 12px;
+            }
         """)
-        self.bottom_lay.addWidget(self.camera_preview_frame, stretch=1)
+        self.bottom_lay.addWidget(self.camera_frame, stretch=2)
 
-        # Вертикальный лайаут внутри превью камеры
-        self.camera_preview_lay = QVBoxLayout(self.camera_preview_frame)
-        self.camera_preview_lay.setContentsMargins(10, 10, 10, 10)
-        self.camera_preview_lay.setSpacing(5)
+        self.camera_lay = QVBoxLayout(self.camera_frame)
+        self.camera_lay.setContentsMargins(10, 10, 10, 10)
+        self.camera_lay.setSpacing(5)
 
-        # Картинка с камеры(пока просто текст)
-        self.camera_preview_label = QLabel("Картинка с камеры")
-        self.camera_preview_label.setStyleSheet(self.settings_text_qss)
+        # Лейбл для отображения кадра (тоже скруглённые углы)
+        self.camera_preview_label = QLabel("Нажмите «Старт» для запуска")
+        self.camera_preview_label.setStyleSheet("""
+            QLabel {
+                background-color: #A8A8A8;
+                border-radius: 8px;
+            }
+        """)
         self.camera_preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.camera_preview_lay.addWidget(self.camera_preview_label, stretch=1)
+        self.camera_preview_label.setMinimumSize(320, 240)
+        self.camera_preview_label.setScaledContents(False)
+        self.camera_lay.addWidget(self.camera_preview_label, stretch=1)
+
+        # Кнопки старт/стоп снизу
+        self.camera_btn_lay = QHBoxLayout()
+        self.camera_btn_lay.setSpacing(10)
+
+        self.start_btn = QPushButton("Старт")
+        self.start_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                border-radius: 8px;
+                color: #FFFFFF;
+                font-size: 14px;
+                font-family: "Roboto";
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+        """)
+        self.start_btn.clicked.connect(self.start_camera)
+        self.camera_btn_lay.addWidget(self.start_btn)
+
+        self.stop_btn = QPushButton("Стоп")
+        self.stop_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                border-radius: 8px;
+                color: #FFFFFF;
+                font-size: 14px;
+                font-family: "Roboto";
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background-color: #da190b;
+            }
+            QPushButton:pressed {
+                background-color: #c62828;
+            }
+        """)
+        self.stop_btn.clicked.connect(self.stop_camera)
+        self.stop_btn.setEnabled(False)
+        self.camera_btn_lay.addWidget(self.stop_btn)
+
+        self.camera_lay.addLayout(self.camera_btn_lay)
 
         self.chat_lay.addLayout(self.bottom_lay)
+
+    def start_camera(self):
+        """Запускает поток камеры."""
+        if self.camera_thread is not None and self.camera_thread.isRunning():
+            return
+
+        self.camera_thread = GestureCameraThread(camera_index=0)
+        self.camera_thread.frame_ready.connect(self.on_frame_ready)
+        self.camera_thread.status_ready.connect(self.on_status_ready)
+        self.camera_thread.start()
+
+        self.start_btn.setEnabled(False)
+        self.stop_btn.setEnabled(True)
+        self.chat_message.append("Камера запущена")
+
+    def stop_camera(self):
+        """Останавливает поток камеры."""
+        if self.camera_thread is not None and self.camera_thread.isRunning():
+            # Отключаем сигналы перед остановкой
+            self.camera_thread.frame_ready.disconnect()
+            self.camera_thread.status_ready.disconnect()
+            self.camera_thread.stop()
+            self.camera_thread = None
+
+        self.start_btn.setEnabled(True)
+        self.stop_btn.setEnabled(False)
+        # Сбрасываем картинку, показываем заглушку
+        self.camera_preview_label.clear()
+        self.camera_preview_label.setText("Нажмите «Старт» для запуска")
+        self.chat_message.append("Камера остановлена")
+
+    def _rounded_image(self, image: QImage, radius: int = 12) -> QImage:
+        """Возвращает изображение со скруглёнными углами."""
+        result = QImage(image.size(), QImage.Format.Format_ARGB32)
+        result.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(result)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        path = QPainterPath()
+        path.addRoundedRect(0, 0, image.width(), image.height(), radius, radius)
+        painter.setClipPath(path)
+        painter.drawImage(0, 0, image)
+        painter.end()
+
+        return result
+
+    def on_frame_ready(self, q_image: QImage):
+        """Слот для отображения кадра с камеры."""
+        if q_image.isNull():
+            return
+
+        # Масштабируем изображение под размер лейбла
+        label_size = self.camera_preview_label.size()
+        scaled_image = q_image.scaled(
+            label_size.width(),
+            label_size.height(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        # Скругляем углы
+        rounded = self._rounded_image(scaled_image, radius=8)
+        pixmap = QPixmap.fromImage(rounded)
+        self.camera_preview_label.setPixmap(pixmap)
+
+    def on_status_ready(self, status: str):
+        """Слот для отображения статуса жестов."""
+        self.chat_message.setPlainText(status)
 
 # ===========================================================
 # ДИКТОР
