@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox, QButtonGroup, QTextEdit, QLineEdit,
-    QGraphicsDropShadowEffect
+    QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon, QColor
@@ -208,54 +208,109 @@ class ChatSendBox(QWidget):
         return super().eventFilter(obj, event)
 
 class Message(QWidget):
-    def __init__(self, author, text):
+    def __init__(self, author: str, text: str, time: str = None):
         super().__init__()
-        self.messege_lay = QVBoxLayout(self)
+        
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        
+        # Используем QHBoxLayout для контроля ширины
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(10, 5, 10, 5)
+        
         self.main_frame = QFrame()
         self.main_frame.setStyleSheet("""
-            background-color: #FFFFFF;
+            background-color: #D9D9D9;
             border-radius: 12px;
-            """)
+        """)
+        
+        # Устанавливаем максимальную ширину
+        max_width = 500
+        self.main_frame.setMaximumWidth(max_width)
+        self.main_frame.setMinimumWidth(100)
+        
         self.main_frame_lay = QVBoxLayout(self.main_frame)
-        self.main_frame_lay.setContentsMargins(10, 10, 10, 10)
-        self.main_frame_lay.setSpacing(10)
-        self.messege_lay.addWidget(self.main_frame)
+        self.main_frame_lay.setContentsMargins(12, 10, 12, 10)
+        self.main_frame_lay.setSpacing(5)
         
         if author == "user":
             self.author = "Вы"
         else:
             self.author = author
-        self.text = text
-        self.time = datetime.now().strftime("%H:%M")
+    
+        
+        if time is None:
+            self.time = datetime.now().strftime("%H:%M")
+        else:
+            self.time = time
 
         self.author_label = QLabel(self.author)
         self.author_label.setStyleSheet("""
-            color: #000000;
-            font-size: 14px;
+            color: #666666;
+            font-size: 12px;
             font-family: "Roboto";
+            background-color: transparent;
+            font-weight: bold;
         """)
-        self.main_frame_lay.addWidget(self.author_label, 1, Qt.AlignmentFlag.AlignLeft)
-
-        self.text_label = QLabel(self.text)
+        
+        self.text_label = QLabel(text)
+        self.text_label.setWordWrap(True)
+        self.text_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.text_label.setStyleSheet("""
             color: #000000;
             font-size: 14px;
             font-family: "Roboto";
+            background-color: transparent;
+            line-height: 1.4;
         """)
-        self.main_frame_lay.addWidget(self.text_label, 1, Qt.AlignmentFlag.AlignLeft)
-
+        
         self.time_label = QLabel(self.time)
         self.time_label.setStyleSheet("""   
-            color: #D9D9D9;
+            color: #999999;
+            background-color: transparent;
             font-size: 10px;
             font-family: "Roboto";
         """)
-        self.main_frame_lay.addWidget(self.time_label, 1, Qt.AlignmentFlag.AlignRight)
         
+        # Создаем горизонтальный layout для времени (чтобы прижать вправо)
+        time_layout = QHBoxLayout()
+        time_layout.addStretch()
+        time_layout.addWidget(self.time_label)
+        
+        self.main_frame_lay.addWidget(self.author_label)
+        self.main_frame_lay.addWidget(self.text_label)
+        self.main_frame_lay.addLayout(time_layout)
+        
+        main_layout.addWidget(self.main_frame)
+        main_layout.addStretch()  # Прижимаем сообщение влево
+
 class DialogBox(QWidget):
     def __init__(self):
         super().__init__()
-        self.dialog_box_lay = QVBoxLayout(self)       
+        self.dialog_box_lay = QVBoxLayout(self)  
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True) # Важно: позволяет контейнеру растягиваться
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            /* Стилизация скроллбара */
+            QScrollBar:vertical {
+                border: none;
+                background-color: #E0E0E0;
+                width: 8px;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #B0B0B0;
+                border-radius: 4px;
+                min-height: 20px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)     
         self.main_frame = QFrame()
         self.main_frame.setStyleSheet("""
             background-color: #FFFFFF;
@@ -264,18 +319,32 @@ class DialogBox(QWidget):
         self.main_frame_lay = QVBoxLayout(self.main_frame)
         self.main_frame_lay.setContentsMargins(10, 10, 10, 10)
         self.main_frame_lay.setSpacing(10)
-        self.dialog_box_lay.addWidget(self.main_frame)
+        self.main_frame_lay.addStretch(10)
 
-    def add_message(self, author: str, text: str):
-        message = Message(author, text)
+        self.scroll_area.setWidget(self.main_frame)
+        self.dialog_box_lay.addWidget(self.scroll_area)
+
+        self.load_history()
+
+    def add_message(self, author: str, text: str, time: str = None):
+        message = Message(author, text, time)
         alignment = Qt.AlignmentFlag.AlignLeft
         if author == "user":
             alignment = Qt.AlignmentFlag.AlignRight
         else:
             alignment = Qt.AlignmentFlag.AlignLeft
-        self.main_frame_lay.addWidget(message, 1, alignment)
+        count = self.main_frame_lay.count()
+        self.main_frame_lay.insertWidget(count - 1, message, alignment=alignment)
+        self._scroll_to_bottom()
 
-
+    def _scroll_to_bottom(self):
+        scroll_bar = self.scroll_area.verticalScrollBar()
+        scroll_bar.setValue(scroll_bar.maximum())
+    
+    def load_history(self):
+        history = BasicFunctions.load_chat_history()
+        for message in history:
+            self.add_message(message["author"], message["text"], message["time"])
         
 #==========================================================
 #Основание для панелей контента
@@ -521,7 +590,7 @@ class TextInput(ContentPageWidget):
         super().__init__()
         self.setStyleSheet("""
             QWidget {
-                background-color: #D9D9D9;
+                background-color: transparent;
                 border-radius: 16px;
                }
         """)
@@ -530,12 +599,12 @@ class TextInput(ContentPageWidget):
         self.text_input_lay = QVBoxLayout(self)
 
         self.dialog_box = DialogBox()
-        self.chat_box = ChatSendBox()
+        self.send_box = ChatSendBox()
         #Подключаем сигналы 
-        self.chat_box.message_sent.connect(self.dialog_box.add_message)
+        self.send_box.message_sent.connect(self.dialog_box.add_message)
 
         self.text_input_lay.addWidget(self.dialog_box, 2)
-        self.text_input_lay.addWidget(self.chat_box, 1)
+        self.text_input_lay.addWidget(self.send_box, 1)
 
 # ===========================================================
 # ЖЕСТОВЫЙ ВВОД
@@ -552,42 +621,18 @@ class GesturesInput(ContentPageWidget):
         self.chat_lay.setContentsMargins(15, 15, 15, 15)
         self.chat_lay.setSpacing(10)
 
-        # Чат(временно)===============================================================
-        self.chat_frame = QFrame()
-        self.chat_frame.setStyleSheet("""
-            background-color: #D3D3D3;
-            border-radius: 12px;
-        """)
-        self.chat_lay.addWidget(self.chat_frame, stretch=1)
-
-        self.chat_frame_lay = QVBoxLayout(self.chat_frame)
-        self.chat_frame_lay.setContentsMargins(10, 10, 10, 10)
-        self.chat_frame_lay.setSpacing(10)
-
-        self.chat_message = QTextEdit()
-        self.chat_message.setStyleSheet("""
-            QTextEdit {
-                background-color: #FFFFFF;
-                border-radius: 8px;
-            }
-        """)
-        self.chat_message.setReadOnly(True)
-        self.chat_message.setPlaceholderText("Сообщения появятся здесь...")
-        self.chat_frame_lay.addWidget(self.chat_message, stretch=1)
+        # Чат===============================================================
+        self.dialog_box = DialogBox()
         #===============================================================================
         
         # Разделение для демки с камеры и вводом текста
         self.bottom_lay = QHBoxLayout()
         self.bottom_lay.setSpacing(10)
-
         # Поле ввода
         self.send_box = ChatSendBox()
-        self.send_box.setStyleSheet("""
-            QWidget {
-                background-color: #C2C2C2;
-                border-radius: 12px;
-            }
-        """)
+        self.send_box.message_sent.connect(self.dialog_box.add_message)
+        
+        self.chat_lay.addWidget(self.dialog_box, stretch=2)
         self.bottom_lay.addWidget(self.send_box, stretch=1)
 
         # Превью камеры
