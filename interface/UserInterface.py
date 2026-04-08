@@ -3,11 +3,11 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox, QButtonGroup, QTextEdit, QLineEdit,
     QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap
 import sys
 import os
-from AssistentCore import BasicFunctions
+from BasicFunctions import BasicFunctions
 from datetime import datetime
 
 # Добавляем путь к жестам для импорта
@@ -34,8 +34,13 @@ layout - лэйаут - lay
 frame - рамка/фрейм - frame
 Qt Style Sheets - стили qss - qss
 """
+class Signals(QObject):
+    message_sent = pyqtSignal(str, str)
+    settings_changed = pyqtSignal(dict)
+    camera_selected = pyqtSignal(str)
+    microphone_selected = pyqtSignal(str)
 
-
+global_signals = Signals()
 # ===========================================================
 # ГЛАВНЫЙ ИНТЕРФЕЙС
 # ===========================================================
@@ -141,9 +146,10 @@ class UserInterface(QMainWindow):
 # ==========================================================
 class ChatSendBox(QWidget):
     # Сигнал о создании сообщения
-    message_sent = pyqtSignal(str, str)
     def __init__(self):
         super().__init__()
+
+
         self.chats_send_box_lay = QVBoxLayout(self)
         self.main_frame = QFrame()
         self.main_frame.setStyleSheet("""
@@ -215,7 +221,7 @@ class ChatSendBox(QWidget):
         BasicFunctions.add_message("user", text)
         self.chat_send_input.clear()
     # Посылаем сигнал
-        self.message_sent.emit("user", text)
+        global_signals.message_sent.emit("user", text)
 
     def eventFilter(self, obj, event):
         if obj == self.chat_send_input and event.type() == event.Type.KeyPress:
@@ -308,6 +314,7 @@ class Message(QWidget):
 class DialogBox(QWidget):
     def __init__(self):
         super().__init__()
+        global_signals.message_sent.connect(self.add_message)
         self.dialog_box_lay = QVBoxLayout(self)  
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True) # Важно: позволяет контейнеру растягиваться
@@ -623,7 +630,6 @@ class TextInput(ContentPageWidget):
         self.dialog_box = DialogBox()
         self.send_box = ChatSendBox()
         #Подключаем сигналы 
-        self.send_box.message_sent.connect(self.dialog_box.add_message)
 
         self.text_input_lay.addWidget(self.dialog_box, 2)
         self.text_input_lay.addWidget(self.send_box, 1)
@@ -635,6 +641,8 @@ class GesturesInput(ContentPageWidget):
 
     def __init__(self):
         super().__init__()
+        self.signals = Signals()
+        
         self.side_panel_btn.setText("Жестовый Ввод")
         self.side_panel_btn.setIcon(QIcon(icon_path("camera.png")))
 
@@ -655,7 +663,7 @@ class GesturesInput(ContentPageWidget):
         self.bottom_lay.setSpacing(10)
         # Поле ввода
         self.send_box = ChatSendBox()
-        self.send_box.message_sent.connect(self.dialog_box.add_message)
+        self.signals.message_sent.connect(self.dialog_box.add_message)
         
         self.chat_lay.addWidget(self.dialog_box, stretch=2)
         self.bottom_lay.addWidget(self.send_box, stretch=1)
@@ -737,7 +745,7 @@ class GesturesInput(ContentPageWidget):
         self.chat_lay.addLayout(self.bottom_lay)
 
     def start_camera(self):
-        """Запускает поток камеры."""
+
         if self.camera_thread is not None and self.camera_thread.isRunning():
             return
 
@@ -748,7 +756,6 @@ class GesturesInput(ContentPageWidget):
 
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
-        self.chat_message.append("Камера запущена")
 
     def stop_camera(self):
         """Останавливает поток камеры."""
@@ -764,8 +771,6 @@ class GesturesInput(ContentPageWidget):
         # Сбрасываем картинку, показываем заглушку
         self.camera_preview_label.clear()
         self.camera_preview_label.setText("Нажмите «Старт» для запуска")
-        if hasattr(self, 'chat_message'):
-            self.chat_message.append("Камера остановлена")
 
     def _rounded_image(self, image: QImage, radius: int = 12) -> QImage:
         """Возвращает изображение со скруглёнными углами."""
@@ -803,7 +808,6 @@ class GesturesInput(ContentPageWidget):
 
     def on_status_ready(self, status: str):
         """Слот для отображения статуса жестов."""
-        self.chat_message.setPlainText(status)
 
 # ===========================================================
 # ДИКТОР
