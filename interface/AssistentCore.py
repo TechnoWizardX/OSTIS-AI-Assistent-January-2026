@@ -1,5 +1,4 @@
 from UserInterface import UserInterface, global_signals
-from BasicUtils import global_signals
 from PyQt6.QtWidgets import QApplication
 import sys
 

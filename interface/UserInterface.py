@@ -39,6 +39,7 @@ class Signals(QObject):
     settings_changed = pyqtSignal(dict)
     camera_selected = pyqtSignal(str)
     microphone_selected = pyqtSignal(str)
+    profile_updated = pyqtSignal(dict)
 
 global_signals = Signals()
 # ===========================================================
@@ -596,12 +597,207 @@ class Settings(ContentPageWidget):
 # ===========================================================
 # ПРОФИЛЬ
 # ===========================================================
+class ProfileOption(QFrame):
+    """
+    Виджет строки профиля: Название | Значение | Кнопки управления.
+    Поддерживает режимы: только чтение ↔ редактирование.
+    """
+    value_changed = pyqtSignal(str, str)  # name, new_value
+
+    def __init__(self, name: str, value: str, can_edit: bool = False, parent=None):
+        super().__init__(parent)
+
+        self.setStyleSheet("""
+            background-color: #D3D3D3;
+            border-radius: 12px;
+        """)
+        self.text_qss = """
+            color: #000000;
+            font-size: 16px;
+        """
+        self.setFixedHeight(35)
+        self._name = name
+        self._current_value = value
+
+        # Лэйаут
+        self.lay = QHBoxLayout(self)
+        self.lay.setContentsMargins(10, 5, 5, 10)
+        self.lay.setSpacing(10)
+
+        # Название (слева)
+        self.name_label = QLabel(name)
+        self.name_label.setStyleSheet(self.text_qss)
+        self.name_label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum)
+        self.lay.addWidget(self.name_label, 1)
+
+        # Вертикальная линия-разделитель
+        self.line = QFrame()
+        self.line.setMaximumWidth(2)
+        self.line.setFrameShape(QFrame.Shape.VLine)
+        self.line.setFrameShadow(QFrame.Shadow.Sunken)
+        self.line.setStyleSheet("""color: #000000;
+            background-color: #000000;""")
+        self.lay.addWidget(self.line, Qt.AlignmentFlag.AlignLeft)
+
+        # Значение (Label для отображения, QLineEdit для редактирования)
+        self.value_label = QLabel(value)
+        self.value_label.setStyleSheet(self.text_qss)
+        self.value_edit = QLineEdit(value)
+        self.value_edit.setStyleSheet(self.text_qss + "background: transparent; border: none;")
+        self.value_edit.setVisible(False)  # Скрыто по умолчанию
+        self.lay.addWidget(self.value_label, 3)
+        self.lay.addWidget(self.value_edit, 3)
+
+        # Кнопка "Редактировать" (карандаш)
+        if can_edit:
+            self.btn_edit = QPushButton("✎")
+            self.btn_edit.setFixedSize(30, 30)
+            self.btn_edit.setStyleSheet("""
+                QPushButton {
+                    background-color: #4CAF50;
+                    border-radius: 15px;
+                    color: white;
+                    font-size: 16px;
+                }
+                QPushButton:hover { background-color: #45a049; }
+                QPushButton:pressed { background-color: #3d8b40; }
+            """)
+            self.btn_edit.clicked.connect(self._start_editing)
+            self.lay.addWidget(self.btn_edit)
+
+            # Кнопка "Завершить" (галочка) — скрыта по умолчанию
+            self.btn_save = QPushButton("✓")
+            self.btn_save.setFixedSize(30, 30)
+            self.btn_save.setStyleSheet("""
+                QPushButton {
+                    background-color: #2196F3;
+                    border-radius: 15px;
+                    color: white;
+                    font-size: 16px;
+                }
+                QPushButton:hover { background-color: #1976D2; }
+                QPushButton:pressed { background-color: #1565C0; }
+            """)
+            self.btn_save.clicked.connect(self._finish_editing)
+            self.btn_save.setVisible(False)
+            self.lay.addWidget(self.btn_save)
+
+    def _start_editing(self):
+        """Переключает в режим редактирования."""
+        self.value_label.setVisible(False)
+        self.value_edit.setVisible(True)
+        self.value_edit.setText(self._current_value)
+        self.value_edit.setFocus()
+
+        self.btn_edit.setVisible(False)
+        self.btn_save.setVisible(True)
+
+    def _finish_editing(self):
+        """Завершает редактирование и сохраняет значение."""
+        new_value = self.value_edit.text().strip()
+        if not new_value:
+            return  # Не сохраняем пустое значение
+
+        self._current_value = new_value
+        self.value_label.setText(new_value)
+        self.value_label.setVisible(True)
+        self.value_edit.setVisible(False)
+
+        self.btn_edit.setVisible(True)
+        self.btn_save.setVisible(False)
+
+        # ============================================
+        # ЗДЕСЬ ВЫПОЛНЯЮТСЯ ДЕЙСТВИЯ ПОСЛЕ СОХРАНЕНИЯ:
+        # ============================================
+        self.value_changed.emit(self._name, new_value)
+
+    def get_value(self) -> str:
+        """Возвращает текущее значение."""
+        return self._current_value
+
+    def set_value(self, value: str):
+        """Устанавливает новое значение (извне)."""
+        self._current_value = value
+        self.value_label.setText(value)
+        self.value_edit.setText(value)
+
 class Profile(ContentPageWidget):
     def __init__(self):
         super().__init__()
         self.side_panel_btn.setText("Профиль")
         self.side_panel_btn.setIcon(QIcon(icon_path("profile.png")))
+        
+        
+        self.profile_lay = QVBoxLayout(self)
+        self.profile_lay.setContentsMargins(0, 0, 0, 0)
+        # Главная рамка
+        self.main_frame = QFrame()
+        self.main_frame.setStyleSheet("""
+            background-color: #FFFFFF;
+            border-radius: 16px;
+        """)
+        self.profile_lay.addWidget(self.main_frame)
+        
+        # Главный лайаут
+        self.main_frame_lay = QVBoxLayout(self.main_frame)
+        self.main_frame_lay.setContentsMargins(0, 0, 0, 0)
+        self.main_frame_lay.setSpacing(10)
+        # Лайаут "шапки" профиля
+        self.head_data_lay = QHBoxLayout()
+        self.head_data_lay.setContentsMargins(10, 10, 10, 10)
+        self.head_data_lay.setSpacing(10)
 
+        self.photo_frame = QFrame()
+        self.photo_frame.setStyleSheet(""" 
+            background-color: #D3D3D3;
+            border-radius: 12px;
+        """)
+        self.photo_frame.setFixedSize(150, 150)
+        self.photo_frame_lay = QVBoxLayout(self.photo_frame)
+        self.profile_picture = QLabel()
+        self.profile_picture.setPixmap(QPixmap(icon_path("user.png")))
+        self.profile_picture.setFixedSize(100, 100)
+        self.profile_picture.setScaledContents(True)
+        self.photo_frame_lay.addWidget(self.profile_picture, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.head_data_lay.addWidget(self.photo_frame, 1, Qt.AlignmentFlag.AlignLeft)
+
+        self.head_data_label_lay = QVBoxLayout()
+        self.head_data_label_lay.setContentsMargins(0, 0, 0, 0)
+        self.head_data_label_lay.setSpacing(0)
+        # sn_fn_patr - surname, firstname, patronymic - фамилия имя отчество
+        self._sn_fn_patr = None
+        self._birthday = None
+        self._gender = None
+
+        self.sn_fn_patr =  ProfileOption("ФИО", f"{self._sn_fn_patr if self._sn_fn_patr else "Не указано"}", True)
+        self.birthday = ProfileOption("Дата рождения", f"{self._birthday if self._birthday else "Не указано"}", True)
+        self.gender = ProfileOption("Пол", f"{self._gender if self._gender else "Не указано"}", True)
+
+        self.head_data_label_lay.addWidget(self.sn_fn_patr, Qt.AlignmentFlag.AlignLeft)
+        self.head_data_label_lay.addWidget(self.birthday, Qt.AlignmentFlag.AlignLeft)
+        self.head_data_label_lay.addWidget(self.gender, Qt.AlignmentFlag.AlignLeft)
+        self.head_data_lay.addLayout(self.head_data_label_lay)
+        self.head_data_lay.addStretch(1)
+
+        self.main_frame_lay.addLayout(self.head_data_lay)
+        self.profile_lay.setStretch(1, 1)
+        
+        self._dysfunctions = None
+        self.dysfunctions = ProfileOption("Нарушения", f"{self._dysfunctions if self._dysfunctions else 'Не указано'}", True)
+        self.main_frame_lay.addWidget(self.dysfunctions)
+
+        self._adaptive = None
+        self.adaptive = ProfileOption("Степень адаптации системы", f"{self._adaptive if self._adaptive else 'Отсутствует'}", False)
+        self.main_frame_lay.addWidget(self.adaptive)
+        
+        self._fatigue = None
+        self.fatigue = ProfileOption("Усталость", f"{self._fatigue if self._fatigue else 'Отсутствует'}", False)
+        self.main_frame_lay.addWidget(self.fatigue)
+
+
+        
+        self.main_frame_lay.addStretch(1)
 # ===========================================================
 # ГОЛОСОВОЙ ВВОД
 # ===========================================================
@@ -626,7 +822,7 @@ class TextInput(ContentPageWidget):
         self.side_panel_btn.setText("Текстовый Ввод")
         self.side_panel_btn.setIcon(QIcon(icon_path("text.png"))) 
         self.text_input_lay = QVBoxLayout(self)
-
+        self.text_input_lay.setContentsMargins(0, 0, 0, 0)
         self.dialog_box = DialogBox()
         self.send_box = ChatSendBox()
         #Подключаем сигналы 

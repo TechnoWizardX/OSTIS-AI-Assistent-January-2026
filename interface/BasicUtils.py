@@ -50,3 +50,6 @@ class BasicUtils:
             "day": datetime.now().strftime("%D-%m-%Y")
         })
         BasicUtils.save_chat_history(history)
+
+    def get_user_data() -> dict:
+        pass
