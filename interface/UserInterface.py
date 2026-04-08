@@ -125,7 +125,8 @@ class UserInterface(QMainWindow):
         """При переключении на другую страницу — останавливаем камеру."""
         page = self.content_panel.widget(index)
         if page is not self.gestures_input_page:
-            self.gestures_input_page.stop_camera()
+            if self.gestures_input_page.camera_thread is not None:
+                self.gestures_input_page.stop_camera()
 
     def closeEvent(self, event):
         """При закрытии окна — останавливаем камеру."""
@@ -763,7 +764,8 @@ class GesturesInput(ContentPageWidget):
         # Сбрасываем картинку, показываем заглушку
         self.camera_preview_label.clear()
         self.camera_preview_label.setText("Нажмите «Старт» для запуска")
-        self.chat_message.append("Камера остановлена")
+        if hasattr(self, 'chat_message'):
+            self.chat_message.append("Камера остановлена")
 
     def _rounded_image(self, image: QImage, radius: int = 12) -> QImage:
         """Возвращает изображение со скруглёнными углами."""
