@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap
 import sys
 import os
-from BasicFunctions import BasicFunctions
+from BasicUtils import BasicUtils
 from datetime import datetime
 
 # Добавляем путь к жестам для импорта
@@ -218,7 +218,7 @@ class ChatSendBox(QWidget):
         
         if not text:
             return
-        BasicFunctions.add_message("user", text)
+        BasicUtils.add_message("user", text)
         self.chat_send_input.clear()
     # Посылаем сигнал
         global_signals.message_sent.emit("user", text)
@@ -371,7 +371,7 @@ class DialogBox(QWidget):
         scroll_bar.setValue(scroll_bar.maximum())
     
     def load_history(self):
-        history = BasicFunctions.load_chat_history()
+        history = BasicUtils.load_chat_history()
         for message in history:
             self.add_message(message["author"], message["text"], message["time"])
         
@@ -516,7 +516,7 @@ class Settings(ContentPageWidget):
         self.camera_dropbox.setStyleSheet(self.dropbox_qss)
         self.camera_dropbox.setMinimumHeight(30)
 
-        available = BasicFunctions.get_available_cameras()
+        available = BasicUtils.get_available_cameras()
         
         if available:
             self.camera_dropbox.addItems(available)
@@ -547,7 +547,7 @@ class Settings(ContentPageWidget):
         self.microphone_dropbox.setStyleSheet(self.dropbox_qss)
         self.microphone_dropbox.setMinimumHeight(30)
 
-        available_mics = BasicFunctions.get_available_microphones()
+        available_mics = BasicUtils.get_available_microphones()
 
         if available_mics:
             self.microphone_dropbox.addItems(available_mics)
@@ -641,7 +641,6 @@ class GesturesInput(ContentPageWidget):
 
     def __init__(self):
         super().__init__()
-        self.signals = Signals()
         
         self.side_panel_btn.setText("Жестовый Ввод")
         self.side_panel_btn.setIcon(QIcon(icon_path("camera.png")))
@@ -663,7 +662,6 @@ class GesturesInput(ContentPageWidget):
         self.bottom_lay.setSpacing(10)
         # Поле ввода
         self.send_box = ChatSendBox()
-        self.signals.message_sent.connect(self.dialog_box.add_message)
         
         self.chat_lay.addWidget(self.dialog_box, stretch=2)
         self.bottom_lay.addWidget(self.send_box, stretch=1)

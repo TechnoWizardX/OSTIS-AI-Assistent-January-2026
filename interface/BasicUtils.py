@@ -4,12 +4,11 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-
 CHAT_FILE = Path(__file__).parent / "data" / "chat_history.json"
 CHAT_FILE.parent.mkdir(exist_ok=True)
 
 
-class BasicFunctions:
+class BasicUtils:
     @staticmethod
     def get_available_cameras() -> list:
         cameras = []
@@ -43,11 +42,11 @@ class BasicFunctions:
 
     @staticmethod
     def add_message(author: str, message: str):
-        history = BasicFunctions.load_chat_history()
+        history = BasicUtils.load_chat_history()
         history.append({
             "author": author,
             "text": message,
             "time": datetime.now().strftime("%H:%M"),
             "day": datetime.now().strftime("%D-%m-%Y")
         })
-        BasicFunctions.save_chat_history(history)
+        BasicUtils.save_chat_history(history)
