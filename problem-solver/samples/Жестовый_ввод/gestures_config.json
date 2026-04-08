@@ -5,28 +5,21 @@
             "description": "Активация режима яркости",
             "finger_pattern": [false, true, false, false, false],
             "action": "activate_brightness",
-            "hint": "Режим яркости активирован"
+            "hint": "Режим яркости"
         },
         "three_fingers": {
             "name": "3 пальца",
             "description": "Активация режима звука",
             "finger_pattern": [false, true, true, true, false],
             "action": "activate_sound",
-            "hint": "Режим звука активирован"
+            "hint": "Режим звука"
         },
-        "like": {
-            "name": "Лайк",
-            "description": "Подтверждение активации",
-            "finger_pattern": [true, false, false, false, false],
-            "action": "confirm",
-            "hint": "Подтверждено"
-        },
-        "dislike": {
-            "name": "Дизлайк",
-            "description": "Отмена / деактивация",
-            "finger_pattern": [false, false, false, false, false],
-            "action": "deactivate",
-            "hint": "Режим деактивирован"
+        "open_hand": {
+            "name": "Ладонь",
+            "description": "Отмена активации",
+            "finger_pattern": [true, true, true, true, true],
+            "action": "cancel",
+            "hint": "Отмена"
         },
         "two_fingers": {
             "name": "2 пальца",
@@ -53,7 +46,7 @@
     "ui_texts": {
         "title": "Жестовое управление",
         "mode_active": "РЕЖИМ АКТИВЕН",
-        "confirm_hint": "Лайк - подтвердить | Дизлайк - отмена"
+        "confirm_hint": "Удерживайте жест для активации"
     },
     "settings": {
         "gesture_cooldown": 30,
