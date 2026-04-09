@@ -5,18 +5,20 @@ import sys
 class AssistentCore():
     def __init__(self):
         self.user_interface = UserInterface()
-        self.user_interface.global_signals.message_sent.connect(self.on_message_sent)
-        self.user_interface.global_signals.settings_changed.connect(self.on_settings_changed)
+        global_signals.message_sent.connect(self.on_message_sent)
+        global_signals.settings_changed.connect(self.on_settings_changed)
 
-    def on_message_sent(self, sender, message):
+    def on_message_sent(self, sender : str = "Unknown", message : str = "No Message"):
         print(f"Message from {sender}: {message}")
 
+    def on_settings_changed(self):
+        print("Settings changed")   
     def run(self):
         self.user_interface.show()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    window = UserInterface()
-    window.show()
+    assistent = AssistentCore()
+    assistent.run()
     sys.exit(app.exec())
