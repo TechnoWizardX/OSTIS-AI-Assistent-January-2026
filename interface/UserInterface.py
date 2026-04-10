@@ -627,7 +627,8 @@ class ProfileOption(QFrame):
         # Название (слева)
         self.name_label = QLabel(name)
         self.name_label.setStyleSheet(self.text_qss)
-        self.name_label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum)
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
+        self.name_label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
         self.lay.addWidget(self.name_label, 1)
 
         # Вертикальная линия-разделитель
@@ -638,45 +639,51 @@ class ProfileOption(QFrame):
         self.line.setStyleSheet("""color: #000000;
             background-color: #000000;""")
         self.lay.addWidget(self.line, Qt.AlignmentFlag.AlignLeft)
-
+        
         # Значение (Label для отображения, QLineEdit для редактирования)
         self.value_label = QLabel(value)
         self.value_label.setStyleSheet(self.text_qss)
+        self.value_label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
         self.value_edit = QLineEdit(value)
         self.value_edit.setStyleSheet(self.text_qss + "background: transparent; border: none;")
+        self.value_edit.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
         self.value_edit.setVisible(False)  # Скрыто по умолчанию
         self.lay.addWidget(self.value_label, 3)
         self.lay.addWidget(self.value_edit, 3)
 
         # Кнопка "Редактировать" (карандаш)
         if can_edit:
-            self.btn_edit = QPushButton("✎")
-            self.btn_edit.setFixedSize(30, 30)
+            self.btn_edit = QPushButton()
+            self.btn_edit.setIcon(QIcon(icon_path("pencil.png")))
+            self.btn_edit.setIconSize(QSize(20, 20))
+            self.btn_edit.setFixedSize(25, 25)
             self.btn_edit.setStyleSheet("""
                 QPushButton {
-                    background-color: #4CAF50;
+                    background-color: transparent;
                     border-radius: 15px;
                     color: white;
                     font-size: 16px;
                 }
-                QPushButton:hover { background-color: #45a049; }
-                QPushButton:pressed { background-color: #3d8b40; }
+                QPushButton:hover { background-color: transparent; }
+                QPushButton:pressed { background-color: transparent; }
             """)
             self.btn_edit.clicked.connect(self._start_editing)
             self.lay.addWidget(self.btn_edit)
 
             # Кнопка "Завершить" (галочка) — скрыта по умолчанию
-            self.btn_save = QPushButton("✓")
-            self.btn_save.setFixedSize(30, 30)
+            self.btn_save = QPushButton()
+            self.btn_save.setIcon(QIcon(icon_path("accept.png")))
+            self.btn_save.setIconSize(QSize(20, 20))
+            self.btn_save.setFixedSize(25, 25)
             self.btn_save.setStyleSheet("""
                 QPushButton {
-                    background-color: #2196F3;
+                    background-color: transparent;
                     border-radius: 15px;
                     color: white;
                     font-size: 16px;
                 }
-                QPushButton:hover { background-color: #1976D2; }
-                QPushButton:pressed { background-color: #1565C0; }
+                QPushButton:hover { background-color: transparent; }
+                QPushButton:pressed { background-color: transparent; }
             """)
             self.btn_save.clicked.connect(self._finish_editing)
             self.btn_save.setVisible(False)
@@ -740,11 +747,11 @@ class Profile(ContentPageWidget):
         
         # Главный лайаут
         self.main_frame_lay = QVBoxLayout(self.main_frame)
-        self.main_frame_lay.setContentsMargins(0, 0, 0, 0)
+        self.main_frame_lay.setContentsMargins(10, 10, 10, 10)
         self.main_frame_lay.setSpacing(10)
         # Лайаут "шапки" профиля
         self.head_data_lay = QHBoxLayout()
-        self.head_data_lay.setContentsMargins(10, 10, 10, 10)
+        self.head_data_lay.setContentsMargins(0, 0, 0, 0)
         self.head_data_lay.setSpacing(10)
 
         self.photo_frame = QFrame()
@@ -758,10 +765,11 @@ class Profile(ContentPageWidget):
         self.profile_picture.setPixmap(QPixmap(icon_path("user.png")))
         self.profile_picture.setFixedSize(100, 100)
         self.profile_picture.setScaledContents(True)
+        self.photo_frame.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         self.photo_frame_lay.addWidget(self.profile_picture, alignment=Qt.AlignmentFlag.AlignCenter)
 
         self.head_data_lay.addWidget(self.photo_frame, 1, Qt.AlignmentFlag.AlignLeft)
-
+        self.photo_frame.setFixedWidth(150)
         self.head_data_label_lay = QVBoxLayout()
         self.head_data_label_lay.setContentsMargins(0, 0, 0, 0)
         self.head_data_label_lay.setSpacing(0)
@@ -773,27 +781,30 @@ class Profile(ContentPageWidget):
         self.sn_fn_patr =  ProfileOption("ФИО", f"{self._sn_fn_patr if self._sn_fn_patr else "Не указано"}", True)
         self.birthday = ProfileOption("Дата рождения", f"{self._birthday if self._birthday else "Не указано"}", True)
         self.gender = ProfileOption("Пол", f"{self._gender if self._gender else "Не указано"}", True)
+ 
 
-        self.head_data_label_lay.addWidget(self.sn_fn_patr, Qt.AlignmentFlag.AlignLeft)
-        self.head_data_label_lay.addWidget(self.birthday, Qt.AlignmentFlag.AlignLeft)
-        self.head_data_label_lay.addWidget(self.gender, Qt.AlignmentFlag.AlignLeft)
+        self.head_data_label_lay.addWidget(self.sn_fn_patr, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self.head_data_label_lay.addWidget(self.birthday, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self.head_data_label_lay.addWidget(self.gender, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        
         self.head_data_lay.addLayout(self.head_data_label_lay)
-        self.head_data_lay.addStretch(1)
+        self.head_data_lay.addStretch(10)
+        
 
         self.main_frame_lay.addLayout(self.head_data_lay)
-        self.profile_lay.setStretch(1, 1)
+
         
         self._dysfunctions = None
         self.dysfunctions = ProfileOption("Нарушения", f"{self._dysfunctions if self._dysfunctions else 'Не указано'}", True)
-        self.main_frame_lay.addWidget(self.dysfunctions)
+        self.main_frame_lay.addWidget(self.dysfunctions, Qt.AlignmentFlag.AlignLeft)
 
         self._adaptive = None
         self.adaptive = ProfileOption("Степень адаптации системы", f"{self._adaptive if self._adaptive else 'Отсутствует'}", False)
-        self.main_frame_lay.addWidget(self.adaptive)
+        self.main_frame_lay.addWidget(self.adaptive, Qt.AlignmentFlag.AlignLeft)
         
         self._fatigue = None
         self.fatigue = ProfileOption("Усталость", f"{self._fatigue if self._fatigue else 'Отсутствует'}", False)
-        self.main_frame_lay.addWidget(self.fatigue)
+        self.main_frame_lay.addWidget(self.fatigue, Qt.AlignmentFlag.AlignLeft)
 
 
         
