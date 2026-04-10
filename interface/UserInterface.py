@@ -770,9 +770,9 @@ class Profile(ContentPageWidget):
         self._birthday = None
         self._gender = None
 
-        self.sn_fn_patr =  ProfileOption("ФИО", f"{self._sn_fn_patr if self._sn_fn_patr else "Не указано"}", True)
-        self.birthday = ProfileOption("Дата рождения", f"{self._birthday if self._birthday else "Не указано"}", True)
-        self.gender = ProfileOption("Пол", f"{self._gender if self._gender else "Не указано"}", True)
+        self.sn_fn_patr =  ProfileOption("ФИО", f"{self._sn_fn_patr if self._sn_fn_patr else 'Не указано'}", True)
+        self.birthday = ProfileOption("Дата рождения", f"{self._birthday if self._birthday else 'Не указано'}", True)
+        self.gender = ProfileOption("Пол", f"{self._gender if self._gender else 'Не указано'}", True)
 
         self.head_data_label_lay.addWidget(self.sn_fn_patr, Qt.AlignmentFlag.AlignLeft)
         self.head_data_label_lay.addWidget(self.birthday, Qt.AlignmentFlag.AlignLeft)
