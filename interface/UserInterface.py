@@ -188,6 +188,39 @@ class ChatSendBox(QWidget):
             }
         """)
         self.main_frame_lay.addWidget(self.chat_send_input, 1)
+        
+        # Горизонтальный layout для кнопок
+        self.buttons_lay = QHBoxLayout()
+        self.buttons_lay.setSpacing(10)
+        
+        self.voice_btn = QPushButton()
+        self.voice_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #D9D9D9;
+                border-radius: 12px;
+                border: 3px solid transparent;
+                padding: 8px;
+            }
+            QPushButton:hover {
+                background-color: #C8C8C8;
+                border: 3px solid #888888;
+            }
+            QPushButton:pressed {
+                background-color: #B8B8B8;
+                border: 3px solid #666666;
+            }
+            QPushButton:checked {
+                background-color: #4CAF50;
+                border: 3px solid #388E3C;
+            }
+        """)
+        self.voice_btn.setIcon(QIcon(icon_path("microphone.png")))
+        self.voice_btn.setIconSize(QSize(24, 24))
+        self.voice_btn.setCheckable(True)
+        self.voice_btn.setFixedSize(44, 44)
+        self.voice_btn.setVisible(False)  # Скрываем кнопку по умолчанию
+        self.buttons_lay.addWidget(self.voice_btn)
+        
         self.send_btn = QPushButton("Отправить")
         self.send_btn.setStyleSheet("""
             QPushButton {
@@ -201,16 +234,20 @@ class ChatSendBox(QWidget):
             }
             QPushButton:hover {
                 background-color: #C8C8C8;
-                border: 3px solid #888888; 
+                border: 3px solid #888888;
             }
             QPushButton:pressed {
                 background-color: #B8B8B8;
-                border: 3px solid #666666; 
+                border: 3px solid #666666;
             }
         """)
+        self.send_btn.setFixedSize(130, 44)
         self.send_btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self.send_btn.setIcon(QIcon(icon_path("send.png")))
-        self.main_frame_lay.addWidget(self.send_btn, 1, Qt.AlignmentFlag.AlignLeft)
+        self.buttons_lay.addStretch(1)
+        self.buttons_lay.addWidget(self.voice_btn)
+        self.buttons_lay.addWidget(self.send_btn)
+        self.main_frame_lay.addLayout(self.buttons_lay)
         self.send_btn.clicked.connect(self.send_message)
 
         self.chat_send_input.installEventFilter(self)
@@ -804,8 +841,25 @@ class Profile(ContentPageWidget):
 class VoiceInput(ContentPageWidget):
     def __init__(self):
         super().__init__()
+        self.setStyleSheet("""
+            QWidget {
+                background-color: transparent;
+                border-radius: 16px;
+               }
+        """)
         self.side_panel_btn.setText("Голосовой Ввод")
-        self.side_panel_btn.setIcon(QIcon(icon_path("microphone.png"))) 
+        self.side_panel_btn.setIcon(QIcon(icon_path("microphone.png")))
+        self.text_input_lay = QVBoxLayout(self)
+        self.text_input_lay.setContentsMargins(0, 0, 0, 0)
+        self.dialog_box = DialogBox()
+        self.send_box = ChatSendBox()
+        
+        # Показываем кнопку микрофона (скрыта по умолчанию)
+        self.send_box.voice_btn.setVisible(True)
+        self.voice_btn = self.send_box.voice_btn
+
+        self.text_input_lay.addWidget(self.dialog_box, 2)
+        self.text_input_lay.addWidget(self.send_box, 1)
 
 # ===========================================================
 # ТЕКСТОВЫЙ ВВОД
