@@ -1,7 +1,8 @@
 from UserInterface import UserInterface, global_signals
 from PyQt6.QtWidgets import QApplication
 import sys
-
+from BasicUtils import BasicUtils, DataBaseEditor
+DATABASE_EDITOR = DataBaseEditor()
 class AssistentCore():
     def __init__(self):
         self.user_interface = UserInterface()

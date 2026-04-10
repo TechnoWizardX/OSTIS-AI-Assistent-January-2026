@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap
 import sys
 import os
-from BasicUtils import BasicUtils
+from BasicUtils import BasicUtils, DataBaseEditor
 from datetime import datetime
 
 # Добавляем путь к жестам для импорта
@@ -19,7 +19,7 @@ from gestures import GestureCameraThread
 
 # Базовый путь для иконок
 ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
-
+DATABASE_EDITOR = DataBaseEditor()
 
 
 def icon_path(filename):
@@ -39,7 +39,7 @@ class Signals(QObject):
     settings_changed = pyqtSignal(dict)
     camera_selected = pyqtSignal(str)
     microphone_selected = pyqtSignal(str)
-    profile_updated = pyqtSignal(dict)
+    profile_updated = pyqtSignal()
 
 global_signals = Signals()
 # ===========================================================
@@ -215,9 +215,9 @@ class ChatSendBox(QWidget):
             }
         """)
         self.voice_btn.setIcon(QIcon(icon_path("microphone.png")))
-        self.voice_btn.setIconSize(QSize(24, 24))
+        self.voice_btn.setIconSize(QSize(25, 25))
         self.voice_btn.setCheckable(True)
-        self.voice_btn.setFixedSize(44, 44)
+        self.voice_btn.setFixedSize(45, 45)
         self.voice_btn.setVisible(False)  # Скрываем кнопку по умолчанию
         self.buttons_lay.addWidget(self.voice_btn)
         
@@ -241,7 +241,7 @@ class ChatSendBox(QWidget):
                 border: 3px solid #666666;
             }
         """)
-        self.send_btn.setFixedSize(130, 44)
+        self.send_btn.setFixedSize(130, 45)
         self.send_btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self.send_btn.setIcon(QIcon(icon_path("send.png")))
         self.buttons_lay.addStretch(1)
@@ -641,8 +641,14 @@ class ProfileOption(QFrame):
     """
     value_changed = pyqtSignal(str, str)  # name, new_value
 
-    def __init__(self, name: str, value: str, can_edit: bool = False, parent=None):
+    def __init__(self, name: str, value: str, can_edit: bool = False, 
+                 table_name: str = None, columns: list = None, several_columns: bool = False, parent=None):
         super().__init__(parent)
+        # имя таблицы, список затрагиваемых колон, признак нескольких колонок 
+        # (если есть то потом всё разделяется, нужно указываеть всё в точном порядке)
+        self.table_name = table_name
+        self.columns = columns
+        self.several_columns = several_columns
 
         self.setStyleSheet("""
             background-color: #D3D3D3;
@@ -739,31 +745,38 @@ class ProfileOption(QFrame):
     def _finish_editing(self):
         """Завершает редактирование и сохраняет значение."""
         new_value = self.value_edit.text().strip()
+
         if not new_value:
             return  # Не сохраняем пустое значение
 
         self._current_value = new_value
-        self.value_label.setText(new_value)
+        self.value_label.setText(self._current_value)
         self.value_label.setVisible(True)
         self.value_edit.setVisible(False)
-
         self.btn_edit.setVisible(True)
         self.btn_save.setVisible(False)
+
 
         # ============================================
         # ЗДЕСЬ ВЫПОЛНЯЮТСЯ ДЕЙСТВИЯ ПОСЛЕ СОХРАНЕНИЯ:
         # ============================================
-        self.value_changed.emit(self._name, new_value)
+        # КАК РАБОТАЕТ: 
+        # Если у нас флаг того, что опция составная и содержит в себе несколько колонок для редактирования,
+        # то мы перебираем все колонки и сохраняем в каждую по отдельности
+        # при этом ОБЯЗАТЕЛЬНО количество значений в результате должно быть равно количеству колонок 
+        self.id = 0
+        if self.several_columns:
+            new_value = new_value.split()
+            updates = dict(zip(self.columns, new_value))
+        else:
+            updates = {self.columns[0] : new_value[0]}
+        DATABASE_EDITOR.update_data(self.table_name, updates, self.id)
+        global_signals.profile_updated.emit()
 
     def get_value(self) -> str:
         """Возвращает текущее значение."""
         return self._current_value
 
-    def set_value(self, value: str):
-        """Устанавливает новое значение (извне)."""
-        self._current_value = value
-        self.value_label.setText(value)
-        self.value_edit.setText(value)
 
 class Profile(ContentPageWidget):
     def __init__(self):
@@ -811,13 +824,18 @@ class Profile(ContentPageWidget):
         self.head_data_label_lay.setContentsMargins(0, 0, 0, 0)
         self.head_data_label_lay.setSpacing(0)
         # sn_fn_patr - surname, firstname, patronymic - фамилия имя отчество
-        self._sn_fn_patr = None
-        self._birthday = None
-        self._gender = None
+        self._surname = DATABASE_EDITOR.get_data("Users", "surname", 0)[0][0]
+        self._firstname = DATABASE_EDITOR.get_data("Users", "firstname", 0)[0][0]
+        self._patronymic = DATABASE_EDITOR.get_data("Users", "patronymic", 0)[0][0]
+        self._sn_fn_patr = f"{self._surname} {self._firstname} {self._patronymic}"
+        self._birthday = DATABASE_EDITOR.get_data("Users", "birthday", 0)[0][0]
+        self._gender = DATABASE_EDITOR.get_data("Users", "gender", 0)[0][0]
 
-        self.sn_fn_patr =  ProfileOption("ФИО", f"{self._sn_fn_patr if self._sn_fn_patr else "Не указано"}", True)
-        self.birthday = ProfileOption("Дата рождения", f"{self._birthday if self._birthday else "Не указано"}", True)
-        self.gender = ProfileOption("Пол", f"{self._gender if self._gender else "Не указано"}", True)
+        # СТРОГО указываем, в каком порядке вводятся данные: Ф И О, и обозначаем колонки
+        self.sn_fn_patr =  ProfileOption("ФИО", f"{self._sn_fn_patr if self._sn_fn_patr else "Не указано"}", True, 
+                                         "Users", ["surname", "firstname", "patronymic"], True)
+        self.birthday = ProfileOption("Дата рождения", f"{self._birthday if self._birthday else "Не указано"}", True, "Users", ["birthday"])
+        self.gender = ProfileOption("Пол", f"{self._gender if self._gender else "Не указано"}", True, "Users", ["gender"])
  
 
         self.head_data_label_lay.addWidget(self.sn_fn_patr, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
@@ -831,11 +849,11 @@ class Profile(ContentPageWidget):
         self.main_frame_lay.addLayout(self.head_data_lay)
 
         
-        self._dysfunctions = None
-        self.dysfunctions = ProfileOption("Нарушения", f"{self._dysfunctions if self._dysfunctions else 'Не указано'}", True)
+        self._dysfunctions = DATABASE_EDITOR.get_data("Users", "dysfunctions", 0)[0][0]
+        self.dysfunctions = ProfileOption("Нарушения", f"{self._dysfunctions if self._dysfunctions else 'Не указано'}", True, "Users",["dysfunctions"])
         self.main_frame_lay.addWidget(self.dysfunctions, Qt.AlignmentFlag.AlignLeft)
 
-        self._adaptive = None
+        self._adaptive = DATABASE_EDITOR.get_data("Users", "adaptation_status", 0)[0][0] 
         self.adaptive = ProfileOption("Степень адаптации системы", f"{self._adaptive if self._adaptive else 'Отсутствует'}", False)
         self.main_frame_lay.addWidget(self.adaptive, Qt.AlignmentFlag.AlignLeft)
         
