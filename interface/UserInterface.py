@@ -17,6 +17,13 @@ if GESTURES_DIR not in sys.path:
 
 from gestures import GestureCameraThread
 
+# Добавляем путь к голосовому вводу для импорта
+VOICE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "problem-solver", "samples", "Голосовой ввод")
+if VOICE_DIR not in sys.path:
+    sys.path.insert(0, VOICE_DIR)
+
+from voiceVosk import init_voice, set_voice_callback, stop_voice, get_voice_text
+
 # Базовый путь для иконок
 ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
 
@@ -40,6 +47,7 @@ class Signals(QObject):
     camera_selected = pyqtSignal(str)
     microphone_selected = pyqtSignal(str)
     profile_updated = pyqtSignal(dict)
+    voice_text_received = pyqtSignal(str)  # Сигнал для передачи текста из голосового ввода
 
 global_signals = Signals()
 # ===========================================================
@@ -251,6 +259,41 @@ class ChatSendBox(QWidget):
         self.send_btn.clicked.connect(self.send_message)
 
         self.chat_send_input.installEventFilter(self)
+
+        # Подключаем кнопку голоса к переключению записи
+        self.voice_btn.clicked.connect(self.toggle_voice_recording)
+        
+        # Подключаем сигнал для безопасной обработки текста в главном потоке
+        global_signals.voice_text_received.connect(self.handle_voice_text)
+        
+    def toggle_voice_recording(self, checked: bool):
+        """Переключение голосовой записи (вкл/выкл)"""
+        if checked:
+            # Включаем запись
+            init_voice()
+
+            # Устанавливаем callback — текст придёт автоматически
+            set_voice_callback(self.on_voice_text)
+
+            print("Голосовая запись начата")
+        else:
+            # Выключаем запись
+            stop_voice()
+            print("Голосовая запись остановлена")
+
+    def on_voice_text(self, text: str):
+        """Вызывается когда распознан текст через голос (из фонового потока!)"""
+        # Отправляем сигнал в главный поток для безопасного обновления UI
+        global_signals.voice_text_received.emit(text)
+    
+    def handle_voice_text(self, text: str):
+        """Обрабатывает распознанный текст (вызывается в главном потоке)"""
+        print(f'Распознано: {text}')
+
+        # Автоматически отправляем в чат
+        BasicUtils.add_message("user", text)
+        global_signals.message_sent.emit("user", text)
+        
     def send_message(self):
         text = self.chat_send_input.toPlainText()
         
@@ -815,9 +858,9 @@ class Profile(ContentPageWidget):
         self._birthday = None
         self._gender = None
 
-        self.sn_fn_patr =  ProfileOption("ФИО", f"{self._sn_fn_patr if self._sn_fn_patr else "Не указано"}", True)
-        self.birthday = ProfileOption("Дата рождения", f"{self._birthday if self._birthday else "Не указано"}", True)
-        self.gender = ProfileOption("Пол", f"{self._gender if self._gender else "Не указано"}", True)
+        self.sn_fn_patr =  ProfileOption("ФИО", f"{self._sn_fn_patr if self._sn_fn_patr else 'Не указано'}", True)
+        self.birthday = ProfileOption("Дата рождения", f"{self._birthday if self._birthday else 'Не указано'}", True)
+        self.gender = ProfileOption("Пол", f"{self._gender if self._gender else 'Не указано'}", True)
  
 
         self.head_data_label_lay.addWidget(self.sn_fn_patr, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
@@ -864,13 +907,16 @@ class VoiceInput(ContentPageWidget):
         self.text_input_lay.setContentsMargins(0, 0, 0, 0)
         self.dialog_box = DialogBox()
         self.send_box = ChatSendBox()
-        
+
         # Показываем кнопку микрофона (скрыта по умолчанию)
+        # Кнопка уже подключена в ChatSendBox к toggle_voice_recording
         self.send_box.voice_btn.setVisible(True)
-        self.voice_btn = self.send_box.voice_btn
 
         self.text_input_lay.addWidget(self.dialog_box, 2)
         self.text_input_lay.addWidget(self.send_box, 1)
+
+
+            
 
 # ===========================================================
 # ТЕКСТОВЫЙ ВВОД
