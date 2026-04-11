@@ -8,7 +8,6 @@ class AssistentCore():
         self.user_interface = UserInterface()
         global_signals.message_sent.connect(self.on_message_sent)
         global_signals.settings_changed.connect(self.on_settings_changed)
-
     def on_message_sent(self, sender : str = "Unknown", message : str = "No Message"):
         print(f"Message from {sender}: {message}")
 
