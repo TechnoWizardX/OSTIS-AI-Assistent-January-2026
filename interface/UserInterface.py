@@ -47,7 +47,7 @@ class Signals(QObject):
     microphone_selected = pyqtSignal(str)
     profile_updated = pyqtSignal()
     voice_text_received = pyqtSignal(str)  # Сигнал для передачи текста из голосового ввода
-
+    message_sent = pyqtSignal(str, str)
 global_signals = Signals()
 # ===========================================================
 # ГЛАВНЫЙ ИНТЕРФЕЙС
@@ -154,7 +154,7 @@ class UserInterface(QMainWindow):
 # ==========================================================
 class ChatSendBox(QWidget):
     # Сигнал о создании сообщения (ЛОКАЛЬНЫЙ, не глобальный)
-    message_sent = pyqtSignal(str, str)
+
 
     def __init__(self):
         super().__init__()
@@ -268,7 +268,6 @@ class ChatSendBox(QWidget):
         self.voice_btn.clicked.connect(self.toggle_voice_recording)
         
         # Подключаем сигнал для безопасной обработки текста в главном потоке
-        global_signals.voice_text_received.connect(self.handle_voice_text)
 
         # Для защиты от дублирования
         self._last_voice_text = ""
@@ -323,20 +322,20 @@ class ChatSendBox(QWidget):
     def on_voice_text(self, text: str):
         """Вызывается когда распознан текст через голос (из фонового потока!)"""
         # Отправляем сигнал в главный поток для безопасного обновления UI
-        global_signals.voice_text_received.emit(text)
+        self.handle_voice_text(text)
 
     def handle_voice_text(self, text: str):
         """Обрабатывает распознанный текст (вызывается в главном потоке)"""
         # Защита от дублирования: игнорируем повторяющийся текст
         if text == self._last_voice_text or self._voice_processing or not text.strip():
             return
-
+        print(f"Voice text received: {text}")
         self._voice_processing = True
         self._last_voice_text = text
 
         # Автоматически отправляем в чат
         BasicUtils.add_message("user", text)
-        self.message_sent.emit("user", text)
+        global_signals.message_sent.emit("user", text)
         self._voice_processing = False
         
     def send_message(self):
@@ -347,7 +346,7 @@ class ChatSendBox(QWidget):
         BasicUtils.add_message("user", text)
         self.chat_send_input.clear()
         # Посылаем ЛОКАЛЬНЫЙ сигнал
-        self.message_sent.emit("user", text)
+        global_signals.message_sent.emit("user", text)
 
     def eventFilter(self, obj, event):
         if obj == self.chat_send_input and event.type() == event.Type.KeyPress:
@@ -441,6 +440,11 @@ class DialogBox(QWidget):
     def __init__(self):
         super().__init__()
         # Подключение к сигналу будет сделано извне через set_message_handler
+        try:
+            global_signals.message_sent.disconnect(self.add_message)
+        except Exception:
+            pass
+        global_signals.message_sent.connect(self.add_message)
         self._message_handler = None
         self.dialog_box_lay = QVBoxLayout(self)  
         self.scroll_area = QScrollArea()
@@ -483,6 +487,8 @@ class DialogBox(QWidget):
         self.load_history()
 
     def add_message(self, author: str, text: str, time: str = None):
+        print(f"[DialogBox ID: {id(self)}] Добавлено сообщение")
+        
         message = Message(author, text, time)
         alignment = Qt.AlignmentFlag.AlignLeft
         if author == "user":
@@ -1100,7 +1106,7 @@ class VoiceInput(ContentPageWidget):
         self.send_box = ChatSendBox()
 
         # Подключаем ЛОКАЛЬНЫЙ сигнал send_box к диалогу
-        self.send_box.message_sent.connect(self.dialog_box.add_message)
+       
 
         # Показываем кнопку микрофона (скрыта по умолчанию)
         # Кнопка уже подключена в ChatSendBox к toggle_voice_recording
@@ -1131,7 +1137,7 @@ class TextInput(ContentPageWidget):
         self.dialog_box = DialogBox()
         self.send_box = ChatSendBox()
         # Подключаем ЛОКАЛЬНЫЙ сигнал send_box к диалогу
-        self.send_box.message_sent.connect(self.dialog_box.add_message)
+      
 
         self.text_input_lay.addWidget(self.dialog_box, 2)
         self.text_input_lay.addWidget(self.send_box, 1)
@@ -1165,7 +1171,6 @@ class GesturesInput(ContentPageWidget):
         # Поле ввода
         self.send_box = ChatSendBox()
         # Подключаем ЛОКАЛЬНЫЙ сигнал send_box к диалогу
-        self.send_box.message_sent.connect(self.dialog_box.add_message)
 
         self.chat_lay.addWidget(self.dialog_box, stretch=2)
         self.bottom_lay.addWidget(self.send_box, stretch=1)

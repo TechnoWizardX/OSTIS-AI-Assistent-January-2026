@@ -40,3 +40,5 @@ problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/ivector/f
 problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/ivector/global_cmvn.stats
 problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/ivector/online_cmvn.conf
 problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/ivector/splice.conf
+problem-solver/samples/GesturesInput/models/hand_landmarker.task
+QWEN.md
