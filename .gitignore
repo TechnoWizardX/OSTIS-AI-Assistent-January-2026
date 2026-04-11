@@ -42,3 +42,4 @@ problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/ivector/o
 problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/ivector/splice.conf
 problem-solver/samples/GesturesInput/models/hand_landmarker.task
 QWEN.md
+voice-model
