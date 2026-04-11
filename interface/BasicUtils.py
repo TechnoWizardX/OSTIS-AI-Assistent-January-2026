@@ -8,7 +8,20 @@ import re
 CHAT_FILE = Path(__file__).parent / "data" / "chat_history.json"
 CHAT_FILE.parent.mkdir(exist_ok=True)
 
+SETTINGS_CONFIG_FILE = Path(__file__).parent / "data" / "settings_config.json"
+SETTINGS_CONFIG_FILE.parent.mkdir(exist_ok=True)
+
 DATABASE_FILE = Path(__file__).parent / "data" / "database.db"
+
+DEFAULT_SETTINGS_CONFIG = {
+    "theme": "light",
+    "last_message_send": None,
+    "recording_enabled": False,
+    "camera_index": 0,
+    "microphone_index": 0,
+    "speaker_index": 0,
+    "voice_send_directly": False
+}
 class BasicUtils:
     @staticmethod
     def get_available_cameras() -> list:
@@ -27,6 +40,38 @@ class BasicUtils:
     @staticmethod
     def get_available_microphones() -> list:
         return []
+
+    @staticmethod
+    def load_settings_config() -> dict:
+        """Загружает настройки из settings_config.json. Если файла нет, создаёт с дефолтными значениями."""
+        if SETTINGS_CONFIG_FILE.exists():
+            with open(SETTINGS_CONFIG_FILE, "r", encoding="utf-8") as file:
+                settings_config = json.load(file)
+                # Дополняем отсутствующие ключи дефолтными значениями
+                for key, value in DEFAULT_SETTINGS_CONFIG.items():
+                    if key not in settings_config:
+                        settings_config[key] = value
+                return settings_config
+        return DEFAULT_SETTINGS_CONFIG.copy()
+
+    @staticmethod
+    def save_settings_config(settings_config: dict) -> None:
+        """Сохраняет настройки в settings_config.json."""
+        with open(SETTINGS_CONFIG_FILE, "w", encoding="utf-8") as file:
+            json.dump(settings_config, file, ensure_ascii=False, indent=4)
+
+    @staticmethod
+    def get_settings_config_value(key: str):
+        """Возвращает значение конкретного параметра из настроек."""
+        settings_config = BasicUtils.load_settings_config()
+        return settings_config.get(key, DEFAULT_SETTINGS_CONFIG.get(key))
+
+    @staticmethod
+    def set_settings_config_value(key: str, value):
+        """Устанавливает и сохраняет значение параметра в настройках."""
+        settings_config = BasicUtils.load_settings_config()
+        settings_config[key] = value
+        BasicUtils.save_settings_config(settings_config)
     
     
     @staticmethod
