@@ -7,18 +7,11 @@ cmake-build-*
 /install
 /ConanPresets.json
 
-CMakeCache.txt
-CMakeFiles
-DartConfiguration.tcl
-repo
-ims.ostis.kb
-sc-web
 
-kb.bin
+
 .env
 
 
-.DS_Store
 
 pycache
 .venv
@@ -32,3 +25,18 @@ env/
 venv/
 .qwen
 .voice-model
+interface/data/chat_history.json
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/README
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/am/final.mdl
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/conf/mfcc.conf
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/conf/model.conf
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/graph/disambig_tid.int
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/graph/Gr.fst
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/graph/HCLr.fst
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/graph/phones/word_boundary.int
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/ivector/final.dubm
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/ivector/final.ie
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/ivector/final.mat
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/ivector/global_cmvn.stats
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/ivector/online_cmvn.conf
+problem-solver/samples/VoiceInput/voice-model/vosk-model-small-ru-0.22/ivector/splice.conf
