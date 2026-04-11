@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox, QButtonGroup, QTextEdit, QLineEdit,
-    QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser
+    QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser, QMessageBox
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer
 from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap
@@ -11,18 +11,18 @@ from BasicUtils import BasicUtils, DataBaseEditor
 from datetime import datetime
 
 # Добавляем путь к жестам для импорта
-GESTURES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "problem-solver", "samples", "Жестовый_ввод")
+GESTURES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "problem-solver", "samples", "GesturesInput")
 if GESTURES_DIR not in sys.path:
     sys.path.insert(0, GESTURES_DIR)
 
 from gestures import GestureCameraThread
 
 # Добавляем путь к голосовому вводу для импорта
-VOICE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "problem-solver", "samples", "Голосовой ввод")
+VOICE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "problem-solver", "samples", "VoiceInput")
 if VOICE_DIR not in sys.path:
     sys.path.insert(0, VOICE_DIR)
 
-from voiceVosk import init_voice, set_voice_callback, stop_voice, get_voice_text
+from voiceVosk import init_voice, set_voice_callback, stop_voice, get_voice_text, download_model, MODEL_PATH
 
 # Базовый путь для иконок
 ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
@@ -42,7 +42,6 @@ frame - рамка/фрейм - frame
 Qt Style Sheets - стили qss - qss
 """
 class Signals(QObject):
-    message_sent = pyqtSignal(str, str)
     settings_changed = pyqtSignal(dict)
     camera_selected = pyqtSignal(str)
     microphone_selected = pyqtSignal(str)
@@ -154,10 +153,15 @@ class UserInterface(QMainWindow):
 # Виджет отправки сообщений (текстовое поле)
 # ==========================================================
 class ChatSendBox(QWidget):
-    # Сигнал о создании сообщения
+    # Сигнал о создании сообщения (ЛОКАЛЬНЫЙ, не глобальный)
+    message_sent = pyqtSignal(str, str)
+
     def __init__(self):
         super().__init__()
 
+        # Для защиты от дублирования голосового ввода
+        self._last_voice_text = ""
+        self._voice_processing = False
 
         self.chats_send_box_lay = QVBoxLayout(self)
         self.main_frame = QFrame()
@@ -265,11 +269,46 @@ class ChatSendBox(QWidget):
         
         # Подключаем сигнал для безопасной обработки текста в главном потоке
         global_signals.voice_text_received.connect(self.handle_voice_text)
-        
+
+        # Для защиты от дублирования
+        self._last_voice_text = ""
+        self._voice_processing = False
+
     def toggle_voice_recording(self, checked: bool):
         """Переключение голосовой записи (вкл/выкл)"""
         if checked:
+            # Проверяем наличие модели перед записью
+            if not os.path.exists(MODEL_PATH):
+                self.voice_btn.setChecked(False)
+                msg = QMessageBox(self)
+                msg.setWindowTitle("Модель не найдена")
+                msg.setIcon(QMessageBox.Icon.Information)
+                msg.setText("Голосовая модель не загружена")
+                msg.setInformativeText(
+                    "Для работы голосового ввода необходимо загрузить модель (~50 МБ).\n"
+                    "Хотите загрузить сейчас?"
+                )
+                msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                msg.setDefaultButton(QMessageBox.StandardButton.Yes)
+                msg.button(QMessageBox.StandardButton.Yes).setText("Загрузить")
+                msg.button(QMessageBox.StandardButton.No).setText("Отмена")
+                reply = msg.exec()
+
+                if reply == QMessageBox.StandardButton.Yes:
+                    result = download_model()
+                    if not result:
+                        err_msg = QMessageBox(self)
+                        err_msg.setWindowTitle("Ошибка")
+                        err_msg.setIcon(QMessageBox.Icon.Warning)
+                        err_msg.setText("Не удалось загрузить модель")
+                        err_msg.setInformativeText("Проверьте подключение к интернету и попробуйте снова.")
+                        err_msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+                        err_msg.exec()
+                return
+
             # Включаем запись
+            self._last_voice_text = ""
+            self._voice_processing = False
             init_voice()
 
             # Устанавливаем callback — текст придёт автоматически
@@ -285,14 +324,20 @@ class ChatSendBox(QWidget):
         """Вызывается когда распознан текст через голос (из фонового потока!)"""
         # Отправляем сигнал в главный поток для безопасного обновления UI
         global_signals.voice_text_received.emit(text)
-    
+
     def handle_voice_text(self, text: str):
         """Обрабатывает распознанный текст (вызывается в главном потоке)"""
-        print(f'Распознано: {text}')
+        # Защита от дублирования: игнорируем повторяющийся текст
+        if text == self._last_voice_text or self._voice_processing or not text.strip():
+            return
+
+        self._voice_processing = True
+        self._last_voice_text = text
 
         # Автоматически отправляем в чат
         BasicUtils.add_message("user", text)
-        global_signals.message_sent.emit("user", text)
+        self.message_sent.emit("user", text)
+        self._voice_processing = False
         
     def send_message(self):
         text = self.chat_send_input.toPlainText()
@@ -301,8 +346,8 @@ class ChatSendBox(QWidget):
             return
         BasicUtils.add_message("user", text)
         self.chat_send_input.clear()
-    # Посылаем сигнал
-        global_signals.message_sent.emit("user", text)
+        # Посылаем ЛОКАЛЬНЫЙ сигнал
+        self.message_sent.emit("user", text)
 
     def eventFilter(self, obj, event):
         if obj == self.chat_send_input and event.type() == event.Type.KeyPress:
@@ -395,7 +440,8 @@ class Message(QWidget):
 class DialogBox(QWidget):
     def __init__(self):
         super().__init__()
-        global_signals.message_sent.connect(self.add_message)
+        # Подключение к сигналу будет сделано извне через set_message_handler
+        self._message_handler = None
         self.dialog_box_lay = QVBoxLayout(self)  
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True) # Важно: позволяет контейнеру растягиваться
@@ -1053,6 +1099,9 @@ class VoiceInput(ContentPageWidget):
         self.dialog_box = DialogBox()
         self.send_box = ChatSendBox()
 
+        # Подключаем ЛОКАЛЬНЫЙ сигнал send_box к диалогу
+        self.send_box.message_sent.connect(self.dialog_box.add_message)
+
         # Показываем кнопку микрофона (скрыта по умолчанию)
         # Кнопка уже подключена в ChatSendBox к toggle_voice_recording
         self.send_box.voice_btn.setVisible(True)
@@ -1081,7 +1130,8 @@ class TextInput(ContentPageWidget):
         self.text_input_lay.setContentsMargins(0, 0, 0, 0)
         self.dialog_box = DialogBox()
         self.send_box = ChatSendBox()
-        #Подключаем сигналы 
+        # Подключаем ЛОКАЛЬНЫЙ сигнал send_box к диалогу
+        self.send_box.message_sent.connect(self.dialog_box.add_message)
 
         self.text_input_lay.addWidget(self.dialog_box, 2)
         self.text_input_lay.addWidget(self.send_box, 1)
@@ -1114,7 +1164,9 @@ class GesturesInput(ContentPageWidget):
         self.bottom_lay.setSpacing(10)
         # Поле ввода
         self.send_box = ChatSendBox()
-        
+        # Подключаем ЛОКАЛЬНЫЙ сигнал send_box к диалогу
+        self.send_box.message_sent.connect(self.dialog_box.add_message)
+
         self.chat_lay.addWidget(self.dialog_box, stretch=2)
         self.bottom_lay.addWidget(self.send_box, stretch=1)
 
