@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 import sqlite3
+import re 
 CHAT_FILE = Path(__file__).parent / "data" / "chat_history.json"
 CHAT_FILE.parent.mkdir(exist_ok=True)
 
@@ -77,6 +78,13 @@ class DataBaseEditor():
     def _commit(self):
         self.connection.commit()
 
+    def _is_safe_identifier(self, name: str) -> bool:
+        """Проверяет, что имя таблицы или колонки не содержит опасных символов."""
+        # Разрешаем только латинские буквы, цифры и подчеркивание
+        if not re.match(r'^[a-zA-Z0-9_]+$', name):
+            raise ValueError(f"Недопустимое имя идентификатора: '{name}'. Разрешены только a-z, A-Z, 0-9 и _")
+        return True
+
     def insert_data(self, id: int, firstname: str, surname: str, patronymic: str, gender: str,
                      birthday: str, dysfunctions: str, adaptation_status: str):
         self._open_connection()
@@ -88,9 +96,12 @@ class DataBaseEditor():
         self._close_connection()
 
     def update_data(self, table_name: str, updates: dict, id: int):
-
+        self._is_safe_identifier(table_name)
         if not updates:
-            return 
+            return
+        for col in updates.keys():
+            self._is_safe_identifier(col)
+            
         # Формируем SET-часть: "firstname=?, surname=?"
         set_clause = ", ".join([f"{col} = ?" for col in updates.keys()])
         
@@ -105,6 +116,7 @@ class DataBaseEditor():
         self._close_connection()
 
     def delete_data(self, table_name, id):
+        self._is_safe_identifier(table_name)
         self._open_connection()
         self._set_cursor()
         self.cursor.execute(f"DELETE FROM {table_name} WHERE id = ?", (id,))
@@ -112,6 +124,8 @@ class DataBaseEditor():
         self._close_connection()
 
     def get_data(self, table_name: str, column_name: str, id: int) -> list:
+        self._is_safe_identifier(table_name)
+        self._is_safe_identifier(column_name)
         self._open_connection()
         self._set_cursor()
         self.cursor.execute(f"SELECT {column_name} FROM {table_name} WHERE id = ?", (id,))
