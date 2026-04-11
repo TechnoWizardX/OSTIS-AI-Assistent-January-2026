@@ -11,14 +11,15 @@ from BasicUtils import BasicUtils, DataBaseEditor
 from datetime import datetime
 
 # Добавляем путь к жестам для импорта
-GESTURES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "problem-solver", "samples", "GesturesInput")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+GESTURES_DIR = os.path.join(PROJECT_ROOT, "samples", "GesturesInput")
 if GESTURES_DIR not in sys.path:
     sys.path.insert(0, GESTURES_DIR)
 
 from gestures import GestureCameraThread
 
 # Добавляем путь к голосовому вводу для импорта
-VOICE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "problem-solver", "samples", "VoiceInput")
+VOICE_DIR = os.path.join(PROJECT_ROOT, "samples", "VoiceInput")
 if VOICE_DIR not in sys.path:
     sys.path.insert(0, VOICE_DIR)
 
@@ -154,7 +155,7 @@ class UserInterface(QMainWindow):
 # ==========================================================
 class ChatSendBox(QWidget):
     # Сигнал о создании сообщения (ЛОКАЛЬНЫЙ, не глобальный)
-
+    voice_text_ready = pyqtSignal(str)  # Сигнал для безопасной передачи текста из фонового потока
 
     def __init__(self):
         super().__init__()
@@ -266,8 +267,9 @@ class ChatSendBox(QWidget):
 
         # Подключаем кнопку голоса к переключению записи
         self.voice_btn.clicked.connect(self.toggle_voice_recording)
-        
+
         # Подключаем сигнал для безопасной обработки текста в главном потоке
+        self.voice_text_ready.connect(self.handle_voice_text)
 
         # Для защиты от дублирования
         self._last_voice_text = ""
@@ -322,7 +324,7 @@ class ChatSendBox(QWidget):
     def on_voice_text(self, text: str):
         """Вызывается когда распознан текст через голос (из фонового потока!)"""
         # Отправляем сигнал в главный поток для безопасного обновления UI
-        self.handle_voice_text(text)
+        self.voice_text_ready.emit(text)
 
     def handle_voice_text(self, text: str):
         """Обрабатывает распознанный текст (вызывается в главном потоке)"""
@@ -333,9 +335,28 @@ class ChatSendBox(QWidget):
         self._voice_processing = True
         self._last_voice_text = text
 
-        # Автоматически отправляем в чат
-        BasicUtils.add_message("user", text)
-        global_signals.message_sent.emit("user", text)
+        # Проверяем состояние переключателя из настроек
+        send_directly = False
+        main_window = self.window()
+        if hasattr(main_window, 'settings_page'):
+            send_directly = main_window.settings_page.is_toggle_checked()
+
+        if send_directly:
+            # Отправляем сразу в чат
+            BasicUtils.add_message("user", text)
+            global_signals.message_sent.emit("user", text)
+        else:
+            # Вставляем текст в поле ввода
+            current_text = self.chat_send_input.toPlainText()
+            if current_text:
+                self.chat_send_input.setPlainText(current_text + " " + text)
+            else:
+                self.chat_send_input.setPlainText(text)
+            # Перемещаем курсор в конец
+            cursor = self.chat_send_input.textCursor()
+            cursor.movePosition(cursor.MoveOperation.End)
+            self.chat_send_input.setTextCursor(cursor)
+
         self._voice_processing = False
         
     def send_message(self):
@@ -811,8 +832,8 @@ class Settings(ContentPageWidget):
         self.speaker_frame_lay.addWidget(self.speaker_label, 1)
         self.speaker_frame_lay.addWidget(self.speaker_dropbox, 1)
         self.grid_lay.setRowStretch(4, 1)
-        
-        # фрейм для тестового переключателя
+
+        # фрейм для переключателя
         self.toggle_frame = QFrame()
         self.toggle_frame.setStyleSheet("""
             background-color: #D3D3D3;
@@ -825,7 +846,7 @@ class Settings(ContentPageWidget):
         self.toggle_frame_lay.setContentsMargins(10, 5, 15, 10)
         self.toggle_frame_lay.setSpacing(10)
 
-        # текстовая метка 
+        # текстовая метка
         self.toggle_label = QLabel("Отправлять текст из голосового ввода сразу в чат:")
         self.toggle_label.setStyleSheet(self.settings_text_qss)
         # переключатель
@@ -834,21 +855,72 @@ class Settings(ContentPageWidget):
         self.toggle_frame_lay.addWidget(self.toggle_label, 1)
         self.toggle_frame_lay.addWidget(self.toggle_switch)
 
+        # Загружаем настройки из файла
+        self._load_settings()
+
+        # Подключаем сигналы для сохранения настроек
+        self.camera_dropbox.currentTextChanged.connect(self._on_camera_changed)
+        self.microphone_dropbox.currentTextChanged.connect(self._on_microphone_changed)
+        self.speaker_dropbox.currentTextChanged.connect(self._on_speaker_changed)
+        self.toggle_switch.toggled.connect(self._on_toggle_changed)
+
+    def _load_settings(self):
+        """Загружает настройки из settings_config.json и применяет их к виджетам."""
+        settings_config = BasicUtils.load_settings_config()
+        
+        # Восстанавливаем состояние переключателя
+        voice_send_directly = settings_config.get("voice_send_directly", False)
+        self.toggle_switch.setChecked(voice_send_directly)
+        
+        # Камера (по индексу)
+        camera_index = settings_config.get("camera_index", 0)
+        if 0 <= camera_index < self.camera_dropbox.count():
+            self.camera_dropbox.setCurrentIndex(camera_index)
+        
+        # Микрофон (по индексу)
+        mic_index = settings_config.get("microphone_index", 0)
+        if 0 <= mic_index < self.microphone_dropbox.count():
+            self.microphone_dropbox.setCurrentIndex(mic_index)
+        
+        # Диктор (по индексу)
+        speaker_index = settings_config.get("speaker_index", 0)
+        if 0 <= speaker_index < self.speaker_dropbox.count():
+            self.speaker_dropbox.setCurrentIndex(speaker_index)
+
+    def _on_camera_changed(self, text):
+        """Сохраняет выбранную камеру."""
+        index = self.camera_dropbox.currentIndex()
+        BasicUtils.set_settings_config_value("camera_index", index)
+        global_signals.settings_changed.emit({"camera": text})
+
+    def _on_microphone_changed(self, text):
+        """Сохраняет выбранный микрофон."""
+        index = self.microphone_dropbox.currentIndex()
+        BasicUtils.set_settings_config_value("microphone_index", index)
+        global_signals.settings_changed.emit({"microphone": text})
+
+    def _on_speaker_changed(self, text):
+        """Сохраняет выбранного диктора."""
+        index = self.speaker_dropbox.currentIndex()
+        BasicUtils.set_settings_config_value("speaker_index", index)
+        global_signals.settings_changed.emit({"speaker": text})
+
+    def _on_toggle_changed(self, state):
+        """Сохраняет состояние переключателя."""
+        BasicUtils.set_settings_config_value("voice_send_directly", state)
+        global_signals.settings_changed.emit({"voice_send_directly": state})
+
 
 
     def get_current_camera(self):
         return self.camera_dropbox.currentText()
-    
+
     def get_current_microphone(self):
         return self.microphone_dropbox.currentText()
 
     def is_toggle_checked(self):
         """Возвращает состояние переключателя (True/False)"""
         return self.toggle_switch.isChecked()
-
-    def set_toggle_checked(self, state):
-        """Устанавливает состояние переключателя"""
-        self.toggle_switch.setChecked(state)
 
     def get_current_speaker(self):
         return self.speaker_dropbox.currentText()
