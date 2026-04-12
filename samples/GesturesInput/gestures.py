@@ -254,183 +254,206 @@ class SoundController:
 
 
 # ============================================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# УТИЛИТЫ: вспомогательные функции и отрисовка UI
 # ============================================================
-def distance(p1: Tuple[int, int], p2: Tuple[int, int]) -> float:
-    return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
+class GestureUtils:
+    """Вспомогательные функции: геометрия, распознавание пальцев, модель."""
 
+    @staticmethod
+    def distance(p1: Tuple[int, int], p2: Tuple[int, int]) -> float:
+        return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
 
-def get_finger_states(landmarks: list) -> list:
-    """Определяет, какие пальцы подняты: [thumb, index, middle, ring, pinky]."""
-    thumb_tip, thumb_ip, thumb_mcp = landmarks[4], landmarks[3], landmarks[2]
-    index_mcp = landmarks[5]
+    @staticmethod
+    def get_finger_states(landmarks: list) -> list:
+        """Определяет поднятые пальцы: [thumb, index, middle, ring, pinky]."""
+        thumb_tip, thumb_ip, thumb_mcp = landmarks[4], landmarks[3], landmarks[2]
+        index_mcp = landmarks[5]
 
-    # Большой палец: расстояние до MCP указательного + разогнутость
-    thumb_palm_dist = math.hypot(thumb_tip.x - index_mcp.x, thumb_tip.y - index_mcp.y)
-    thumb_extension = math.hypot(thumb_tip.x - thumb_ip.x, thumb_tip.y - thumb_ip.y)
-    fingers = [thumb_palm_dist > 0.10 and thumb_extension > 0.06]
+        thumb_palm_dist = math.hypot(thumb_tip.x - index_mcp.x, thumb_tip.y - index_mcp.y)
+        thumb_extension = math.hypot(thumb_tip.x - thumb_ip.x, thumb_tip.y - thumb_ip.y)
+        fingers = [thumb_palm_dist > 0.10 and thumb_extension > 0.06]
 
-    # Остальные пальцы: комбинация критериев (кончик выше PIP, разогнут, кончик выше MCP)
-    for tip, pip_, dip_, mcp_ in [(8, 6, 7, 5), (12, 10, 11, 9), (16, 14, 15, 13), (20, 18, 19, 17)]:
-        tip_p, pip_p, dip_p, mcp_p = landmarks[tip], landmarks[pip_], landmarks[dip_], landmarks[mcp_]
-        criteria = [
-            tip_p.y < pip_p.y - 0.005,   # кончик выше PIP
-            dip_p.y < pip_p.y - 0.002,   # палец разогнут
-            tip_p.y < mcp_p.y - 0.01,    # кончик выше MCP
-        ]
-        fingers.append(sum(criteria) >= 2)
+        for tip, pip_, dip_, mcp_ in [(8, 6, 7, 5), (12, 10, 11, 9), (16, 14, 15, 13), (20, 18, 19, 17)]:
+            tip_p, pip_p, dip_p, mcp_p = landmarks[tip], landmarks[pip_], landmarks[dip_], landmarks[mcp_]
+            criteria = [
+                tip_p.y < pip_p.y - 0.005,
+                dip_p.y < pip_p.y - 0.002,
+                tip_p.y < mcp_p.y - 0.01,
+            ]
+            fingers.append(sum(criteria) >= 2)
 
-    return fingers
+        return fingers
 
+    @staticmethod
+    def match_gesture(finger_states: list, pattern: list) -> bool:
+        """Проверяет соответствие жеста шаблону."""
+        if pattern == [True] * 5:
+            return sum(finger_states) >= 4
+        return all(fs == pat for fs, pat in zip(finger_states, pattern))
 
-def match_gesture(finger_states: list, pattern: list) -> bool:
-    """Проверяет соответствие жеста шаблону."""
-    if pattern == [True] * 5:
-        return sum(finger_states) >= 4  # Ладонь: 4 из 5
-    return all(fs == pat for fs, pat in zip(finger_states, pattern))
+    @staticmethod
+    def smooth_value(current: float, target: float, factor: float = 0.3) -> float:
+        """Экспоненциальное сглаживание."""
+        return current + (target - current) * factor
 
+    @staticmethod
+    def get_finger_indices(names: list) -> list:
+        return [FINGER_TIP_MAP[name] for name in names]
 
-def smooth_value(current: float, target: float, factor: float = 0.3) -> float:
-    """Экспоненциальное сглаживание."""
-    return current + (target - current) * factor
-
-
-def get_finger_indices(names: list) -> list:
-    return [FINGER_TIP_MAP[name] for name in names]
-
-
-def draw_hand_skeleton(frame, landmarks):
-    """Рисует скелет руки на кадре."""
-    h, w, _ = frame.shape
-    pts = [(int(lm.x * w), int(lm.y * h)) for lm in landmarks]
-
-    for start, end in HAND_CONNECTIONS:
-        cv2.line(frame, pts[start], pts[end], (0, 255, 0), 2)
-    for pt in pts:
-        cv2.circle(frame, pt, 3, (255, 0, 0), -1)
-
-
-def get_font(size: int):
-    """Возвращает шрифт с поддержкой кириллицы."""
-    if not PIL_AVAILABLE:
-        return None
-    for path in FONT_CANDIDATES:
-        try:
-            return ImageFont.truetype(path, size)
-        except OSError:
-            continue
-    return ImageFont.load_default()
-
-
-def pil_draw_text(frame, text, pos, font, color):
-    """Рисует текст через PIL (кириллица)."""
-    if not PIL_AVAILABLE or font is None:
-        return frame
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    image = Image.fromarray(frame_rgb)
-    draw = ImageDraw.Draw(image)
-    draw.text(pos, text, font=font, fill=color)
-    return cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-
-
-# ============================================================
-# ОТРИСОВКА UI
-# ============================================================
-def _draw_overlay_text(frame, lines_data, font, line_height=30):
-    """Рисует несколько строк текста с полупрозрачным фоном."""
-    if not PIL_AVAILABLE or font is None:
-        return frame
-
-    h, w, _ = frame.shape
-    overlay_h = len(lines_data) * line_height + 10
-
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    image = Image.fromarray(frame_rgb)
-    draw = ImageDraw.Draw(image)
-
-    # Полупрозрачный фон
-    overlay = np.array(image)
-    cv2.rectangle(overlay, (0, 0), (w, overlay_h), (0, 0, 0), -1)
-    image = Image.fromarray(cv2.addWeighted(overlay, 0.5, np.array(image), 0.5, 0))
-    draw = ImageDraw.Draw(image)
-
-    for i, (text, color) in enumerate(lines_data):
-        bbox = draw.textbbox((0, 0), text, font=font)
-        tw = bbox[2] - bbox[0]
-        draw.text((w // 2 - tw // 2, 10 + i * line_height), text, font=font, fill=color)
-
-    return cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-
-
-def draw_slider(frame, landmarks, finger_indices, color, min_dist=30, max_dist=200):
-    """Рисует слайдер между пальцами, возвращает значение 0-100."""
-    h, w, _ = frame.shape
-    p1 = (int(landmarks[finger_indices[0]].x * w), int(landmarks[finger_indices[0]].y * h))
-    p2 = (int(landmarks[finger_indices[1]].x * w), int(landmarks[finger_indices[1]].y * h))
-
-    dist_val = distance(p1, p2)
-    value = int(np.clip((dist_val - min_dist) / (max_dist - min_dist) * 100, 0, 100))
-
-    cv2.line(frame, p1, p2, color, 3)
-    cv2.circle(frame, p1, 8, color, -1)
-    cv2.circle(frame, p2, 8, color, -1)
-
-    # Вертикальный индикатор
-    sx, sy, sh, sw = w - 60, h // 2, 200, 30
-    fill_h = int(value / 100 * sh)
-    cv2.rectangle(frame, (sx, sy - sh // 2), (sx + sw, sy + sh // 2), (50, 50, 50), -1)
-    cv2.rectangle(frame, (sx + 3, sy + sh // 2 - fill_h), (sx + sw - 3, sy + sh // 2), color, -1)
-    cv2.rectangle(frame, (sx, sy - sh // 2), (sx + sw, sy + sh // 2), (255, 255, 255), 2)
-
-    return value
-
-
-def draw_gesture_info(frame, gesture, action, font):
-    """Информация о распознанном жесте."""
-    if not PIL_AVAILABLE or font is None:
-        font_cv = cv2.FONT_HERSHEY_SIMPLEX
+    @staticmethod
+    def draw_hand_skeleton(frame, landmarks):
+        """Рисует скелет руки на кадре."""
         h, w, _ = frame.shape
-        cv2.putText(frame, f"Жест: {gesture}", (w // 2 - 100, h - 80), font_cv, 0.7, (255, 255, 0), 2)
-        cv2.putText(frame, action, (w // 2 - 120, h - 55), font_cv, 0.6, (0, 255, 255), 2)
+        pts = [(int(lm.x * w), int(lm.y * h)) for lm in landmarks]
+        for start, end in HAND_CONNECTIONS:
+            cv2.line(frame, pts[start], pts[end], (0, 255, 0), 2)
+        for pt in pts:
+            cv2.circle(frame, pt, 3, (255, 0, 0), -1)
+
+    @staticmethod
+    def download_model() -> bool:
+        """Скачивает модель, если отсутствует."""
+        if os.path.exists(MODEL_PATH):
+            return True
+        os.makedirs(MODEL_DIR, exist_ok=True)
+        print(f"  [МОДЕЛЬ] Загрузка модели...")
+        try:
+            import urllib.request
+            urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+            print(f"  [МОДЕЛЬ] Модель загружена: {MODEL_PATH}")
+            return True
+        except Exception as e:
+            print(f"  [МОДЕЛЬ] Ошибка загрузки: {e}")
+            return False
+
+
+class GestureUI:
+    """Отрисовка UI: текст, слайдеры, индикаторы режимов."""
+
+    SLIDER_POS = {"x_offset": 60, "y_center": 0.5, "height": 200, "width": 30, "fill_color": (50, 50, 50)}
+    PROGRESS_BAR = {"width": 300, "height": 20, "y": 120, "bg_color": (100, 100, 100),
+                    "fg_color": (0, 255, 0), "border_color": (255, 255, 255)}
+
+    @staticmethod
+    def get_font(size: int):
+        """Возвращает шрифт с поддержкой кириллицы."""
+        if not PIL_AVAILABLE:
+            return None
+        for path in FONT_CANDIDATES:
+            try:
+                return ImageFont.truetype(path, size)
+            except OSError:
+                continue
+        return ImageFont.load_default()
+
+    @staticmethod
+    def draw_slider(frame, landmarks, finger_indices, color, min_dist=30, max_dist=200) -> int:
+        """Рисует слайдер между пальцами, возвращает значение 0-100."""
+        h, w, _ = frame.shape
+        p1 = (int(landmarks[finger_indices[0]].x * w), int(landmarks[finger_indices[0]].y * h))
+        p2 = (int(landmarks[finger_indices[1]].x * w), int(landmarks[finger_indices[1]].y * h))
+
+        dist_val = GestureUtils.distance(p1, p2)
+        value = int(np.clip((dist_val - min_dist) / (max_dist - min_dist) * 100, 0, 100))
+
+        cv2.line(frame, p1, p2, color, 3)
+        cv2.circle(frame, p1, 8, color, -1)
+        cv2.circle(frame, p2, 8, color, -1)
+
+        cfg = GestureUI.SLIDER_POS
+        sx = w - cfg["x_offset"]
+        sy = int(h * cfg["y_center"])
+        sh, sw = cfg["height"], cfg["width"]
+        fill_h = int(value / 100 * sh)
+
+        cv2.rectangle(frame, (sx, sy - sh // 2), (sx + sw, sy + sh // 2), cfg["fill_color"], -1)
+        cv2.rectangle(frame, (sx + 3, sy + sh // 2 - fill_h), (sx + sw - 3, sy + sh // 2), color, -1)
+        cv2.rectangle(frame, (sx, sy - sh // 2), (sx + sw, sy + sh // 2), (255, 255, 255), 2)
+
+        return value
+
+    @staticmethod
+    def draw_gesture_info(frame, gesture, action, font):
+        """Информация о распознанном жесте."""
+        if not PIL_AVAILABLE or font is None:
+            font_cv = cv2.FONT_HERSHEY_SIMPLEX
+            h, w, _ = frame.shape
+            cv2.putText(frame, f"Жест: {gesture}", (w // 2 - 100, h - 80), font_cv, 0.7, (255, 255, 0), 2)
+            cv2.putText(frame, action, (w // 2 - 120, h - 55), font_cv, 0.6, (0, 255, 255), 2)
+            return frame
+
+        text = f"Распознан жест: {gesture}\n{action}"
+        return GestureUI._pil_text(frame, text, (frame.shape[1] // 2 - 100, frame.shape[0] - 90), font, (255, 255, 0))
+
+    @staticmethod
+    def draw_mode_ui(frame, mode, value, font):
+        """UI активного режима."""
+        mode_cfg = MODES[mode]
+        lines = [
+            (mode_cfg["name"], (255, 255, 255)),
+            (UI_TEXTS["mode_active"], (0, 255, 0)),
+            (mode_cfg["label"].format(value), (255, 255, 0)),
+            ("2 пальца - выход", (0, 255, 255)),
+        ]
+        return GestureUI._overlay_text(frame, lines, font)
+
+    @staticmethod
+    def draw_confirm_ui(frame, mode_name, hold_progress, hold_gesture_name, font):
+        """UI удержания жеста с прогрессом."""
+        h, w, _ = frame.shape
+        lines = [
+            (f"Удерживайте жест: {hold_gesture_name}", (255, 255, 0)),
+            (f"Режим: {mode_name}", (0, 255, 255)),
+            (f"{int(hold_progress * 100)}%", (0, 255, 0)),
+        ]
+        frame = GestureUI._overlay_text(frame, lines, font)
+
+        cfg = GestureUI.PROGRESS_BAR
+        bar_x = (w - cfg["width"]) // 2
+        cv2.rectangle(frame, (bar_x, cfg["y"]), (bar_x + cfg["width"], cfg["y"] + cfg["height"]), cfg["bg_color"], -1)
+        fill_w = int(cfg["width"] * hold_progress)
+        if fill_w > 0:
+            cv2.rectangle(frame, (bar_x, cfg["y"]), (bar_x + fill_w, cfg["y"] + cfg["height"]), cfg["fg_color"], -1)
+        cv2.rectangle(frame, (bar_x, cfg["y"]), (bar_x + cfg["width"], cfg["y"] + cfg["height"]), cfg["border_color"], 2)
+
         return frame
 
-    return pil_draw_text(frame, f"Распознан жест: {gesture}\n{action}",
-                         (frame.shape[1] // 2 - 100, frame.shape[0] - 90), font, (255, 255, 0))
+    # --- Внутренние методы ---
 
+    @staticmethod
+    def _pil_text(frame, text, pos, font, color):
+        """Рисует текст через PIL (кириллица)."""
+        if not PIL_AVAILABLE or font is None:
+            return frame
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        image = Image.fromarray(frame_rgb)
+        ImageDraw.Draw(image).text(pos, text, font=font, fill=color)
+        return cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
-def draw_mode_ui(frame, mode, value, font):
-    """UI активного режима."""
-    mode_cfg = MODES[mode]
-    h, w, _ = frame.shape
-    lines = [
-        (mode_cfg["name"], (255, 255, 255)),
-        (UI_TEXTS["mode_active"], (0, 255, 0)),
-        (mode_cfg["label"].format(value), (255, 255, 0)),
-        ("2 пальца - выход", (0, 255, 255)),
-    ]
-    return _draw_overlay_text(frame, lines, font)
+    @staticmethod
+    def _overlay_text(frame, lines_data, font, line_height=30):
+        """Рисует строки текста с полупрозрачным фоном."""
+        if not PIL_AVAILABLE or font is None:
+            return frame
 
+        h, w, _ = frame.shape
+        overlay_h = len(lines_data) * line_height + 10
 
-def draw_confirm_ui(frame, mode_name, hold_progress, hold_gesture_name, font):
-    """UI удержания жеста с прогрессом."""
-    h, w, _ = frame.shape
-    lines = [
-        (f"Удерживайте жест: {hold_gesture_name}", (255, 255, 0)),
-        (f"Режим: {mode_name}", (0, 255, 255)),
-        (f"{int(hold_progress * 100)}%", (0, 255, 0)),
-    ]
-    frame = _draw_overlay_text(frame, lines, font)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        image = Image.fromarray(frame_rgb)
+        draw = ImageDraw.Draw(image)
 
-    # Полоса прогресса
-    bar_w, bar_h = 300, 20
-    bar_x, bar_y = (w - bar_w) // 2, 120
-    cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_w, bar_y + bar_h), (100, 100, 100), -1)
-    fill_w = int(bar_w * hold_progress)
-    if fill_w > 0:
-        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + fill_w, bar_y + bar_h), (0, 255, 0), -1)
-    cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_w, bar_y + bar_h), (255, 255, 255), 2)
+        overlay = np.array(image)
+        cv2.rectangle(overlay, (0, 0), (w, overlay_h), (0, 0, 0), -1)
+        image = Image.fromarray(cv2.addWeighted(overlay, 0.5, np.array(image), 0.5, 0))
+        draw = ImageDraw.Draw(image)
 
-    return frame
+        for i, (text, color) in enumerate(lines_data):
+            bbox = draw.textbbox((0, 0), text, font=font)
+            tw = bbox[2] - bbox[0]
+            draw.text((w // 2 - tw // 2, 10 + i * line_height), text, font=font, fill=color)
+
+        return cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
 
 # ============================================================
@@ -448,19 +471,19 @@ class GestureProcessor:
             self.state.smoothed_sound = self.state.sound_value
 
         # Индексы пальцев
-        self.control_fingers = get_finger_indices(MODES["brightness"]["control_fingers"])
+        self.control_fingers = GestureUtils.get_finger_indices(MODES["brightness"]["control_fingers"])
         self.smoothing = SETTINGS.get("smoothing_factor", 0.3)
 
         # MediaPipe
         self.landmarker = self._init_landmarker()
-        self.font_small = get_font(24)
+        self.font_small = GestureUI.get_font(24)
 
         # Константы удержания
         self.hold_required_frames = 50  # ~0.7 сек при 30 FPS
 
     def _init_landmarker(self):
         """Инициализирует HandLandmarker."""
-        if not download_model():
+        if not GestureUtils.download_model():
             print("Ошибка: не удалось загрузить модель!")
             return None
 
@@ -490,8 +513,8 @@ class GestureProcessor:
             if idx < len(result.handedness) and result.handedness[idx]:
                 label = result.handedness[idx][0].category_name
 
-            draw_hand_skeleton(frame, landmarks)
-            finger_states = get_finger_states(landmarks)
+            GestureUtils.draw_hand_skeleton(frame, landmarks)
+            finger_states = GestureUtils.get_finger_states(landmarks)
             hands[label] = HandData(landmarks, label, finger_states)
 
         return hands
@@ -508,11 +531,11 @@ class GestureProcessor:
         if not left_hand:
             return frame
 
-        raw = draw_slider(frame, left_hand.landmarks, self.control_fingers,
+        raw = GestureUI.draw_slider(frame, left_hand.landmarks, self.control_fingers,
                           mode_cfg["slider_color"], SETTINGS["min_distance"], SETTINGS["max_distance"])
 
         if is_brightness:
-            self.state.smoothed_brightness = smooth_value(self.state.smoothed_brightness, raw, self.smoothing)
+            self.state.smoothed_brightness = GestureUtils.smooth_value(self.state.smoothed_brightness, raw, self.smoothing)
             self.state.brightness_value = int(self.state.smoothed_brightness)
 
             if BRIGHTNESS_AVAILABLE:
@@ -521,7 +544,7 @@ class GestureProcessor:
                 except Exception as e:
                     print(f"  Ошибка яркости: {e}")
         else:
-            self.state.smoothed_sound = smooth_value(self.state.smoothed_sound, raw, self.smoothing)
+            self.state.smoothed_sound = GestureUtils.smooth_value(self.state.smoothed_sound, raw, self.smoothing)
             self.state.sound_value = int(self.state.smoothed_sound)
             print(f"  >>> Звук: {self.state.sound_value}% (raw: {raw})")
             self.sound_controller.set_volume(self.state.sound_value)
@@ -546,7 +569,7 @@ class GestureProcessor:
                     return "Ладонь", "Выход из подтверждения"
 
                 # Удержание целевого жеста
-                if match_gesture(fs, target_cfg["finger_pattern"]):
+                if GestureUtils.match_gesture(fs, target_cfg["finger_pattern"]):
                     self.state.hold_current_frames += 1
                     self.state.hold_progress = min(1.0, self.state.hold_current_frames / self.hold_required_frames)
 
@@ -572,7 +595,7 @@ class GestureProcessor:
                     continue
 
                 for g_name, g_cfg in GESTURES.items():
-                    if match_gesture(fs, g_cfg["finger_pattern"]):
+                    if GestureUtils.match_gesture(fs, g_cfg["finger_pattern"]):
                         action = g_cfg["action"]
 
                         if action in ("activate_brightness", "activate_sound") and self.state.current_mode is None:
@@ -630,12 +653,12 @@ class GestureProcessor:
         if self.state.pending_mode is not None:
             mode_name = "Яркость" if self.state.pending_mode == "brightness" else "Звук"
             hold_gesture = "1 палец" if self.state.pending_mode == "brightness" else "3 пальца"
-            frame = draw_confirm_ui(frame, mode_name, self.state.hold_progress, hold_gesture, self.font_small)
+            frame = GestureUI.draw_confirm_ui(frame, mode_name, self.state.hold_progress, hold_gesture, self.font_small)
         elif self.state.current_mode is not None:
-            frame = draw_mode_ui(frame, self.state.current_mode, self.state.current_value, self.font_small)
+            frame = GestureUI.draw_mode_ui(frame, self.state.current_mode, self.state.current_value, self.font_small)
 
         if self.state.gesture_timer > 0 and self.state.current_gesture:
-            frame = draw_gesture_info(frame, self.state.current_gesture, self.state.current_action, self.font_small)
+            frame = GestureUI.draw_gesture_info(frame, self.state.current_gesture, self.state.current_action, self.font_small)
 
         return frame
 
