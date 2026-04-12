@@ -624,10 +624,7 @@ class ToggleSwitchRow(QWidget):
 
         # фрейм для переключателя
         self.toggle_frame = QFrame()
-        self.toggle_frame.setStyleSheet("""
-            background-color: #D3D3D3;
-            border-radius: 12px;
-        """)
+        self.toggle_frame.setStyleSheet(THEMES[SELECTED_THEME]["toggle_switch_row"])
         self.toggle_frame.setFixedHeight(40)
         main_layout.addWidget(self.toggle_frame)
 
@@ -638,11 +635,7 @@ class ToggleSwitchRow(QWidget):
 
         # Текстовая метка
         self.label = QLabel(text)
-        self.label.setStyleSheet("""
-            color: #000000;
-            font-size: 14px;
-            font-family: "Roboto";
-        """)
+        self.toggle_frame.setStyleSheet(THEMES[SELECTED_THEME]["toggle_switch_row_label"])
         self.toggle_frame_lay.addWidget(self.label, 1)
 
         # Переключатель
@@ -769,7 +762,8 @@ class Settings(ContentPageWidget):
 
         self.speaker_frame_lay.addWidget(self.speaker_label, 1)
         self.speaker_frame_lay.addWidget(self.speaker_dropbox, 1)
-        self.grid_lay.setRowStretch(5, 1)
+
+        
 
         # Переключатель для голосового ввода
         self.toggle_row_for_voice = ToggleSwitchRow("Отправлять текст из голосового ввода сразу в чат:")
@@ -783,6 +777,26 @@ class Settings(ContentPageWidget):
         self.voice_toggle_state = ToggleSwitchState("voice_send_directly")
         self.gesture_toggle_state = ToggleSwitchState("gesture_send_directly")
 
+        # ================================================
+        # Область тем 
+        self.theme_frame = QFrame()
+        self.theme_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
+        self.theme_frame_lay = QGridLayout(self.theme_frame)
+
+        self.dark_theme_button = QPushButton("Темная тема")
+        self.dark_theme_button.clicked.connect(lambda checked: self._on_theme_changed("dark"))
+        self.setStyleSheet(THEMES[SELECTED_THEME]["theme_button"])
+        self.theme_frame_lay.addWidget(self.dark_theme_button, 0, 0)
+        
+        self.light_theme_button = QPushButton("Светлая тема")
+        self.light_theme_button.clicked.connect(lambda checked: self._on_theme_changed("light"))
+        self.setStyleSheet(THEMES[SELECTED_THEME]["theme_button"])
+        self.theme_frame_lay.addWidget(self.light_theme_button, 0, 1)
+
+        self.grid_lay.addWidget(self.theme_frame, 5, 0)
+        # ================================================
+
+        self.grid_lay.setRowStretch(6, 1)
         # Загружаем настройки из файла
         self._load_settings()
 
@@ -834,6 +848,11 @@ class Settings(ContentPageWidget):
         BasicUtils.set_settings_config_value("speaker_index", index)
         global_signals.settings_changed.emit({"speaker": text})
 
+    def _on_theme_changed(self, theme_name: str):
+        """Сохраняет выбранную тему."""
+        BasicUtils.set_settings_config_value("theme", theme_name)
+        global_signals.settings_changed.emit({"theme": theme_name})
+   
     def get_current_camera(self):
         return self.camera_dropbox.currentText()
 
@@ -854,6 +873,9 @@ class Settings(ContentPageWidget):
 # ===========================================================
 # ПРОФИЛЬ
 # ===========================================================
+
+
+
 class ProfileOption(QFrame):
     """
     Виджет строки профиля: Название | Значение | Кнопки управления.
