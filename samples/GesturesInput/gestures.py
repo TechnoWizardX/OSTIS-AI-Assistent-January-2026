@@ -533,6 +533,7 @@ class GestureProcessor:
     def __init__(self):
         self.state = GestureState()
         self.sound_controller = SoundController()
+        self.thread = None  # Будет установлен из GestureCameraThread
 
         if self.sound_controller.initialized:
             self.state.sound_value = self.sound_controller.get_volume()
@@ -778,6 +779,11 @@ class GestureProcessor:
         cmd = f"{self.state.selected_action.capitalize()} {self.state.selected_object}"
         print(f"  >>> КОМАНДА: {cmd}")
 
+        # Отправляем команду в UI через сигнал
+        if self.thread is not None:
+            print(f"  >>> Отправляю command_ready сигнал: '{cmd}'")
+            self.thread.command_ready.emit(cmd)
+
         # Сброс после выполнения
         self.state.action_mode = False
         self.state.selected_action = ""
@@ -907,6 +913,7 @@ class GestureCameraThread(QThread):
     """Фоновый поток камеры для PyQt."""
     frame_ready = pyqtSignal(QImage)
     status_ready = pyqtSignal(str)
+    command_ready = pyqtSignal(str)
 
     def __init__(self, camera_index=0):
         super().__init__()
@@ -918,6 +925,7 @@ class GestureCameraThread(QThread):
     def run(self):
         self._running = True
         self.processor = GestureProcessor()
+        self.processor.thread = self  # Обратная ссылка для сигналов
 
         self.cap = cv2.VideoCapture(self.camera_index)
         if not self.cap.isOpened():

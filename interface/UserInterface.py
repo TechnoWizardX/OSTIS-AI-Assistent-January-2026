@@ -156,8 +156,9 @@ class UserInterface(QMainWindow):
 # ==========================================================
 class ChatSendBox(QWidget):
     """Виджет отправки сообщений."""
-    # Сигнал о создании сообщения (ЛОКАЛЬНЫЙ, не глобальный)
-    voice_text_ready = pyqtSignal(str)  # Сигнал для безопасной передачи текста из фонового потока
+    # Сигналы для безопасной передачи текста из фоновых потоков
+    voice_text_ready = pyqtSignal(str)
+    gesture_text_ready = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
@@ -165,6 +166,10 @@ class ChatSendBox(QWidget):
         # Для защиты от дублирования голосового ввода
         self._last_voice_text = ""
         self._voice_processing = False
+
+        # Для защиты от дублирования жестового ввода
+        self._last_gesture_text = ""
+        self._gesture_processing = False
 
         self.chats_send_box_lay = QVBoxLayout(self)
         self.main_frame = QFrame()
@@ -210,10 +215,13 @@ class ChatSendBox(QWidget):
 
         # Подключаем сигнал для безопасной обработки текста в главном потоке
         self.voice_text_ready.connect(self.handle_voice_text)
+        self.gesture_text_ready.connect(self.handle_gesture_command)
 
         # Для защиты от дублирования
         self._last_voice_text = ""
         self._voice_processing = False
+        self._last_gesture_text = ""
+        self._gesture_processing = False
 
     def toggle_voice_recording(self, checked: bool):
         """Переключение голосовой записи (вкл/выкл)"""
@@ -298,7 +306,40 @@ class ChatSendBox(QWidget):
             self.chat_send_input.setTextCursor(cursor)
 
         self._voice_processing = False
-        
+
+    def handle_gesture_command(self, text: str):
+        """Обрабатывает команду из жестового ввода (действие + объект)"""
+        # Защита от дублирования
+        if text == self._last_gesture_text or self._gesture_processing or not text.strip():
+            return
+        print(f"Gesture command received: {text}")
+        self._gesture_processing = True
+        self._last_gesture_text = text
+
+        # Проверяем состояние переключателя из настроек
+        send_directly = False
+        main_window = self.window()
+        if hasattr(main_window, 'settings_page'):
+            send_directly = main_window.settings_page.is_gesture_toggle_checked()
+
+        if send_directly:
+            # Отправляем сразу в чат
+            BasicUtils.add_message("user", text)
+            global_signals.message_sent.emit("user", text)
+        else:
+            # Вставляем текст в поле ввода
+            current_text = self.chat_send_input.toPlainText()
+            if current_text:
+                self.chat_send_input.setPlainText(current_text + " " + text)
+            else:
+                self.chat_send_input.setPlainText(text)
+            # Перемещаем курсор в конец
+            cursor = self.chat_send_input.textCursor()
+            cursor.movePosition(cursor.MoveOperation.End)
+            self.chat_send_input.setTextCursor(cursor)
+
+        self._gesture_processing = False
+
     def send_message(self):
         """Отправка сообщения"""
         text = self.chat_send_input.toPlainText()
@@ -1150,9 +1191,14 @@ class GesturesInput(ContentPageWidget):
         if self.camera_thread is not None and self.camera_thread.isRunning():
             return
 
+        # Сбрасываем защиту от дублирования при каждом запуске
+        self.send_box._last_gesture_text = ""
+        self.send_box._gesture_processing = False
+
         self.camera_thread = GestureCameraThread(camera_index=0)
         self.camera_thread.frame_ready.connect(self.on_frame_ready)
         self.camera_thread.status_ready.connect(self.on_status_ready)
+        self.camera_thread.command_ready.connect(lambda cmd: self.send_box.gesture_text_ready.emit(cmd))
         self.camera_thread.start()
 
         self.start_btn.setEnabled(False)
@@ -1164,6 +1210,7 @@ class GesturesInput(ContentPageWidget):
             # Отключаем сигналы перед остановкой
             self.camera_thread.frame_ready.disconnect()
             self.camera_thread.status_ready.disconnect()
+            self.camera_thread.command_ready.disconnect()
             self.camera_thread.stop()
             self.camera_thread = None
 
