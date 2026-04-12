@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Жестовое управление — MediaPipe Tasks API.
-Архитектура: единый GestureProcessor + GestureCameraThread для PyQt интерфейса.
+Архитектура: GestureProcessor + GestureCameraThread для PyQt интерфейса.
 """
 
 import cv2
@@ -12,7 +12,7 @@ import sys
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Tuple
 
 try:
     import screen_brightness_control as sbc
@@ -21,7 +21,6 @@ except ImportError:
     BRIGHTNESS_AVAILABLE = False
 
 try:
-    import pycaw.pycaw as pycaw
     from pycaw.pycaw import AudioUtilities
     SOUND_AVAILABLE = True
 except ImportError:
@@ -33,31 +32,29 @@ try:
 except ImportError:
     PIL_AVAILABLE = False
 
-# PyQt для сигналов и потоков
-from PyQt6.QtCore import QThread, pyqtSignal, QSize
+from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QImage
 
 print(sys.executable)
 
 # ============================================================
-# ЗАГРУЗКА КОНФИГУРАЦИИ
+# КОНФИГУРАЦИЯ
 # ============================================================
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "gestures_config.json")
 
-def load_config():
+
+def load_config() -> dict:
     """Загружает конфигурацию жестов из JSON файла."""
     try:
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except FileNotFoundError:
-        print(f"Ошибка: файл конфигурации не найден: {CONFIG_PATH}")
-        return get_default_config()
-    except json.JSONDecodeError as e:
-        print(f"Ошибка JSON в конфигурации: {e}")
-        return get_default_config()
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Ошибка загрузки конфигурации: {e}")
+        return _default_config()
 
-def get_default_config():
-    """Возвращает конфигурацию по умолчанию."""
+
+def _default_config() -> dict:
+    """Конфигурация по умолчанию."""
     return {
         "gestures": {
             "one_finger": {
@@ -85,6 +82,24 @@ def get_default_config():
                 "hint": "Отмена"
             }
         },
+        "actions": {
+            "circle": {
+                "name": "Круг (большой + указательный)",
+                "description": "Действие: открыть",
+                "command_name": "открой",
+                "circle_threshold": 0.05,
+                "hold_frames": 50
+            }
+        },
+        "objects": {
+            "one_finger": {
+                "name": "1 палец вверх",
+                "description": "Объект: браузер",
+                "command_name": "браузер",
+                "finger_pattern": [False, True, False, False, False],
+                "hold_frames": 50
+            }
+        },
         "modes": {
             "brightness": {
                 "name": "Яркость",
@@ -102,7 +117,9 @@ def get_default_config():
         "ui_texts": {
             "title": "Жестовое управление",
             "mode_active": "РЕЖИМ АКТИВЕН",
-            "confirm_hint": "Лайк - подтвердить | Дизлайк - отмена"
+            "confirm_hint": "Удерживайте жест для активации",
+            "action_prompt": "Покажите объект",
+            "object_selected": "Объект выбран"
         },
         "settings": {
             "gesture_cooldown": 30,
@@ -118,820 +135,776 @@ def get_default_config():
         }
     }
 
+
 CONFIG = load_config()
 SETTINGS = CONFIG["settings"]
 UI_TEXTS = CONFIG["ui_texts"]
 MODES = CONFIG["modes"]
 GESTURES = CONFIG["gestures"]
+ACTIONS = CONFIG.get("actions", {})
+OBJECTS = CONFIG.get("objects", {})
 
 # ============================================================
-# ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ (для обратной совместимости)
+# MEDIAPIPE TASKS API
 # ============================================================
-current_mode = None
-pending_mode = None
-brightness_value = 50
-sound_value = 50
-smoothed_brightness = 50
-smoothed_sound = 50
-
-# ============================================================
-# MEDIAPIPE TASKS (Tasks API, без solutions)
-# ============================================================
+BaseOptions = mp.tasks.BaseOptions
 HandLandmarker = mp.tasks.vision.HandLandmarker
 HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
-BaseOptions = mp.tasks.BaseOptions
 
-# ============================================================
-# ЗАГРУЗКА МОДЕЛИ HAND LANDMARKER
-# ============================================================
+# Стандартные соединения руки
+HAND_CONNECTIONS = [
+    (0, 1), (1, 2), (2, 3), (3, 4),
+    (0, 5), (5, 6), (6, 7), (7, 8),
+    (0, 9), (9, 10), (10, 11), (11, 12),
+    (0, 13), (13, 14), (14, 15), (15, 16),
+    (0, 17), (17, 18), (18, 19), (19, 20),
+    (5, 9), (9, 13), (13, 17),
+]
+
+# Модель
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
 MODEL_FILENAME = "hand_landmarker.task"
-GESTURES_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.path.join(GESTURES_DIR, "models")
+MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILENAME)
 
-def download_model():
-    """Скачивает модель hand_landmarker.task, если её нет."""
-    if os.path.exists(MODEL_PATH):
-        print(f"  [МОДЕЛЬ] Найдена: {MODEL_PATH}")
-        return True
-
-    os.makedirs(MODEL_DIR, exist_ok=True)
-
-    print(f"  [МОДЕЛЬ] Загрузка модели...")
-    try:
-        import urllib.request
-        urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
-        print(f"  [МОДЕЛЬ] Модель загручена: {MODEL_PATH}")
-        return True
-    except Exception as e:
-        print(f"  [МОДЕЛЬ] Ошибка загрузки: {e}")
-        return False
-
-# ============================================================
-# ШРИФТЫ
-# ============================================================
+# Шрифты
 FONT_CANDIDATES = [
-    "arial.ttf",
-    "segoeui.ttf",
-    "tahoma.ttf",
+    "arial.ttf", "segoeui.ttf", "tahoma.ttf",
     r"C:\Windows\Fonts\arial.ttf",
     r"C:\Windows\Fonts\segoeui.ttf",
     r"C:\Windows\Fonts\tahoma.ttf",
 ]
 
+# Индексы кончиков пальцев
+FINGER_TIP_MAP = {"thumb": 4, "index": 8, "middle": 12, "ring": 16, "pinky": 20}
+
+
 # ============================================================
-# ФУНКЦИИ ДЛЯ РАБОТЫ СО ЗВУКОМ
+# DATA CLASS'Ы
+# ============================================================
+@dataclass
+class HandData:
+    """Данные о обнаруженной руке."""
+    landmarks: list
+    label: str
+    finger_states: list
+
+    @property
+    def is_left(self) -> bool:
+        return self.label == "Left"
+
+
+@dataclass
+class GestureState:
+    """Состояние системы жестов."""
+    current_mode: Optional[str] = None
+    pending_mode: Optional[str] = None
+    brightness_value: int = 50
+    sound_value: int = 50
+    smoothed_brightness: float = 50.0
+    smoothed_sound: float = 50.0
+    gesture_cooldown: int = 0
+    current_gesture: str = ""
+    current_action: str = ""
+    gesture_timer: int = 0
+
+    # Удержание жеста
+    hold_gesture_name: str = ""
+    hold_progress: float = 0.0
+    hold_current_frames: int = 0
+
+    # Система "действие + объект"
+    action_mode: bool = False        # Ждём выбор объекта после подтверждения действия
+    selected_action: str = ""        # Выбранное действие (напр. "открой")
+    selected_object: str = ""        # Выбранный объект (напр. "браузер")
+    object_hold_frames: int = 0      # Счётчик удержания жеста объекта
+    hold_action: bool = False        # Удержание жеста действия (круг)
+    hold_action_progress: float = 0.0  # Прогресс удержания действия
+
+    def reset(self):
+        """Полный сброс состояния."""
+        self.__init__()
+
+    @property
+    def current_value(self) -> int:
+        """Текущее значение активного режима."""
+        return self.brightness_value if self.current_mode == "brightness" else self.sound_value
+
+
+# ============================================================
+# МОДЕЛЬ
+# ============================================================
+def download_model() -> bool:
+    """Скачивает модель hand_landmarker.task, если её нет."""
+    if os.path.exists(MODEL_PATH):
+        return True
+
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    print(f"  [МОДЕЛЬ] Загрузка модели...")
+    try:
+        import urllib.request
+        urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+        print(f"  [МОДЕЛЬ] Модель загружена: {MODEL_PATH}")
+        return True
+    except Exception as e:
+        print(f"  [МОДЕЛЬ] Ошибка загрузки: {e}")
+        return False
+
+
+# ============================================================
+# ЗВУК
 # ============================================================
 class SoundController:
-    """Контроллер для управления звуком системы."""
+    """Контроллер громкости системы."""
 
     def __init__(self):
         self.volume_interface = None
         self.initialized = False
 
         if not SOUND_AVAILABLE:
-            print("  [ЗВУК] pycaw не установлен (SOUND_AVAILABLE = False)")
             return
 
         try:
-            print("  [ЗВУК] Попытка инициализации...")
-            from pycaw.pycaw import AudioUtilities
             device = AudioUtilities.GetSpeakers()
-            if device is None:
-                print("  [ЗВУК] GetSpeakers() вернул None")
-                return
-            self.volume_interface = device.EndpointVolume
-            self.initialized = True
-            current_vol = self.get_volume()
-            print(f"  [ЗВУК] Инициализация успешна! Текущая громкость: {current_vol}%")
+            if device:
+                self.volume_interface = device.EndpointVolume
+                self.initialized = True
         except Exception as e:
             print(f"Ошибка инициализации звука: {e}")
-            import traceback
-            traceback.print_exc()
-            self.initialized = False
 
-    def set_volume(self, value):
-        """Устанавливает громкость (0-100)."""
+    def set_volume(self, value: int):
+        if self.initialized:
+            self.volume_interface.SetMasterVolumeLevelScalar(value / 100.0, None)
+
+    def get_volume(self) -> int:
         if not self.initialized:
-            print(f"  [ЗВУК] Не инициализирован, пропускаю установку {value}%")
-            return
+            return 50
+        return int(self.volume_interface.GetMasterVolumeLevelScalar() * 100)
+
+
+# ============================================================
+# УТИЛИТЫ: вспомогательные функции и отрисовка UI
+# ============================================================
+class GestureUtils:
+    """Вспомогательные функции: геометрия, распознавание пальцев, модель."""
+
+    @staticmethod
+    def distance(p1: Tuple[int, int], p2: Tuple[int, int]) -> float:
+        return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
+
+    @staticmethod
+    def get_finger_states(landmarks: list) -> list:
+        """Определяет поднятые пальцы: [thumb, index, middle, ring, pinky]."""
+        thumb_tip, thumb_ip, thumb_mcp = landmarks[4], landmarks[3], landmarks[2]
+        index_mcp = landmarks[5]
+
+        thumb_palm_dist = math.hypot(thumb_tip.x - index_mcp.x, thumb_tip.y - index_mcp.y)
+        thumb_extension = math.hypot(thumb_tip.x - thumb_ip.x, thumb_tip.y - thumb_ip.y)
+        fingers = [thumb_palm_dist > 0.10 and thumb_extension > 0.06]
+
+        for tip, pip_, dip_, mcp_ in [(8, 6, 7, 5), (12, 10, 11, 9), (16, 14, 15, 13), (20, 18, 19, 17)]:
+            tip_p, pip_p, dip_p, mcp_p = landmarks[tip], landmarks[pip_], landmarks[dip_], landmarks[mcp_]
+            criteria = [
+                tip_p.y < pip_p.y - 0.005,
+                dip_p.y < pip_p.y - 0.002,
+                tip_p.y < mcp_p.y - 0.01,
+            ]
+            fingers.append(sum(criteria) >= 2)
+
+        return fingers
+
+    @staticmethod
+    def match_gesture(finger_states: list, pattern: list) -> bool:
+        """Проверяет соответствие жеста шаблону."""
+        if pattern == [True] * 5:
+            return sum(finger_states) >= 4
+        return all(fs == pat for fs, pat in zip(finger_states, pattern))
+
+    @staticmethod
+    def smooth_value(current: float, target: float, factor: float = 0.3) -> float:
+        """Экспоненциальное сглаживание."""
+        return current + (target - current) * factor
+
+    @staticmethod
+    def get_finger_indices(names: list) -> list:
+        return [FINGER_TIP_MAP[name] for name in names]
+
+    @staticmethod
+    def draw_hand_skeleton(frame, landmarks):
+        """Рисует скелет руки на кадре."""
+        h, w, _ = frame.shape
+        pts = [(int(lm.x * w), int(lm.y * h)) for lm in landmarks]
+        for start, end in HAND_CONNECTIONS:
+            cv2.line(frame, pts[start], pts[end], (0, 255, 0), 2)
+        for pt in pts:
+            cv2.circle(frame, pt, 3, (255, 0, 0), -1)
+
+    @staticmethod
+    def download_model() -> bool:
+        """Скачивает модель, если отсутствует."""
+        if os.path.exists(MODEL_PATH):
+            return True
+        os.makedirs(MODEL_DIR, exist_ok=True)
+        print(f"  [МОДЕЛЬ] Загрузка модели...")
         try:
-            volume = value / 100.0
-            self.volume_interface.SetMasterVolumeLevelScalar(volume, None)
+            import urllib.request
+            urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+            print(f"  [МОДЕЛЬ] Модель загружена: {MODEL_PATH}")
+            return True
         except Exception as e:
-            print(f"Ошибка установки звука: {e}")
+            print(f"  [МОДЕЛЬ] Ошибка загрузки: {e}")
+            return False
 
-    def get_volume(self):
-        """Получает текущую громкость (0-100)."""
-        if not self.initialized:
-            return 50
-        try:
-            volume = self.volume_interface.GetMasterVolumeLevelScalar()
-            return int(volume * 100)
-        except Exception:
-            return 50
-
-# ============================================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-# ============================================================
-def distance(p1, p2):
-    """Евклидово расстояние между двумя точками."""
-    return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
+    @staticmethod
+    def is_circle_gesture(landmarks, threshold: float = 0.05) -> bool:
+        """Проверяет жест 'круг' — большой и указательный пальцы сомкнуты."""
+        thumb_tip = landmarks[4]
+        index_tip = landmarks[8]
+        dist = math.hypot(thumb_tip.x - index_tip.x, thumb_tip.y - index_tip.y)
+        return dist < threshold
 
 
-def get_finger_states(landmarks):
-    """
-    Определяет, какие пальцы подняты.
-    landmarks — список из 21 точки (MediaPipe HandLandmarkerResult).
-    Возвращает [thumb, index, middle, ring, pinky] — True/False.
-    """
-    fingers = []
+class GestureUI:
+    """Отрисовка UI: текст, слайдеры, индикаторы режимов."""
 
-    # Большой палец — улучшенное распознавание для ладони
-    thumb_tip = landmarks[4]
-    thumb_ip = landmarks[3]  # IP сустав большого пальца
-    thumb_mcp = landmarks[2]  # MCP сустав большого пальца
-    index_mcp = landmarks[5]  # MCP сустав указательного
-    
-    # Расстояние от кончика большого до MCP указательного (для определения отведения)
-    thumb_palm_dist = math.sqrt(
-        (thumb_tip.x - index_mcp.x) ** 2 + (thumb_tip.y - index_mcp.y) ** 2
-    )
-    # Расстояние от IP до MCP большого пальца (для определения разогнутости)
-    thumb_extension = math.sqrt(
-        (thumb_tip.x - thumb_ip.x) ** 2 + (thumb_tip.y - thumb_ip.y) ** 2
-    )
-    # Вертикальная позиция: кончик большого пальца выше MCP
-    thumb_above_mcp = thumb_tip.y < thumb_mcp.y - 0.01
-    
-    # Комбинированный критерий: большой палец поднят
-    fingers.append(thumb_palm_dist > 0.10 and thumb_extension > 0.06)
+    SLIDER_POS = {"x_offset": 60, "y_center": 0.5, "height": 200, "width": 30, "fill_color": (50, 50, 50)}
+    PROGRESS_BAR = {"width": 300, "height": 20, "y": 120, "bg_color": (100, 100, 100),
+                    "fg_color": (0, 255, 0), "border_color": (255, 255, 255)}
 
-    # Остальные 4 пальца — улучшенное распознавание для ладони
-    for tip, pip_, dip_, mcp_ in [(8, 6, 7, 5), (12, 10, 11, 9), (16, 14, 15, 13), (20, 18, 19, 17)]:
-        tip_point = landmarks[tip]
-        pip_point = landmarks[pip_]
-        dip_point = landmarks[dip_]
-        mcp_point = landmarks[mcp_]
-        
-        # Критерий 1: кончик выше PIP (основной) - более мягкий порог
-        is_above_pip = tip_point.y < pip_point.y - 0.005
-        
-        # Критерий 2: палец разогнут (DIP выше PIP) - более мягкий порог
-        is_straight = dip_point.y < pip_point.y - 0.002
-        
-        # Критерий 3: кончик выше MCP (дополнительный) - более мягкий порог
-        is_above_mcp = tip_point.y < mcp_point.y - 0.01
-        
-        # Комбинируем: нужно хотя бы 2 из 3 критериев
-        criteria_met = sum([is_above_pip, is_straight, is_above_mcp]) >= 2
-        fingers.append(criteria_met)
+    @staticmethod
+    def get_font(size: int):
+        """Возвращает шрифт с поддержкой кириллицы."""
+        if not PIL_AVAILABLE:
+            return None
+        for path in FONT_CANDIDATES:
+            try:
+                return ImageFont.truetype(path, size)
+            except OSError:
+                continue
+        return ImageFont.load_default()
 
-    return fingers
+    @staticmethod
+    def draw_slider(frame, landmarks, finger_indices, color, min_dist=30, max_dist=200) -> int:
+        """Рисует слайдер между пальцами, возвращает значение 0-100."""
+        h, w, _ = frame.shape
+        p1 = (int(landmarks[finger_indices[0]].x * w), int(landmarks[finger_indices[0]].y * h))
+        p2 = (int(landmarks[finger_indices[1]].x * w), int(landmarks[finger_indices[1]].y * h))
 
+        dist_val = GestureUtils.distance(p1, p2)
+        value = int(np.clip((dist_val - min_dist) / (max_dist - min_dist) * 100, 0, 100))
 
-def match_gesture(finger_states, pattern):
-    """Проверяет, соответствует ли жест шаблону."""
-    if len(finger_states) != len(pattern):
-        return False
-    # Для ладони (все пальцы вверх) - мягкое соответствие (4 из 5)
-    if pattern == [True, True, True, True, True]:
-        matches = sum(1 for fs in finger_states if fs)
-        return matches >= 4
-    
-    # Для остальных жестов - строгое соответствие (все 5)
-    matches = sum(1 for fs, pat in zip(finger_states, pattern) if fs == pat)
-    return matches == 5
+        cv2.line(frame, p1, p2, color, 3)
+        cv2.circle(frame, p1, 8, color, -1)
+        cv2.circle(frame, p2, 8, color, -1)
 
+        cfg = GestureUI.SLIDER_POS
+        sx = w - cfg["x_offset"]
+        sy = int(h * cfg["y_center"])
+        sh, sw = cfg["height"], cfg["width"]
+        fill_h = int(value / 100 * sh)
 
-def is_open_hand(finger_states):
-    """Специальная проверка на ладонь (все 5 пальцев вверх)."""
-    # Для ладони достаточно 4 из 5 пальцев
-    raised_count = sum(1 for fs in finger_states if fs)
-    return raised_count >= 4
+        cv2.rectangle(frame, (sx, sy - sh // 2), (sx + sw, sy + sh // 2), cfg["fill_color"], -1)
+        cv2.rectangle(frame, (sx + 3, sy + sh // 2 - fill_h), (sx + sw - 3, sy + sh // 2), color, -1)
+        cv2.rectangle(frame, (sx, sy - sh // 2), (sx + sw, sy + sh // 2), (255, 255, 255), 2)
 
+        return value
 
-def print_finger_states(finger_states):
-    """Выводит состояние пальцев для отладки."""
-    labels = ['большой', 'указательный', 'средний', 'безымянный', 'мизинец']
-    states_str = ', '.join(f"{lbl}: {'↑' if st else '↓'}" for lbl, st in zip(labels, finger_states))
-    print(f"  Пальцы: {states_str}")
+    @staticmethod
+    def draw_gesture_info(frame, gesture, action, font):
+        """Информация о распознанном жесте."""
+        if not PIL_AVAILABLE or font is None:
+            font_cv = cv2.FONT_HERSHEY_SIMPLEX
+            h, w, _ = frame.shape
+            cv2.putText(frame, f"Жест: {gesture}", (w // 2 - 100, h - 80), font_cv, 0.7, (255, 255, 0), 2)
+            cv2.putText(frame, action, (w // 2 - 120, h - 55), font_cv, 0.6, (0, 255, 255), 2)
+            return frame
 
+        text = f"Распознан жест: {gesture}\n{action}"
+        return GestureUI._pil_text(frame, text, (frame.shape[1] // 2 - 100, frame.shape[0] - 90), font, (255, 255, 0))
 
-def get_finger_indices(finger_names):
-    """Возвращает индексы кончиков пальцев по названиям."""
-    finger_map = {
-        "thumb": 4,
-        "index": 8,
-        "middle": 12,
-        "ring": 16,
-        "pinky": 20
-    }
-    return [finger_map[name] for name in finger_names]
+    @staticmethod
+    def draw_mode_ui(frame, mode, value, font):
+        """UI активного режима."""
+        mode_cfg = MODES[mode]
+        lines = [
+            (mode_cfg["name"], (255, 255, 255)),
+            (UI_TEXTS["mode_active"], (0, 255, 0)),
+            (mode_cfg["label"].format(value), (255, 255, 0)),
+            ("2 пальца - выход", (0, 255, 255)),
+        ]
+        return GestureUI._overlay_text(frame, lines, font)
 
+    @staticmethod
+    def draw_confirm_ui(frame, mode_name, hold_progress, hold_gesture_name, font):
+        """UI удержания жеста с прогрессом."""
+        h, w, _ = frame.shape
+        lines = [
+            (f"Удерживайте жест: {hold_gesture_name}", (255, 255, 0)),
+            (f"Режим: {mode_name}", (0, 255, 255)),
+            (f"{int(hold_progress * 100)}%", (0, 255, 0)),
+        ]
+        frame = GestureUI._overlay_text(frame, lines, font)
 
-def smooth_value(current, target, factor=0.3):
-    """Плавное изменение значения (экспоненциальное сглаживание)."""
-    return current + (target - current) * factor
+        cfg = GestureUI.PROGRESS_BAR
+        bar_x = (w - cfg["width"]) // 2
+        cv2.rectangle(frame, (bar_x, cfg["y"]), (bar_x + cfg["width"], cfg["y"] + cfg["height"]), cfg["bg_color"], -1)
+        fill_w = int(cfg["width"] * hold_progress)
+        if fill_w > 0:
+            cv2.rectangle(frame, (bar_x, cfg["y"]), (bar_x + fill_w, cfg["y"] + cfg["height"]), cfg["fg_color"], -1)
+        cv2.rectangle(frame, (bar_x, cfg["y"]), (bar_x + cfg["width"], cfg["y"] + cfg["height"]), cfg["border_color"], 2)
 
-
-def _draw_landmarks(frame, landmarks, connections):
-    """Рисует landmarks и соединения на кадре (аналог mp_drawing.draw_landmarks)."""
-    h, w, _ = frame.shape
-
-    # Рисуем соединения
-    for conn in connections:
-        start_idx, end_idx = conn
-        if start_idx < len(landmarks) and end_idx < len(landmarks):
-            start = landmarks[start_idx]
-            end = landmarks[end_idx]
-            pt1 = (int(start.x * w), int(start.y * h))
-            pt2 = (int(end.x * w), int(end.y * h))
-            cv2.line(frame, pt1, pt2, (0, 255, 0), 2)
-
-    # Рисуем точки
-    for lm in landmarks:
-        pt = (int(lm.x * w), int(lm.y * h))
-        cv2.circle(frame, pt, 3, (255, 0, 0), -1)
-
-
-# Стандартные соединения руки (из MediaPipe)
-HAND_CONNECTIONS = [
-    (0, 1), (1, 2), (2, 3), (3, 4),          # Большой
-    (0, 5), (5, 6), (6, 7), (7, 8),          # Указательный
-    (0, 9), (9, 10), (10, 11), (11, 12),     # Средний
-    (0, 13), (13, 14), (14, 15), (15, 16),   # Безымянный
-    (0, 17), (17, 18), (18, 19), (19, 20),   # Мизинец
-    (5, 9), (9, 13), (13, 17),               # Ладонь
-]
-
-
-# ============================================================
-# ОТРИСОВКА
-# ============================================================
-def get_font(size):
-    """Возвращает шрифт с поддержкой кириллицы (если найден)."""
-    if not PIL_AVAILABLE:
-        return None
-    for path in FONT_CANDIDATES:
-        try:
-            return ImageFont.truetype(path, size)
-        except OSError:
-            continue
-    return ImageFont.load_default()
-
-
-def draw_slider(frame, lm, finger_indices, color, min_dist=30, max_dist=200):
-    """
-    Рисует полоску между двумя пальцами.
-    Возвращает значение (0-100) на основе расстояния.
-    """
-    h, w, _ = frame.shape
-
-    p1 = (int(lm[finger_indices[0]].x * w), int(lm[finger_indices[0]].y * h))
-    p2 = (int(lm[finger_indices[1]].x * w), int(lm[finger_indices[1]].y * h))
-
-    dist = distance(p1, p2)
-    value = np.clip((dist - min_dist) / (max_dist - min_dist) * 100, 0, 100)
-
-    thickness = 3
-    cv2.line(frame, p1, p2, color, thickness)
-    cv2.circle(frame, p1, 8, color, -1)
-    cv2.circle(frame, p2, 8, color, -1)
-
-    slider_x = w - 60
-    slider_y = h // 2
-    slider_height = 200
-    slider_width = 30
-
-    cv2.rectangle(frame,
-                  (slider_x, slider_y - slider_height // 2),
-                  (slider_x + slider_width, slider_y + slider_height // 2),
-                  (50, 50, 50), -1)
-
-    fill_height = int(value / 100 * slider_height)
-    cv2.rectangle(frame,
-                  (slider_x + 3, slider_y + slider_height // 2 - fill_height),
-                  (slider_x + slider_width - 3, slider_y + slider_height // 2),
-                  color, -1)
-
-    cv2.rectangle(frame,
-                  (slider_x, slider_y - slider_height // 2),
-                  (slider_x + slider_width, slider_y + slider_height // 2),
-                  (255, 255, 255), 2)
-
-    return int(value)
-
-
-def draw_gesture_info(frame, gesture, action, font_small=None):
-    """Рисует информацию о распознанном жесте."""
-    h, w, _ = frame.shape
-
-    if not gesture or not action:
         return frame
 
-    if not PIL_AVAILABLE:
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        cv2.putText(frame, f"Жест: {gesture}", (w // 2 - 100, h - 80),
-                    font, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
-        cv2.putText(frame, action, (w // 2 - 120, h - 55),
-                    font, 0.6, (0, 255, 255), 2, cv2.LINE_AA)
+    @staticmethod
+    def draw_action_mode_ui(frame, action_name, font):
+        """UI фазы выбора объекта — действие выбрано."""
+        h, w, _ = frame.shape
+        lines = [
+            (f"Действие: {action_name}", (255, 255, 0)),
+            (UI_TEXTS.get("action_prompt", "Покажите объект"), (0, 255, 255)),
+        ]
+        return GestureUI._overlay_text(frame, lines, font)
+
+    @staticmethod
+    def draw_object_mode_ui(frame, object_name, hold_progress, font):
+        """UI удержания жеста объекта."""
+        h, w, _ = frame.shape
+        lines = [
+            (f"Объект: {object_name}", (255, 255, 0)),
+            (f"{int(hold_progress * 100)}%", (0, 255, 0)),
+        ]
+        frame = GestureUI._overlay_text(frame, lines, font)
+
+        cfg = GestureUI.PROGRESS_BAR
+        bar_x = (w - cfg["width"]) // 2
+        cv2.rectangle(frame, (bar_x, cfg["y"]), (bar_x + cfg["width"], cfg["y"] + cfg["height"]), cfg["bg_color"], -1)
+        fill_w = int(cfg["width"] * hold_progress)
+        if fill_w > 0:
+            cv2.rectangle(frame, (bar_x, cfg["y"]), (bar_x + fill_w, cfg["y"] + cfg["height"]), cfg["fg_color"], -1)
+        cv2.rectangle(frame, (bar_x, cfg["y"]), (bar_x + cfg["width"], cfg["y"] + cfg["height"]), cfg["border_color"], 2)
+
         return frame
 
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    image = Image.fromarray(frame_rgb)
-    draw = ImageDraw.Draw(image)
+    # --- Внутренние методы ---
 
-    if font_small is None:
-        font_small = get_font(24)
+    @staticmethod
+    def _pil_text(frame, text, pos, font, color):
+        """Рисует текст через PIL (кириллица)."""
+        if not PIL_AVAILABLE or font is None:
+            return frame
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        image = Image.fromarray(frame_rgb)
+        ImageDraw.Draw(image).text(pos, text, font=font, fill=color)
+        return cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
-    font_medium = get_font(28)
+    @staticmethod
+    def _overlay_text(frame, lines_data, font, line_height=30):
+        """Рисует строки текста с полупрозрачным фоном."""
+        if not PIL_AVAILABLE or font is None:
+            return frame
 
-    gesture_text = f"Распознан жест: {gesture}"
-    bbox = draw.textbbox((0, 0), gesture_text, font=font_medium)
-    tw = bbox[2] - bbox[0]
-    draw.text((w // 2 - tw // 2, h - 90), gesture_text, font=font_medium, fill=(255, 255, 0))
+        h, w, _ = frame.shape
+        overlay_h = len(lines_data) * line_height + 10
 
-    bbox = draw.textbbox((0, 0), action, font=font_small)
-    tw = bbox[2] - bbox[0]
-    draw.text((w // 2 - tw // 2, h - 60), action, font=font_small, fill=(0, 255, 255))
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        image = Image.fromarray(frame_rgb)
+        draw = ImageDraw.Draw(image)
 
-    frame_bgr = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-    return frame_bgr
+        overlay = np.array(image)
+        cv2.rectangle(overlay, (0, 0), (w, overlay_h), (0, 0, 0), -1)
+        image = Image.fromarray(cv2.addWeighted(overlay, 0.5, np.array(image), 0.5, 0))
+        draw = ImageDraw.Draw(image)
 
+        for i, (text, color) in enumerate(lines_data):
+            bbox = draw.textbbox((0, 0), text, font=font)
+            tw = bbox[2] - bbox[0]
+            draw.text((w // 2 - tw // 2, 10 + i * line_height), text, font=font, fill=color)
 
-def draw_mode_ui(frame, mode, value, font_small=None):
-    """Рисует UI для активного режима (яркость или звук)."""
-    h, w, _ = frame.shape
-    mode_config = MODES[mode]
-
-    if not PIL_AVAILABLE:
-        cv2.rectangle(frame, (0, 0), (w, 120), (0, 0, 0), -1)
-        cv2.putText(frame, mode_config["name"], (w // 2 - 100, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
-        cv2.putText(frame, UI_TEXTS["mode_active"], (w // 2 - 80, 60),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
-        cv2.putText(frame, mode_config["label"].format(value), (w // 2 - 70, 90),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2, cv2.LINE_AA)
-        return frame
-
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    image = Image.fromarray(frame_rgb)
-    draw = ImageDraw.Draw(image)
-
-    if font_small is None:
-        font_small = get_font(24)
-
-    font_title = get_font(32)
-
-    overlay = np.array(image)
-    cv2.rectangle(overlay, (0, 0), (w, 120), (0, 0, 0), -1)
-    image = Image.fromarray(cv2.addWeighted(overlay, 0.5, np.array(image), 0.5, 0))
-    draw = ImageDraw.Draw(image)
-
-    draw.text((w // 2 - 80, 10), mode_config["name"], font=font_title, fill=(255, 255, 255))
-    draw.text((w // 2 - 60, 45), UI_TEXTS["mode_active"], font=font_small, fill=(0, 255, 0))
-
-    value_text = mode_config["label"].format(value)
-    draw.text((w // 2 - 60, 75), value_text, font=font_small, fill=(255, 255, 0))
-
-    draw.text((10, h - 35), "2 пальца - выход", font=font_small, fill=(0, 255, 255))
-
-    frame_bgr = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-    return frame_bgr
-
-
-def draw_confirm_ui(frame, pending_mode_name, hold_progress, hold_gesture_name, font_small=None):
-    """Рисует UI для удержания жеста с прогрессом."""
-    h, w, _ = frame.shape
-
-    if not PIL_AVAILABLE:
-        # Фолбэк на OpenCV
-        cv2.rectangle(frame, (0, 0), (w, 150), (0, 0, 0), -1)
-        text1 = f"Удерживайте жест: {hold_gesture_name}"
-        text2 = f"Режим: {pending_mode_name}"
-        text3 = f"Прогресс: {int(hold_progress * 100)}%"
-        cv2.putText(frame, text1, (w // 2 - 150, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
-        cv2.putText(frame, text2, (w // 2 - 100, 75),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2, cv2.LINE_AA)
-        cv2.putText(frame, text3, (w // 2 - 80, 110),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
-        
-        # Рисуем полосу прогресса
-        bar_width = 300
-        bar_height = 20
-        bar_x = (w - bar_width) // 2
-        bar_y = 125
-        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), (100, 100, 100), -1)
-        fill_width = int(bar_width * hold_progress)
-        if fill_width > 0:
-            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + fill_width, bar_y + bar_height), (0, 255, 0), -1)
-        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), (255, 255, 255), 2)
-        
-        return frame
-
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    image = Image.fromarray(frame_rgb)
-    draw = ImageDraw.Draw(image)
-
-    if font_small is None:
-        font_small = get_font(24)
-
-    font_medium = get_font(28)
-    font_large = get_font(32)
-
-    # Полупрозрачный фон
-    overlay = np.array(image)
-    cv2.rectangle(overlay, (0, 0), (w, 150), (0, 0, 0), -1)
-    image = Image.fromarray(cv2.addWeighted(overlay, 0.5, np.array(image), 0.5, 0))
-    draw = ImageDraw.Draw(image)
-
-    # Заголовок
-    title = f"Удерживайте жест: {hold_gesture_name}"
-    bbox = draw.textbbox((0, 0), title, font=font_medium)
-    tw = bbox[2] - bbox[0]
-    draw.text((w // 2 - tw // 2, 10), title, font=font_medium, fill=(255, 255, 0))
-
-    # Режим
-    mode_text = f"Режим: {pending_mode_name}"
-    bbox = draw.textbbox((0, 0), mode_text, font=font_small)
-    tw = bbox[2] - bbox[0]
-    draw.text((w // 2 - tw // 2, 50), mode_text, font=font_small, fill=(0, 255, 255))
-
-    # Прогресс в процентах
-    progress_text = f"{int(hold_progress * 100)}%"
-    bbox = draw.textbbox((0, 0), progress_text, font=font_large)
-    tw = bbox[2] - bbox[0]
-    draw.text((w // 2 - tw // 2, 80), progress_text, font=font_large, fill=(0, 255, 0))
-
-    # Полоса прогресса
-    bar_width = 300
-    bar_height = 20
-    bar_x = (w - bar_width) // 2
-    bar_y = 120
-    
-    # Фон полосы
-    draw.rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height], fill=(100, 100, 100))
-    # Заполненная часть
-    fill_width = int(bar_width * hold_progress)
-    if fill_width > 0:
-        draw.rectangle([bar_x, bar_y, bar_x + fill_width, bar_y + bar_height], fill=(0, 255, 0))
-    # Граница
-    draw.rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height], outline=(255, 255, 255), width=2)
-
-    frame_bgr = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-    return frame_bgr
+        return cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
 
 # ============================================================
-# КЛАСС: ОБРАБОТЧИК ЖЕСТОВ
+# ОБРАБОТЧИК ЖЕСТОВ
 # ============================================================
 class GestureProcessor:
-    """
-    Инкапсулирует всю логику обработки жестов:
-    - MediaPipe HandLandmarker (Tasks API)
-    - Распознавание жестов
-    - Управление яркостью/звуком
-    - Отрисовка UI поверх кадра
-    """
+    """Инкапсулирует обработку жестов: детекция, распознавание, UI."""
 
     def __init__(self):
-        self.config = CONFIG
-        self.gestures = GESTURES
-        self.settings = SETTINGS
-        self.modes = MODES
-        self.ui_texts = UI_TEXTS
-
-        # Состояние
-        self.current_mode = None
-        self.pending_mode = None
-        self.brightness_value = 50
-        self.sound_value = 50
-        self.smoothed_brightness = 50
-        self.smoothed_sound = 50
-        self.gesture_cooldown = 0
-        self.current_gesture = ""
-        self.current_action = ""
-        self.gesture_timer = 0
-        self.confirm_timer = 0
-        
-        # Новая система удержания
-        self.hold_gesture_name = ""  # Жест который нужно удерживать
-        self.hold_progress = 0.0  # Прогресс удержания (0.0 - 1.0)
-        self.hold_required_frames = 50  # ~0.7 секунды при 30 FPS
-        self.hold_current_frames = 0  # Текущее количество удержанных кадров
-        self.last_detected_fs = None  # Последние состояния пальцев
-
-        # Контроллер звука
+        self.state = GestureState()
         self.sound_controller = SoundController()
+
         if self.sound_controller.initialized:
-            self.sound_value = self.sound_controller.get_volume()
-            self.smoothed_sound = self.sound_value
+            self.state.sound_value = self.sound_controller.get_volume()
+            self.state.smoothed_sound = self.state.sound_value
 
-        # Индексы пальцев для режимов
-        self.brightness_fingers = get_finger_indices(self.modes["brightness"]["control_fingers"])
-        self.sound_fingers = get_finger_indices(self.modes["sound"]["control_fingers"])
-        self.smoothing_factor = self.settings.get("smoothing_factor", 0.3)
+        # Индексы пальцев
+        self.control_fingers = GestureUtils.get_finger_indices(MODES["brightness"]["control_fingers"])
+        self.smoothing = SETTINGS.get("smoothing_factor", 0.3)
 
-        # MediaPipe HandLandmarker (Tasks API)
-        self.landmarker = None
+        # MediaPipe
+        self.landmarker = self._init_landmarker()
+        self.font_small = GestureUI.get_font(24)
 
-        # Загружаем модель, если её нет
-        if not download_model():
+        # Константы удержания
+        self.hold_required_frames = 50  # ~0.7 сек при 30 FPS
+
+    def _init_landmarker(self):
+        """Инициализирует HandLandmarker."""
+        if not GestureUtils.download_model():
             print("Ошибка: не удалось загрузить модель!")
-            return
+            return None
 
         try:
             options = HandLandmarkerOptions(
                 base_options=BaseOptions(model_asset_path=MODEL_PATH),
                 running_mode=VisionRunningMode.IMAGE,
-                num_hands=self.settings["max_hands"],
-                min_hand_detection_confidence=self.settings["detection_confidence"],
-                min_hand_presence_confidence=self.settings["tracking_confidence"],
-                min_tracking_confidence=self.settings["tracking_confidence"],
+                num_hands=SETTINGS["max_hands"],
+                min_hand_detection_confidence=SETTINGS["detection_confidence"],
+                min_hand_presence_confidence=SETTINGS["tracking_confidence"],
+                min_tracking_confidence=SETTINGS["tracking_confidence"],
             )
-            self.landmarker = HandLandmarker.create_from_options(options)
+            return HandLandmarker.create_from_options(options)
         except Exception as e:
             print(f"Ошибка инициализации HandLandmarker: {e}")
+            return None
 
-        self.font_small = get_font(24)
+    def _detect_hands(self, frame) -> Dict[str, HandData]:
+        """Детектирует руки и возвращает словарь {label: HandData}."""
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        result = self.landmarker.detect(mp_image)
 
-    def process_frame(self, frame):
-        """
-        Принимает кадр (BGR numpy array), возвращает кадр с отрисованным UI.
-        """
-        if frame is None:
+        hands = {}
+        for idx, landmarks in enumerate(result.hand_landmarks):
+            label = "Right"
+            if idx < len(result.handedness) and result.handedness[idx]:
+                label = result.handedness[idx][0].category_name
+
+            GestureUtils.draw_hand_skeleton(frame, landmarks)
+            finger_states = GestureUtils.get_finger_states(landmarks)
+            hands[label] = HandData(landmarks, label, finger_states)
+
+        return hands
+
+    def _update_active_mode(self, frame, hands: Dict[str, HandData]):
+        """Обновляет значение в активном режиме (яркость/звук)."""
+        if self.state.current_mode not in ("brightness", "sound"):
             return frame
 
-        # Зеркалим кадр
-        frame = cv2.flip(frame, 1)
-        h, w, _ = frame.shape
+        is_brightness = self.state.current_mode == "brightness"
+        mode_cfg = MODES[self.state.current_mode]
+        left_hand = hands.get("Left")
 
-        # Конвертируем BGR → RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+        if not left_hand:
+            return frame
 
-        # Детектируем руки через Tasks API
-        detection_result = self.landmarker.detect(mp_image)
+        raw = GestureUI.draw_slider(frame, left_hand.landmarks, self.control_fingers,
+                          mode_cfg["slider_color"], SETTINGS["min_distance"], SETTINGS["max_distance"])
 
-        hands_data = {}
-
-        if detection_result.hand_landmarks:
-            for idx, hand_landmarks in enumerate(detection_result.hand_landmarks):
-                # Определяем левую/правую руку
-                handedness_list = detection_result.handedness
-                if idx < len(handedness_list) and len(handedness_list[idx]) > 0:
-                    category = handedness_list[idx][0]
-                    label = "Right" if category.category_name == "Right" else "Left"
-                else:
-                    label = "Right"
-
-                # Рисуем скелет руки
-                _draw_landmarks(frame, hand_landmarks, HAND_CONNECTIONS)
-
-                # Определяем состояние пальцев
-                finger_states = get_finger_states(hand_landmarks)
-
-                hands_data[label] = {
-                    "landmarks": hand_landmarks,
-                    "label": label,
-                    "finger_states": finger_states,
-                }
-
-        # ====================================================
-        # ЛОГИКА УПРАВЛЕНИЯ (новая система удержания)
-        # ====================================================
-        detected_gesture = ""
-        detected_action = ""
-        
-        # Проверяем жесты на ЛЮБОЙ руке
-        for hand_key, hand_info in hands_data.items():
-            current_fs = hand_info["finger_states"]
-            
-            # Если есть pending_mode, проверяем удержание жеста
-            if self.pending_mode is not None:
-                # Определяем какой жест нужно удерживать
-                target_gesture_key = "one_finger" if self.pending_mode == "brightness" else "three_fingers"
-                target_gesture_config = self.gestures[target_gesture_key]
-                
-                # Проверяем жест выхода из подтверждения (ладонь) - приоритетнее удержания
-                if is_open_hand(current_fs):
-                    # Выход из подтверждения
-                    self.pending_mode = None
-                    self.hold_gesture_name = ""
-                    self.hold_progress = 0.0
-                    self.hold_current_frames = 0
-                    self.gesture_cooldown = self.settings["gesture_cooldown"]
-                    detected_gesture = "Ладонь"
-                    detected_action = "Выход из подтверждения"
-                    print("  >>> Выход из подтверждения (ладонь)")
-                    break
-                
-                # Проверяем, соответствует ли текущий жест целевому для удержания
-                if match_gesture(current_fs, target_gesture_config["finger_pattern"]):
-                    # Удерживаем жест
-                    self.hold_current_frames += 1
-                    self.hold_progress = min(1.0, self.hold_current_frames / self.hold_required_frames)
-                    
-                    detected_gesture = target_gesture_config["name"]
-                    detected_action = f"Удерживайте... {int(self.hold_progress * 100)}%"
-                    
-                    # Если удержание завершено
-                    if self.hold_current_frames >= self.hold_required_frames:
-                        if self.pending_mode == "brightness":
-                            self.current_mode = "brightness"
-                            print("  >>> Режим яркости АКТИВИРОВАН")
-                        elif self.pending_mode == "sound":
-                            self.current_mode = "sound"
-                            print("  >>> Режим звука АКТИВИРОВАН")
-                        self.pending_mode = None
-                        self.hold_gesture_name = ""
-                        self.hold_progress = 0.0
-                        self.hold_current_frames = 0
-                        self.gesture_cooldown = self.settings["gesture_cooldown"]
-                        detected_gesture = target_gesture_config["name"]
-                        detected_action = "Активировано!"
-                else:
-                    # Жест не удерживается или это другой жест - сброс прогресса
-                    if self.hold_current_frames > 0:
-                        print(f"  >>> Удержание прервано (было {self.hold_current_frames} кадров)")
-                    self.hold_current_frames = 0
-                    self.hold_progress = 0.0
-            else:
-                # Нет pending_mode - проверяем жесты активации
-                if self.gesture_cooldown <= 0:
-                    for gesture_name, gesture_config in self.gestures.items():
-                        if match_gesture(current_fs, gesture_config["finger_pattern"]):
-                            action = gesture_config["action"]
-
-                            # Активация режима яркости
-                            if action == "activate_brightness":
-                                if self.current_mode is None and self.pending_mode is None:
-                                    self.pending_mode = "brightness"
-                                    self.hold_gesture_name = gesture_config["name"]
-                                    self.hold_current_frames = 0
-                                    self.hold_progress = 0.0
-                                    print("  >>> Удерживайте 1 палец для активации яркости...")
-                                    detected_gesture = gesture_config["name"]
-                                    detected_action = "Удерживайте 3 секунды для активации"
-
-                            # Активация режима звука
-                            elif action == "activate_sound":
-                                if self.current_mode is None and self.pending_mode is None:
-                                    self.pending_mode = "sound"
-                                    self.hold_gesture_name = gesture_config["name"]
-                                    self.hold_current_frames = 0
-                                    self.hold_progress = 0.0
-                                    print("  >>> Удерживайте 3 пальца для активации звука...")
-                                    detected_gesture = gesture_config["name"]
-                                    detected_action = "Удерживайте 3 секунды для активации"
-
-                            # Выход из режима (2 пальца)
-                            elif action == "exit":
-                                if self.current_mode is not None:
-                                    self.current_mode = None
-                                    self.pending_mode = None
-                                    self.hold_gesture_name = ""
-                                    self.hold_progress = 0.0
-                                    self.hold_current_frames = 0
-                                    print("  >>> Выход из режима")
-                                    self.gesture_cooldown = self.settings["gesture_cooldown"]
-                                    detected_gesture = gesture_config["name"]
-                                    detected_action = gesture_config["hint"]
-
-                            break
-
-
-        # Обновляем значение в активном режиме
-        current_value = self.brightness_value if self.current_mode == "brightness" else self.sound_value
-
-        if self.current_mode == "brightness" and "Left" in hands_data:
-            lm = hands_data["Left"]["landmarks"]
-            raw_value = draw_slider(
-                frame, lm, self.brightness_fingers,
-                self.modes["brightness"]["slider_color"],
-                self.settings["min_distance"], self.settings["max_distance"]
-            )
-            self.smoothed_brightness = smooth_value(self.smoothed_brightness, raw_value, self.smoothing_factor)
-            self.brightness_value = int(self.smoothed_brightness)
-            current_value = self.brightness_value
+        if is_brightness:
+            self.state.smoothed_brightness = GestureUtils.smooth_value(self.state.smoothed_brightness, raw, self.smoothing)
+            self.state.brightness_value = int(self.state.smoothed_brightness)
 
             if BRIGHTNESS_AVAILABLE:
                 try:
-                    sbc.set_brightness(self.brightness_value)
+                    sbc.set_brightness(self.state.brightness_value)
                 except Exception as e:
                     print(f"  Ошибка яркости: {e}")
-
-        elif self.current_mode == "sound" and "Left" in hands_data:
-            lm = hands_data["Left"]["landmarks"]
-            raw_value = draw_slider(
-                frame, lm, self.sound_fingers,
-                self.modes["sound"]["slider_color"],
-                self.settings["min_distance"], self.settings["max_distance"]
-            )
-            self.smoothed_sound = smooth_value(self.smoothed_sound, raw_value, self.smoothing_factor)
-            self.sound_value = int(self.smoothed_sound)
-            current_value = self.sound_value
-
-            print(f"  >>> Звук: {self.sound_value}% (raw: {raw_value})")
-
-            self.sound_controller.set_volume(self.sound_value)
-
-        # Сохраняем распознанный жест
-        if detected_gesture:
-            self.current_gesture = detected_gesture
-            self.current_action = detected_action
-            self.gesture_timer = self.settings["gesture_display_time"]
-
-        if self.gesture_cooldown > 0:
-            self.gesture_cooldown -= 1
-
-        if self.gesture_timer > 0:
-            self.gesture_timer -= 1
-
-        # ====================================================
-        # ОТРИСОВКА UI
-        # ====================================================
-        if self.pending_mode is not None:
-            mode_name = "Яркость" if self.pending_mode == "brightness" else "Звук"
-            hold_gesture = "1 палец" if self.pending_mode == "brightness" else "3 пальца"
-            frame = draw_confirm_ui(frame, mode_name, self.hold_progress, hold_gesture, self.font_small)
-        elif self.current_mode is not None:
-            frame = draw_mode_ui(frame, self.current_mode, current_value, self.font_small)
-
-        # Рисуем информацию о жесте
-        if self.gesture_timer > 0 and self.current_gesture and self.current_action:
-            frame = draw_gesture_info(frame, self.current_gesture, self.current_action, self.font_small)
+        else:
+            self.state.smoothed_sound = GestureUtils.smooth_value(self.state.smoothed_sound, raw, self.smoothing)
+            self.state.sound_value = int(self.state.smoothed_sound)
+            print(f"  >>> Звук: {self.state.sound_value}% (raw: {raw})")
+            self.sound_controller.set_volume(self.state.sound_value)
 
         return frame
 
-    def get_status_text(self):
-        """Возвращает строку статуса для отображения в GUI."""
+    def _process_gesture_logic(self, hands: Dict[str, HandData]) -> Tuple[str, str]:
+        """Логика распознавания жестов. Возвращает (gesture_name, action)."""
+        detected_gesture, detected_action = "", ""
+
+        for hand in hands.values():
+            fs = hand.finger_states
+            lm = hand.landmarks
+
+            # =============================================
+            # ФАЗА 2: Выбор объекта (после подтверждения действия)
+            # =============================================
+            if self.state.action_mode:
+                # Проверяем жесты объектов — обычные жесты игнорируются
+                for obj_key, obj_cfg in OBJECTS.items():
+                    if GestureUtils.match_gesture(fs, obj_cfg["finger_pattern"]):
+                        hold_frames = obj_cfg.get("hold_frames", 50)
+                        self.state.object_hold_frames += 1
+                        progress = min(1.0, self.state.object_hold_frames / hold_frames)
+
+                        if self.state.object_hold_frames >= hold_frames:
+                            # Объект выбран — выполняем команду
+                            self.state.selected_object = obj_cfg["command_name"]
+                            return self._execute_command()
+
+                        detected_gesture = obj_cfg["name"]
+                        detected_action = f"Удерживайте... {int(progress * 100)}%"
+                        self.state.hold_progress = progress
+                        break
+                else:
+                    # Жест не из объектов — сброс прогресса
+                    if self.state.object_hold_frames > 0:
+                        self.state.object_hold_frames = 0
+                        self.state.hold_progress = 0.0
+
+                # Ладонь — отмена выбора объекта, но остаёмся в action_mode
+                if sum(fs) >= 4:
+                    self.state.object_hold_frames = 0
+                    self.state.hold_progress = 0.0
+                    detected_gesture = "Ладонь"
+                    detected_action = "Отмена (остаёмся в выборе объекта)"
+                    print("  >>> Отмена выбора объекта, жду другой объект")
+                    break
+
+                # 2 пальца — выход из action_mode полностью
+                if self._two_fingers_gesture(fs):
+                    self._exit_action_mode("Выход из режима действий")
+                    return "2 пальца", "Выход"
+
+                continue  # Не проверяем обычные жесты в action_mode
+
+            # =============================================
+            # ФАЗА 1: Обычный режим — действия и режимы
+            # =============================================
+            if self.state.pending_mode is not None:
+                # --- РЕЖИМ ПОДТВЕРЖДЕНИЯ (яркость/звук) ---
+                target_key = "one_finger" if self.state.pending_mode == "brightness" else "three_fingers"
+                target_cfg = GESTURES[target_key]
+
+                # Ладонь — выход из подтверждения
+                if sum(fs) >= 4:
+                    self.state.hold_action = False
+                    self.state.hold_action_progress = 0.0
+                    self._exit_confirmation("Выход из подтверждения (ладонь)")
+                    return "Ладонь", "Выход из подтверждения"
+
+                # Удержание целевого жеста
+                if GestureUtils.match_gesture(fs, target_cfg["finger_pattern"]):
+                    self.state.hold_current_frames += 1
+                    self.state.hold_progress = min(1.0, self.state.hold_current_frames / self.hold_required_frames)
+
+                    if self.state.hold_current_frames >= self.hold_required_frames:
+                        self.state.current_mode = self.state.pending_mode
+                        print(f"  >>> Режим {'яркости' if self.state.current_mode == 'brightness' else 'звука'} АКТИВИРОВАН")
+                        self.state.pending_mode = None
+                        self.state.hold_current_frames = 0
+                        self.state.hold_progress = 0.0
+                        self.state.gesture_cooldown = SETTINGS["gesture_cooldown"]
+                        return target_cfg["name"], "Активировано!"
+
+                    return target_cfg["name"], f"Удерживайте... {int(self.state.hold_progress * 100)}%"
+                else:
+                    if self.state.hold_current_frames > 0:
+                        self.state.hold_action = False
+                        self.state.hold_action_progress = 0.0
+                        print(f"  >>> Удержание прервано (было {self.state.hold_current_frames} кадров)")
+                    self.state.hold_current_frames = 0
+                    self.state.hold_progress = 0.0
+            else:
+                # --- ОБЫЧНЫЙ РЕЖИМ ---
+                if self.state.gesture_cooldown > 0:
+                    continue
+
+                # Проверяем жест "круг" — действие "открыть"
+                if GestureUtils.is_circle_gesture(lm, ACTIONS.get("circle", {}).get("circle_threshold", 0.05)):
+                    hold_frames = ACTIONS.get("circle", {}).get("hold_frames", 50)
+                    self.state.hold_current_frames += 1
+                    progress = min(1.0, self.state.hold_current_frames / hold_frames)
+                    self.state.hold_action = True
+                    self.state.hold_action_progress = progress
+
+                    if self.state.hold_current_frames >= hold_frames:
+                        action_cfg = ACTIONS.get("circle", {})
+                        self.state.selected_action = action_cfg.get("command_name", "открой")
+                        self.state.action_mode = True
+                        self.state.hold_current_frames = 0
+                        self.state.hold_progress = 0.0
+                        self.state.hold_action = False
+                        self.state.hold_action_progress = 0.0
+                        self.state.gesture_cooldown = SETTINGS["gesture_cooldown"]
+                        print(f"  >>> Действие '{self.state.selected_action}' выбрано. Жду объект...")
+                        return "Круг", f"Покажите объект"
+
+                    detected_gesture = "Круг"
+                    detected_action = f"Удерживайте... {int(progress * 100)}%"
+                    break
+
+                # Ладонь — отмена при удержании "круга"
+                if sum(fs) >= 4 and self.state.hold_action:
+                    self.state.hold_action = False
+                    self.state.hold_action_progress = 0.0
+                    self.state.hold_current_frames = 0
+                    self.state.gesture_cooldown = SETTINGS["gesture_cooldown"]
+                    return "Ладонь", "Отмена"
+
+                for g_name, g_cfg in GESTURES.items():
+                    if GestureUtils.match_gesture(fs, g_cfg["finger_pattern"]):
+                        act = g_cfg["action"]
+
+                        if act in ("activate_brightness", "activate_sound") and self.state.current_mode is None:
+                            mode = "brightness" if act == "activate_brightness" else "sound"
+                            self.state.pending_mode = mode
+                            self.state.hold_gesture_name = g_cfg["name"]
+                            print(f"  >>> Удерживайте {g_cfg['name']} для активации {'яркости' if mode == 'brightness' else 'звука'}...")
+                            return g_cfg["name"], "Удерживайте 3 секунды для активации"
+
+                        elif act == "exit" and self.state.current_mode is not None:
+                            self.state.current_mode = None
+                            self.state.hold_action = False
+                            self.state.hold_action_progress = 0.0
+                            self.state.gesture_cooldown = SETTINGS["gesture_cooldown"]
+                            print("  >>> Выход из режима")
+                            return g_cfg["name"], g_cfg["hint"]
+
+                        break
+
+        return detected_gesture, detected_action
+
+    def _two_fingers_gesture(self, fs: list) -> bool:
+        """Проверяет жест '2 пальца' для выхода."""
+        two_fingers_cfg = GESTURES.get("two_fingers", {})
+        if two_fingers_cfg:
+            return GestureUtils.match_gesture(fs, two_fingers_cfg["finger_pattern"])
+        return False
+
+    def _execute_command(self) -> Tuple[str, str]:
+        """Собирает и выполняет команду."""
+        cmd = f"{self.state.selected_action.capitalize()} {self.state.selected_object}"
+        print(f"  >>> КОМАНДА: {cmd}")
+
+        # Сброс после выполнения
+        self.state.action_mode = False
+        self.state.selected_action = ""
+        self.state.selected_object = ""
+        self.state.object_hold_frames = 0
+        self.state.hold_progress = 0.0
+        self.state.gesture_cooldown = SETTINGS["gesture_cooldown"]
+
+        return cmd, "Выполнено!"
+
+    def _exit_action_mode(self, reason: str):
+        """Выход из режима действий."""
+        self.state.action_mode = False
+        self.state.selected_action = ""
+        self.state.selected_object = ""
+        self.state.object_hold_frames = 0
+        self.state.hold_progress = 0.0
+        self.state.hold_action = False
+        self.state.hold_action_progress = 0.0
+        self.state.gesture_cooldown = SETTINGS["gesture_cooldown"]
+        print(f"  >>> {reason}")
+
+    def _exit_confirmation(self, reason: str):
+        """Сбрасывает состояние подтверждения."""
+        self.state.pending_mode = None
+        self.state.hold_gesture_name = ""
+        self.state.hold_progress = 0.0
+        self.state.hold_current_frames = 0
+        self.state.gesture_cooldown = SETTINGS["gesture_cooldown"]
+        print(f"  >>> {reason}")
+
+    def process_frame(self, frame) -> Optional[np.ndarray]:
+        """Обрабатывает кадр и возвращает кадр с UI."""
+        if frame is None or self.landmarker is None:
+            return frame
+
+        frame = cv2.flip(frame, 1)
+        hands = self._detect_hands(frame)
+
+        # Распознавание жестов
+        gesture, action = self._process_gesture_logic(hands)
+
+        # Обновление активного режима
+        frame = self._update_active_mode(frame, hands)
+
+        # Обновление таймеров
+        if gesture:
+            self.state.current_gesture = gesture
+            self.state.current_action = action
+            self.state.gesture_timer = SETTINGS["gesture_display_time"]
+
+        if self.state.gesture_cooldown > 0:
+            self.state.gesture_cooldown -= 1
+        if self.state.gesture_timer > 0:
+            self.state.gesture_timer -= 1
+
+        # Отрисовка UI
+        if self.state.action_mode:
+            # Фаза выбора объекта
+            if self.state.object_hold_frames > 0:
+                # Удерживаем жест объекта
+                obj_name = OBJECTS.get("one_finger", {}).get("name", "объект")
+                frame = GestureUI.draw_object_mode_ui(frame, obj_name, self.state.hold_progress, self.font_small)
+            else:
+                # Ждём объект
+                frame = GestureUI.draw_action_mode_ui(frame, self.state.selected_action, self.font_small)
+        elif self.state.hold_action:
+            # Удержание жеста "круг" — прогресс-бар действия
+            frame = GestureUI.draw_confirm_ui(frame, "Действие", self.state.hold_action_progress, "Круг (большой + указательный)", self.font_small)
+        elif self.state.pending_mode is not None:
+            mode_name = "Яркость" if self.state.pending_mode == "brightness" else "Звук"
+            hold_gesture = "1 палец" if self.state.pending_mode == "brightness" else "3 пальца"
+            frame = GestureUI.draw_confirm_ui(frame, mode_name, self.state.hold_progress, hold_gesture, self.font_small)
+        elif self.state.current_mode is not None:
+            frame = GestureUI.draw_mode_ui(frame, self.state.current_mode, self.state.current_value, self.font_small)
+
+        if self.state.gesture_timer > 0 and self.state.current_gesture:
+            frame = GestureUI.draw_gesture_info(frame, self.state.current_gesture, self.state.current_action, self.font_small)
+
+        return frame
+
+    def get_status_text(self) -> str:
+        """Текст статуса для GUI."""
         parts = []
 
-        if self.pending_mode is not None:
-            mode_name = "Яркость" if self.pending_mode == "brightness" else "Звук"
-            hold_gesture = "1 палец" if self.pending_mode == "brightness" else "3 пальца"
-            parts.append(f"Удерживайте: {hold_gesture}")
-            parts.append(f"Режим: {mode_name}")
-            parts.append(f"Прогресс: {int(self.hold_progress * 100)}%")
-            parts.append("Ладонь — выход из подтверждения")
-        elif self.current_mode is not None:
-            mode_config = self.modes[self.current_mode]
-            value = self.brightness_value if self.current_mode == "brightness" else self.sound_value
-            parts.append(f"{mode_config['name']}: {value}%")
-            parts.append("РЕЖИМ АКТИВЕН")
-            parts.append("2 пальца — выход из режима")
+        if self.state.action_mode:
+            parts.append(f"Действие: {self.state.selected_action}")
+            if self.state.object_hold_frames > 0:
+                parts.append(f"Прогресс: {int(self.state.hold_progress * 100)}%")
+            else:
+                parts.append(UI_TEXTS.get("action_prompt", "Покажите объект"))
+            parts.append("Ладонь — отмена | 2 пальца — выход")
+        elif self.state.pending_mode is not None:
+            mode = "Яркость" if self.state.pending_mode == "brightness" else "Звук"
+            gesture = "1 палец" if self.state.pending_mode == "brightness" else "3 пальца"
+            parts.extend([f"Удерживайте: {gesture}", f"Режим: {mode}",
+                          f"Прогресс: {int(self.state.hold_progress * 100)}%",
+                          "Ладонь — выход из подтверждения"])
+        elif self.state.current_mode is not None:
+            mode_cfg = MODES[self.state.current_mode]
+            value = self.state.current_value
+            parts.extend([f"{mode_cfg['name']}: {value}%", "РЕЖИМ АКТИВЕН", "2 пальца — выход из режима"])
 
-        if self.gesture_timer > 0 and self.current_gesture and self.current_action:
-            parts.append(f"Жест: {self.current_gesture}")
-            parts.append(self.current_action)
+        if self.state.gesture_timer > 0 and self.state.current_gesture:
+            parts.extend([f"Жест: {self.state.current_gesture}", self.state.current_action])
 
         if not parts:
-            parts.append("Покажите жест для управления")
-            parts.append("1 палец — яркость | 3 пальца — звук")
-            parts.append("Ладонь — выход из подтверждения")
+            parts.extend(["Покажите жест для управления",
+                          "1 палец — яркость | 3 пальца — звук",
+                          "Круг (большой+указательный) — действие открыть"])
 
         return "\n".join(parts)
 
     def shutdown(self):
-        """Освобождает ресурсы."""
-        if self.landmarker is not None:
+        if self.landmarker:
             self.landmarker.close()
             self.landmarker = None
 
     def reset(self):
-        """Сбрасывает состояние обработчика."""
-        self.current_mode = None
-        self.pending_mode = None
-        self.brightness_value = 50
-        self.sound_value = 50
-        self.smoothed_brightness = 50
-        self.smoothed_sound = 50
-        self.gesture_cooldown = 0
-        self.current_gesture = ""
-        self.current_action = ""
-        self.gesture_timer = 0
-        self.confirm_timer = 0
-        self.hold_gesture_name = ""
-        self.hold_progress = 0.0
-        self.hold_current_frames = 0
-        self.last_detected_fs = None
+        self.state.reset()
 
 
 # ============================================================
-# КЛАСС: ПОТОК КАМЕРЫ ДЛЯ ЖЕСТОВ
+# ПОТОК КАМЕРЫ
 # ============================================================
 class GestureCameraThread(QThread):
-    """
-    Фоновый поток для работы с камерой.
-    Сигналы:
-        frame_ready(QImage) — готовый кадр с отрисованным UI
-        status_ready(str) — текстовый статус
-    """
+    """Фоновый поток камеры для PyQt."""
     frame_ready = pyqtSignal(QImage)
     status_ready = pyqtSignal(str)
 
@@ -951,354 +924,83 @@ class GestureCameraThread(QThread):
             self.status_ready.emit("Ошибка: не удалось открыть камеру!")
             return
 
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.processor.settings["camera_width"])
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.processor.settings["camera_height"])
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, SETTINGS["camera_width"])
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, SETTINGS["camera_height"])
 
-        print("=" * 50)
-        print("  Жестовое управление запущено!")
-        print("  1 палец (указательный вверх) - режим яркости")
-        print("  3 пальца (указательный, средний, безымянный) - режим звука")
-        print("  Удерживайте жест 3 секунды для активации")
-        print("  Ладонь (все пальцы вверх) - выход из подтверждения")
-        print("  2 пальца - выход из режима")
-        print("=" * 50)
-
-        if not BRIGHTNESS_AVAILABLE:
-            print("  Предупреждение: screen-brightness-control не установлен")
-        if not self.processor.sound_controller.initialized:
-            print("  Предупреждение: управление звуком недоступно")
+        self._print_instructions()
 
         while self._running:
             ret, frame = self.cap.read()
             if not ret:
                 continue
 
-            # Проверяем, не остановили ли нас
-            if not self._running:
+            processed = self.processor.process_frame(frame)
+            if processed is None or not self._running:
                 break
 
-            # Обрабатываем кадр
-            processed_frame = self.processor.process_frame(frame)
-
-            # Конвертируем BGR → RGB → QImage
-            rgb_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
-            h, w, ch = rgb_frame.shape
-            bytes_per_line = ch * w
-            q_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-
-            if self._running:
-                self.frame_ready.emit(q_image)
-
-            # Эмитим статус
-            status = self.processor.get_status_text()
-            if self._running:
-                self.status_ready.emit(status)
-
-            # ~30 FPS
+            rgb = cv2.cvtColor(processed, cv2.COLOR_BGR2RGB)
+            h, w, ch = rgb.shape
+            q_image = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
+            self.frame_ready.emit(q_image)
+            self.status_ready.emit(self.processor.get_status_text())
             self.msleep(33)
 
-        # Очистка
         self.cap.release()
         self.processor.shutdown()
-        self.processor = None
-        self.cap = None
 
     def stop(self):
-        """Останавливает поток."""
         self._running = False
         self.wait()
 
+    @staticmethod
+    def _print_instructions():
+        print("=" * 50)
+        print("  Жестовое управление запущено!")
+        print("  1 палец — яркость | 3 пальца — звук")
+        print("  Удерживайте жест 3 секунды для активации")
+        print("  Ладонь — выход из подтверждения")
+        print("  2 пальца — выход из режима")
+        print("=" * 50)
+
 
 # ============================================================
-# ОСНОВНАЯ ФУНКЦИЯ (standalone запуск)
+# STANDALONE ЗАПУСК
 # ============================================================
 def main():
-    global current_mode, pending_mode, brightness_value, sound_value, smoothed_brightness, smoothed_sound
-
-    # Загружаем конфигурацию
-    config = CONFIG
-    gestures = GESTURES
-    settings = SETTINGS
-
-    # Инициализация камеры
+    """Простая обёртка над GestureProcessor для запуска без PyQt."""
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Ошибка: не удалось открыть камеру!")
         return
 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings["camera_width"])
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings["camera_height"])
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, SETTINGS["camera_width"])
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, SETTINGS["camera_height"])
 
-    # Состояние
-    gesture_cooldown = 0
-    current_gesture = ""
-    current_action = ""
-    gesture_timer = 0
-    
-    # Новая система удержания
-    hold_progress = 0.0
-    hold_current_frames = 0
-    hold_required_frames = 50  # ~3 секунды при 30 FPS
-
-    # Контроллер звука
-    sound_controller = SoundController()
-    if sound_controller.initialized:
-        sound_value = sound_controller.get_volume()
-        smoothed_sound = sound_value
-
-    smoothed_brightness = brightness_value
-
-    # Индексы пальцев для режимов
-    brightness_fingers = get_finger_indices(MODES["brightness"]["control_fingers"])
-    sound_fingers = get_finger_indices(MODES["sound"]["control_fingers"])
-
-    smoothing_factor = settings.get("smoothing_factor", 0.3)
-
-    # Загружаем модель, если её нет
-    if not download_model():
-        print("Ошибка: не удалось загрузить модель!")
+    processor = GestureProcessor()
+    if processor.landmarker is None:
         return
 
-    # Создаём HandLandmarker через Tasks API
-    try:
-        options = HandLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=MODEL_PATH),
-            running_mode=VisionRunningMode.IMAGE,
-            num_hands=settings["max_hands"],
-            min_hand_detection_confidence=settings["detection_confidence"],
-            min_hand_presence_confidence=settings["tracking_confidence"],
-            min_tracking_confidence=settings["tracking_confidence"],
-        )
-        landmarker = HandLandmarker.create_from_options(options)
-    except Exception as e:
-        print(f"Ошибка создания HandLandmarker: {e}")
-        return
-
-    font_small = get_font(24)
-
-    print("=" * 50)
-    print("  Жестовое управление запущено!")
-    print("  1 палец (указательный вверх) - режим яркости")
-    print("  3 пальца (указательный, средний, безымянный) - режим звука")
-    print("  Удерживайте жест 3 секунды для активации")
-    print("  Ладонь (все пальцы вверх) - выход из подтверждения")
-    print("  2 пальца - выход из режима")
+    GestureCameraThread._print_instructions()
     print("  Нажмите 'q' для выхода.")
-    print("=" * 50)
-
-    if not BRIGHTNESS_AVAILABLE:
-        print("  Предупреждение: screen-brightness-control не установлен")
-    if not sound_controller.initialized:
-        print("  Предупреждение: управление звуком недоступно")
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
 
-        # Зеркалим кадр
-        frame = cv2.flip(frame, 1)
-        h, w, _ = frame.shape
+        processed = processor.process_frame(frame)
+        if processed is None:
+            break
 
-        # Конвертируем BGR → RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-
-        # Детектируем руки через Tasks API
-        detection_result = landmarker.detect(mp_image)
-
-        hands_data = {}
-
-        if detection_result.hand_landmarks:
-            for idx, hand_landmarks in enumerate(detection_result.hand_landmarks):
-                handedness_list = detection_result.handedness
-                if idx < len(handedness_list) and len(handedness_list[idx]) > 0:
-                    category = handedness_list[idx][0]
-                    label = "Right" if category.category_name == "Right" else "Left"
-                else:
-                    label = "Right"
-
-                # Рисуем скелет руки
-                _draw_landmarks(frame, hand_landmarks, HAND_CONNECTIONS)
-
-                finger_states = get_finger_states(hand_landmarks)
-                print_finger_states(finger_states)
-
-                hands_data[label] = {
-                    "landmarks": hand_landmarks,
-                    "label": label,
-                    "finger_states": finger_states,
-                }
-
-        detected_gesture = ""
-        detected_action = ""
-        
-        # Проверяем жесты на ЛЮБОЙ руке
-        for hand_key, hand_info in hands_data.items():
-            current_fs = hand_info["finger_states"]
-            
-            # Если есть pending_mode, проверяем удержание жеста
-            if pending_mode is not None:
-                # Определяем какой жест нужно удерживать
-                target_gesture_key = "one_finger" if pending_mode == "brightness" else "three_fingers"
-                target_gesture_config = gestures[target_gesture_key]
-                
-                # Проверяем жест выхода из подтверждения (ладонь) - приоритетнее удержания
-                if is_open_hand(current_fs):
-                    # Выход из подтверждения
-                    pending_mode = None
-                    hold_progress = 0.0
-                    hold_current_frames = 0
-                    gesture_cooldown = settings["gesture_cooldown"]
-                    detected_gesture = "Ладонь"
-                    detected_action = "Выход из подтверждения"
-                    print("  >>> Выход из подтверждения (ладонь)")
-                    break
-                
-                # Проверяем, соответствует ли текущий жест целевому для удержания
-                if match_gesture(current_fs, target_gesture_config["finger_pattern"]):
-                    # Удерживаем жест
-                    hold_current_frames += 1
-                    hold_progress = min(1.0, hold_current_frames / hold_required_frames)
-                    
-                    detected_gesture = target_gesture_config["name"]
-                    detected_action = f"Удерживайте... {int(hold_progress * 100)}%"
-                    
-                    # Если удержание завершено
-                    if hold_current_frames >= hold_required_frames:
-                        if pending_mode == "brightness":
-                            current_mode = "brightness"
-                            print("  >>> Режим яркости АКТИВИРОВАН")
-                        elif pending_mode == "sound":
-                            current_mode = "sound"
-                            print("  >>> Режим звука АКТИВИРОВАН")
-                        pending_mode = None
-                        hold_progress = 0.0
-                        hold_current_frames = 0
-                        gesture_cooldown = settings["gesture_cooldown"]
-                        detected_gesture = target_gesture_config["name"]
-                        detected_action = "Активировано!"
-                else:
-                    # Жест не удерживается или это другой жест - сброс прогресса
-                    if hold_current_frames > 0:
-                        print(f"  >>> Удержание прервано (было {hold_current_frames} кадров)")
-                    hold_current_frames = 0
-                    hold_progress = 0.0
-            else:
-                # Нет pending_mode - проверяем жесты активации
-                if gesture_cooldown <= 0:
-                    for gesture_name, gesture_config in gestures.items():
-                        if match_gesture(current_fs, gesture_config["finger_pattern"]):
-                            action = gesture_config["action"]
-
-                            # Активация режима яркости
-                            if action == "activate_brightness":
-                                if current_mode is None and pending_mode is None:
-                                    pending_mode = "brightness"
-                                    hold_current_frames = 0
-                                    hold_progress = 0.0
-                                    print("  >>> Удерживайте 1 палец для активации яркости...")
-                                    detected_gesture = gesture_config["name"]
-                                    detected_action = "Удерживайте 3 секунды для активации"
-
-                            # Активация режима звука
-                            elif action == "activate_sound":
-                                if current_mode is None and pending_mode is None:
-                                    pending_mode = "sound"
-                                    hold_current_frames = 0
-                                    hold_progress = 0.0
-                                    print("  >>> Удерживайте 3 пальца для активации звука...")
-                                    detected_gesture = gesture_config["name"]
-                                    detected_action = "Удерживайте 3 секунды для активации"
-
-                            # Выход из режима (2 пальца)
-                            elif action == "exit":
-                                if current_mode is not None:
-                                    current_mode = None
-                                    pending_mode = None
-                                    hold_progress = 0.0
-                                    hold_current_frames = 0
-                                    print("  >>> Выход из режима")
-                                    gesture_cooldown = settings["gesture_cooldown"]
-                                    detected_gesture = gesture_config["name"]
-                                    detected_action = gesture_config["hint"]
-
-                            break
-
-
-        # Обновляем значение в активном режиме
-        current_value = brightness_value if current_mode == "brightness" else sound_value
-
-        if current_mode == "brightness" and "Left" in hands_data:
-            lm = hands_data["Left"]["landmarks"]
-            raw_value = draw_slider(
-                frame, lm, brightness_fingers,
-                MODES["brightness"]["slider_color"],
-                settings["min_distance"], settings["max_distance"]
-            )
-            smoothed_brightness = smooth_value(smoothed_brightness, raw_value, smoothing_factor)
-            brightness_value = int(smoothed_brightness)
-            current_value = brightness_value
-
-            if BRIGHTNESS_AVAILABLE:
-                try:
-                    sbc.set_brightness(brightness_value)
-                except Exception as e:
-                    print(f"  Ошибка яркости: {e}")
-
-        elif current_mode == "sound" and "Left" in hands_data:
-            lm = hands_data["Left"]["landmarks"]
-            raw_value = draw_slider(
-                frame, lm, sound_fingers,
-                MODES["sound"]["slider_color"],
-                settings["min_distance"], settings["max_distance"]
-            )
-            smoothed_sound = smooth_value(smoothed_sound, raw_value, smoothing_factor)
-            sound_value = int(smoothed_sound)
-            current_value = sound_value
-
-            print(f"  >>> Звук: {sound_value}% (raw: {raw_value})")
-            sound_controller.set_volume(sound_value)
-
-        # Сохраняем распознанный жест
-        if detected_gesture:
-            current_gesture = detected_gesture
-            current_action = detected_action
-            gesture_timer = settings["gesture_display_time"]
-
-        if gesture_cooldown > 0:
-            gesture_cooldown -= 1
-
-        if gesture_timer > 0:
-            gesture_timer -= 1
-
-        # ====================================================
-        # ОТРИСОВКА UI
-        # ====================================================
-        if pending_mode is not None:
-            mode_name = "Яркость" if pending_mode == "brightness" else "Звук"
-            hold_gesture = "1 палец" if pending_mode == "brightness" else "3 пальца"
-            frame = draw_confirm_ui(frame, mode_name, hold_progress, hold_gesture, font_small)
-        elif current_mode is not None:
-            frame = draw_mode_ui(frame, current_mode, current_value, font_small)
-
-        # Рисуем информацию о жесте
-        if gesture_timer > 0 and current_gesture and current_action:
-            frame = draw_gesture_info(frame, current_gesture, current_action, font_small)
-
-        cv2.imshow(CONFIG["ui_texts"]["title"], frame)
-
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord("q"):
+        cv2.imshow(UI_TEXTS["title"], processed)
+        if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
     cap.release()
-    landmarker.close()
+    processor.shutdown()
     cv2.destroyAllWindows()
-
-    print(f"\n  Финальное значение яркости: {brightness_value}%")
-    print(f"  Финальное значение звука: {sound_value}%")
-    print("  Программа завершена.")
+    print(f"\n  Финальное значение яркости: {processor.state.brightness_value}%")
+    print(f"  Финальное значение звука: {processor.state.sound_value}%")
 
 
 if __name__ == "__main__":
