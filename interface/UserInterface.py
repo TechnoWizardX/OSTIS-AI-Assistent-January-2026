@@ -635,7 +635,7 @@ class ToggleSwitchRow(QWidget):
 
         # Текстовая метка
         self.label = QLabel(text)
-        self.toggle_frame.setStyleSheet(THEMES[SELECTED_THEME]["toggle_switch_row_label"])
+        self.label.setStyleSheet(THEMES[SELECTED_THEME]["toggle_switch_row_label"])
         self.toggle_frame_lay.addWidget(self.label, 1)
 
         # Переключатель
