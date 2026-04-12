@@ -29,6 +29,24 @@
             "hint": "Выход из режима"
         }
     },
+    "actions": {
+        "circle": {
+            "name": "Круг (большой + указательный)",
+            "description": "Действие: открыть",
+            "command_name": "открой",
+            "circle_threshold": 0.05,
+            "hold_frames": 50
+        }
+    },
+    "objects": {
+        "one_finger": {
+            "name": "1 палец вверх",
+            "description": "Объект: браузер",
+            "command_name": "браузер",
+            "finger_pattern": [false, true, false, false, false],
+            "hold_frames": 50
+        }
+    },
     "modes": {
         "brightness": {
             "name": "Яркость",
@@ -46,7 +64,9 @@
     "ui_texts": {
         "title": "Жестовое управление",
         "mode_active": "РЕЖИМ АКТИВЕН",
-        "confirm_hint": "Удерживайте жест для активации"
+        "confirm_hint": "Удерживайте жест для активации",
+        "action_prompt": "Покажите объект",
+        "object_selected": "Объект выбран"
     },
     "settings": {
         "gesture_cooldown": 30,
