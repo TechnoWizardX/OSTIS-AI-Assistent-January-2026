@@ -8,6 +8,7 @@ from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainte
 import sys
 import os
 from BasicUtils import BasicUtils, DataBaseEditor
+from data.themes import THEMES
 from datetime import datetime
 
 # Добавляем путь к жестам для импорта
@@ -28,6 +29,9 @@ from voiceVosk import init_voice, set_voice_callback, stop_voice, get_voice_text
 # Базовый путь для иконок
 ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
 DATABASE_EDITOR = DataBaseEditor()
+
+CONFIG = BasicUtils.load_settings_config()
+SELECTED_THEME = CONFIG.get("theme") or "light"
 
 
 def icon_path(filename):
@@ -54,16 +58,16 @@ global_signals = Signals()
 # ГЛАВНЫЙ ИНТЕРФЕЙС
 # ===========================================================
 class UserInterface(QMainWindow):
+    """Основной интерфейс приложения."""
     def __init__(self):
         super().__init__()
 
+        self._theme = THEMES[SELECTED_THEME]
 
         self.setWindowTitle("IAMOS")
         self.setGeometry(100, 100, 820, 690)
         self.setMinimumSize(700, 525)
-        self.setStyleSheet("""
-                           background-color: #D9D9D9;
-                           """)
+        self.setStyleSheet(self._theme["main_window"])
         # Основное окно
         self.main_widget = QWidget(self)
         self.setCentralWidget(self.main_widget)
@@ -95,11 +99,8 @@ class UserInterface(QMainWindow):
         
         # Боковая панель
         self.side_panel = QWidget(self.main_widget)
-        self.side_panel.setMaximumWidth(190) 
-        self.side_panel.setStyleSheet("""
-            background-color: #FFFFFF;
-            border-radius: 16px;
-            """)
+        self.side_panel.setMaximumWidth(190)
+        self.side_panel.setStyleSheet(self._theme["side_panel"])
         
 
         # Лайаут боковой панели
@@ -154,6 +155,7 @@ class UserInterface(QMainWindow):
 # Виджет отправки сообщений (текстовое поле)
 # ==========================================================
 class ChatSendBox(QWidget):
+    """Виджет отправки сообщений."""
     # Сигнал о создании сообщения (ЛОКАЛЬНЫЙ, не глобальный)
     voice_text_ready = pyqtSignal(str)  # Сигнал для безопасной передачи текста из фонового потока
 
@@ -166,40 +168,15 @@ class ChatSendBox(QWidget):
 
         self.chats_send_box_lay = QVBoxLayout(self)
         self.main_frame = QFrame()
-        self.main_frame.setStyleSheet("""
-            background-color: #FFFFFF;
-            border-radius: 16px;
-            """)
+        self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["chat_send_box_frame"])
         self.chats_send_box_lay.addWidget(self.main_frame)
         self.main_frame_lay = QVBoxLayout(self.main_frame)
         self.main_frame_lay.setContentsMargins(10, 10, 10, 10)
         self.main_frame_lay.setSpacing(10)
         self.chat_send_input = QTextEdit()
-        self.chat_send_input.setStyleSheet("""
-            QTextEdit {
-                background-color: transparent;
-                border: none;
-                font-size: 14px;
-                font-family: "Roboto";
-                color: #000000;
-            }
-            QScrollBar:vertical {
-                border: none;
-                background-color: #CCCCCC;
-                width: 8px;
-                margin: 0px;
-                border-radius: 3px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #B0B0B0;
-                border-radius: 3px;
-                min-height: 30px;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-                subcontrol-position: bottom;
-            }
-        """)
+        self.chat_send_input.setStyleSheet(
+            THEMES[SELECTED_THEME]["chat_send_input"] + THEMES[SELECTED_THEME]["scrollbar"]
+        )
         self.main_frame_lay.addWidget(self.chat_send_input, 1)
         
         # Горизонтальный layout для кнопок
@@ -207,26 +184,7 @@ class ChatSendBox(QWidget):
         self.buttons_lay.setSpacing(10)
         
         self.voice_btn = QPushButton()
-        self.voice_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #D9D9D9;
-                border-radius: 12px;
-                border: 3px solid transparent;
-                padding: 8px;
-            }
-            QPushButton:hover {
-                background-color: #C8C8C8;
-                border: 3px solid #888888;
-            }
-            QPushButton:pressed {
-                background-color: #B8B8B8;
-                border: 3px solid #666666;
-            }
-            QPushButton:checked {
-                background-color: #4CAF50;
-                border: 3px solid #388E3C;
-            }
-        """)
+        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME]["voice_button"])
         self.voice_btn.setIcon(QIcon(icon_path("microphone.png")))
         self.voice_btn.setIconSize(QSize(25, 25))
         self.voice_btn.setCheckable(True)
@@ -235,25 +193,7 @@ class ChatSendBox(QWidget):
         self.buttons_lay.addWidget(self.voice_btn)
         
         self.send_btn = QPushButton("Отправить")
-        self.send_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #D9D9D9;
-                border-radius: 12px;
-                color: #000000;
-                font-size: 14px;
-                font-family: "Roboto";
-                border: 3px solid transparent;
-                padding: 10px 10px 10px 20px;
-            }
-            QPushButton:hover {
-                background-color: #C8C8C8;
-                border: 3px solid #888888;
-            }
-            QPushButton:pressed {
-                background-color: #B8B8B8;
-                border: 3px solid #666666;
-            }
-        """)
+        self.send_btn.setStyleSheet(THEMES[SELECTED_THEME]["send_button"])
         self.send_btn.setFixedSize(130, 45)
         self.send_btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self.send_btn.setIcon(QIcon(icon_path("send.png")))
@@ -360,6 +300,7 @@ class ChatSendBox(QWidget):
         self._voice_processing = False
         
     def send_message(self):
+        """Отправка сообщения"""
         text = self.chat_send_input.toPlainText()
         
         if not text:
@@ -370,6 +311,7 @@ class ChatSendBox(QWidget):
         global_signals.message_sent.emit("user", text)
 
     def eventFilter(self, obj, event):
+        """Фильтр для отправки сообщений по нажатию Enter"""
         if obj == self.chat_send_input and event.type() == event.Type.KeyPress:
         # Проверяем, нажат ли Enter (обычный или на NumPad)
             if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
@@ -382,6 +324,7 @@ class ChatSendBox(QWidget):
         return super().eventFilter(obj, event)
 
 class Message(QWidget):
+    """Виджет-сообщение в чате"""
     def __init__(self, author: str, text: str, time: str = None):
         super().__init__()
         
@@ -392,10 +335,7 @@ class Message(QWidget):
         main_layout.setContentsMargins(10, 5, 10, 5)
         
         self.main_frame = QFrame()
-        self.main_frame.setStyleSheet("""
-            background-color: #D9D9D9;
-            border-radius: 12px;
-        """)
+        self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["message_frame"])
         
         # Устанавливаем максимальную ширину
         max_width = 500
@@ -418,32 +358,15 @@ class Message(QWidget):
             self.time = time
 
         self.author_label = QLabel(self.author)
-        self.author_label.setStyleSheet("""
-            color: #666666;
-            font-size: 12px;
-            font-family: "Roboto";
-            background-color: transparent;
-            font-weight: bold;
-        """)
+        self.author_label.setStyleSheet(THEMES[SELECTED_THEME]["message_author"])
         
         self.text_label = QLabel(text)
         self.text_label.setWordWrap(True)
         self.text_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        self.text_label.setStyleSheet("""
-            color: #000000;
-            font-size: 14px;
-            font-family: "Roboto";
-            background-color: transparent;
-            line-height: 1.4;
-        """)
+        self.text_label.setStyleSheet(THEMES[SELECTED_THEME]["message_text"])
         
         self.time_label = QLabel(self.time)
-        self.time_label.setStyleSheet("""   
-            color: #999999;
-            background-color: transparent;
-            font-size: 10px;
-            font-family: "Roboto";
-        """)
+        self.time_label.setStyleSheet(THEMES[SELECTED_THEME]["message_time"])
         
         # Создаем горизонтальный layout для времени (чтобы прижать вправо)
         time_layout = QHBoxLayout()
@@ -458,6 +381,7 @@ class Message(QWidget):
         main_layout.addStretch()  # Прижимаем сообщение влево
 
 class DialogBox(QWidget):
+    """Чат (здесь отображаются сообщения)"""
     def __init__(self):
         super().__init__()
         # Подключение к сигналу будет сделано извне через set_message_handler
@@ -470,33 +394,11 @@ class DialogBox(QWidget):
         self.dialog_box_lay = QVBoxLayout(self)  
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True) # Важно: позволяет контейнеру растягиваться
-        self.scroll_area.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background: transparent;
-            }
-            /* Стилизация скроллбара */
-            QScrollBar:vertical {
-                border: none;
-                background-color: #E0E0E0;
-                width: 8px;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #B0B0B0;
-                border-radius: 4px;
-                min-height: 20px;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-        """)     
+        self.scroll_area.setStyleSheet(
+            THEMES[SELECTED_THEME]["chat_scroll_area"] + THEMES[SELECTED_THEME]["scrollbar"]
+        )     
         self.main_frame = QFrame()
-        self.main_frame.setStyleSheet("""
-            background-color: #FFFFFF;
-            border-radius: 16px;
-            """)
+        self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["dialog_frame"])
         self.main_frame_lay = QVBoxLayout(self.main_frame)
         self.main_frame_lay.setContentsMargins(10, 10, 10, 10)
         self.main_frame_lay.setSpacing(10)
@@ -508,6 +410,7 @@ class DialogBox(QWidget):
         self.load_history()
 
     def add_message(self, author: str, text: str, time: str = None):
+        """Добавляет сообщение в чат."""
         print(f"[DialogBox ID: {id(self)}] Добавлено сообщение")
         
         message = Message(author, text, time)
@@ -525,6 +428,7 @@ class DialogBox(QWidget):
         scroll_bar.setValue(scroll_bar.maximum())
     
     def load_history(self):
+        """Загружает историю сообщений."""
         history = BasicUtils.load_chat_history()
         for message in history:
             self.add_message(message["author"], message["text"], message["time"])
@@ -533,76 +437,14 @@ class DialogBox(QWidget):
 #Основание для панелей контента
 #==========================================================
 class ContentPageWidget(QWidget):
+    """Основание для панелей контента"""
     def __init__(self):
         super().__init__()
 
         self.side_panel_btn = QPushButton()
-        self.side_panel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #D9D9D9;
-                border-radius: 12px;
-                color: #000000;
-                font-size: 14px;
-                font-family: "Roboto";
-                border: 3px solid transparent;
-                padding: 5px 5px 5px 16px;
-                text-align: left;
-            }
-            QPushButton:hover {
-                background-color: #C8C8C8;
-                border: 3px solid #888888; 
-            }
-            QPushButton:pressed {
-                background-color: #B8B8B8;
-                border: 3px solid #666666; 
-            }
-            /*Для изменения цвета кнопки при нажатии*/
-            QPushButton:checked {
-                background-color: #AAFF00;  /* цвет активной кнопки */
-                border: 3px solid #666666;
-            }
-        """)          
-        self.settings_text_qss = """
-            color: #000000;
-            font-size: 14px;
-            font-family: "Roboto";
-        """
-        self.dropbox_qss = """
-            /* Основной вид кнопки */
-            QComboBox {
-                background-color: #FFFFFF;
-                border: 1px solid #CCCCCC;
-                border-radius: 4px;
-                font-size: 14px;
-                color: #000000;
-            }
-            /* При наведении */
-            QComboBox:hover {
-                border: 1px solid #888888;
-                background-color: #F9F9F9;
-            }
-            /* При раскрытии списка */
-            QComboBox:on {
-                border: 1px solid #888888;
-            }
-            /* Выпадающая стрелка */
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
-            }
-            QComboBox::down-arrow {
-                /* Можно поставить свою иконку, пока оставим стандартную */
-                /* image: url(:/icons/arrow.png); */
-            }
-            /* Стили самого выпадающего меню */
-            QComboBox QAbstractItemView {
-                background-color: transparent;
-                border-radius: 8px;
-                selection-background-color: #D9D9D9; /* Цвет выделения */
-                selection-color: #000000;
-                outline: none;
-            }
-        """
+        self.side_panel_btn.setStyleSheet(THEMES[SELECTED_THEME]["side_panel_button"])
+        self.settings_text_qss = THEMES[SELECTED_THEME]["settings_text"]
+        self.dropbox_qss = THEMES[SELECTED_THEME]["settings_combobox"]
         self.side_panel_btn.setMinimumSize(160, 60)
 
         # состояние кнопки при нажатии
@@ -646,10 +488,11 @@ class ToggleSwitch(QWidget):
         # Состояние
         self._checked = False
         
-        # Цвета
-        self._bg_color_off = QColor("#B0B0B0")
-        self._bg_color_on = QColor("#4CAF50")
-        self._circle_color = QColor("#FFFFFF")
+        # Цвета из темы
+        _t = THEMES[SELECTED_THEME]["toggle_switch"]
+        self._bg_color_off = QColor(_t["bg_off"])
+        self._bg_color_on = QColor(_t["bg_on"])
+        self._circle_color = QColor(_t["circle"])
         
         # Анимация позиции (0.0 - 1.0)
         self._anim_progress = 0.0
@@ -738,21 +581,15 @@ class Settings(ContentPageWidget):
         self.main_lay.setContentsMargins(0, 0, 0, 0)
 
         self.main_frame = QFrame()
-        self.main_frame.setStyleSheet("""
-                background-color: #FFFFFF;
-                border-radius: 16px;
-        """)
+        self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["dialog_frame"])
         # сетка-панель настроек
         self.main_lay.addWidget(self.main_frame)
         self.grid_lay = QGridLayout(self.main_frame)
         self.grid_lay.setContentsMargins(10, 10, 10, 10)
-        
+
         # фрейм для выбора камеры
         self.camera_frame = QFrame()
-        self.camera_frame.setStyleSheet("""
-            background-color: #D3D3D3;
-            border-radius: 12px;
-        """)
+        self.camera_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.camera_frame.setFixedHeight(40)
         self.grid_lay.addWidget(self.camera_frame, 0, 0)
         # лайаут фрейма камер
@@ -780,10 +617,7 @@ class Settings(ContentPageWidget):
 
         
         self.microphone_frame = QFrame()
-        self.microphone_frame.setStyleSheet("""
-            background-color: #D3D3D3;
-            border-radius: 12px;
-        """)
+        self.microphone_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.microphone_frame.setFixedHeight(40)
         self.grid_lay.addWidget(self.microphone_frame, 1, 0)
         # лайаут фрейма микрофона
@@ -810,10 +644,7 @@ class Settings(ContentPageWidget):
         self.microphone_frame_lay.addWidget(self.microphone_dropbox, 1)
 
         self.speaker_frame = QFrame()
-        self.speaker_frame.setStyleSheet("""
-            background-color: #D3D3D3;
-            border-radius: 12px;
-        """)
+        self.speaker_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.speaker_frame.setFixedHeight(40)
         self.grid_lay.addWidget(self.speaker_frame, 3, 0)
         # лайаут фрейма микрофона
@@ -835,10 +666,7 @@ class Settings(ContentPageWidget):
 
         # фрейм для переключателя
         self.toggle_frame = QFrame()
-        self.toggle_frame.setStyleSheet("""
-            background-color: #D3D3D3;
-            border-radius: 12px;
-        """)
+        self.toggle_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.toggle_frame.setFixedHeight(40)
         self.grid_lay.addWidget(self.toggle_frame, 2, 0)
         # лайаут фрейма переключателя
@@ -944,14 +772,8 @@ class ProfileOption(QFrame):
         self.columns = columns
         self.several_columns = several_columns
 
-        self.setStyleSheet("""
-            background-color: #D3D3D3;
-            border-radius: 12px;
-        """)
-        self.text_qss = """
-            color: #000000;
-            font-size: 16px;
-        """
+        self.setStyleSheet(THEMES[SELECTED_THEME]["profile_option_frame"])
+        self.text_qss = THEMES[SELECTED_THEME]["profile_text"]
         self.setFixedHeight(35)
         self._name = name
         self._current_value = value
@@ -973,8 +795,7 @@ class ProfileOption(QFrame):
         self.line.setMaximumWidth(2)
         self.line.setFrameShape(QFrame.Shape.VLine)
         self.line.setFrameShadow(QFrame.Shadow.Sunken)
-        self.line.setStyleSheet("""color: #000000;
-            background-color: #000000;""")
+        self.line.setStyleSheet(THEMES[SELECTED_THEME]["profile_line"])
         self.lay.addWidget(self.line, Qt.AlignmentFlag.AlignLeft)
         
         # Значение (Label для отображения, QLineEdit для редактирования)
@@ -1083,10 +904,7 @@ class Profile(ContentPageWidget):
         self.profile_lay.setContentsMargins(0, 0, 0, 0)
         # Главная рамка
         self.main_frame = QFrame()
-        self.main_frame.setStyleSheet("""
-            background-color: #FFFFFF;
-            border-radius: 16px;
-        """)
+        self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["dialog_frame"])
         self.profile_lay.addWidget(self.main_frame)
         
         # Главный лайаут
@@ -1099,10 +917,7 @@ class Profile(ContentPageWidget):
         self.head_data_lay.setSpacing(10)
 
         self.photo_frame = QFrame()
-        self.photo_frame.setStyleSheet(""" 
-            background-color: #D3D3D3;
-            border-radius: 12px;
-        """)
+        self.photo_frame.setStyleSheet(THEMES[SELECTED_THEME]["profile_photo_frame"])
         self.photo_frame.setFixedSize(150, 150)
         self.photo_frame_lay = QVBoxLayout(self.photo_frame)
         self.profile_picture = QLabel()
@@ -1164,12 +979,7 @@ class Profile(ContentPageWidget):
 class VoiceInput(ContentPageWidget):
     def __init__(self):
         super().__init__()
-        self.setStyleSheet("""
-            QWidget {
-                background-color: transparent;
-                border-radius: 16px;
-               }
-        """)
+        self.setStyleSheet(THEMES[SELECTED_THEME]["input_page"])
         self.side_panel_btn.setText("Голосовой Ввод")
         self.side_panel_btn.setIcon(QIcon(icon_path("microphone.png")))
         self.text_input_lay = QVBoxLayout(self)
@@ -1196,12 +1006,7 @@ class VoiceInput(ContentPageWidget):
 class TextInput(ContentPageWidget):
     def __init__(self):
         super().__init__()
-        self.setStyleSheet("""
-            QWidget {
-                background-color: transparent;
-                border-radius: 16px;
-               }
-        """)
+        self.setStyleSheet(THEMES[SELECTED_THEME]["input_page"])
         self.side_panel_btn.setText("Текстовый Ввод")
         self.side_panel_btn.setIcon(QIcon(icon_path("text.png"))) 
         self.text_input_lay = QVBoxLayout(self)
@@ -1249,12 +1054,7 @@ class GesturesInput(ContentPageWidget):
 
         # Правая часть: превью камеры + кнопки управления
         self.camera_frame = QFrame()
-        self.camera_frame.setStyleSheet("""
-            QFrame {
-                background-color: #D3D3D3;
-                border-radius: 12px;
-            }
-        """)
+        self.camera_frame.setStyleSheet(THEMES[SELECTED_THEME]["gestures_camera_frame"])
         self.bottom_lay.addWidget(self.camera_frame, stretch=2)
 
         self.camera_lay = QVBoxLayout(self.camera_frame)
@@ -1263,12 +1063,7 @@ class GesturesInput(ContentPageWidget):
 
         # Лейбл для отображения кадра (тоже скруглённые углы)
         self.camera_preview_label = QLabel("Нажмите «Старт» для запуска")
-        self.camera_preview_label.setStyleSheet("""
-            QLabel {
-                background-color: #A8A8A8;
-                border-radius: 8px;
-            }
-        """)
+        self.camera_preview_label.setStyleSheet(THEMES[SELECTED_THEME]["camera_preview_label"])
         self.camera_preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.camera_preview_label.setMinimumSize(320, 240)
         self.camera_preview_label.setScaledContents(False)
@@ -1279,42 +1074,12 @@ class GesturesInput(ContentPageWidget):
         self.camera_btn_lay.setSpacing(10)
 
         self.start_btn = QPushButton("Старт")
-        self.start_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                border-radius: 8px;
-                color: #FFFFFF;
-                font-size: 14px;
-                font-family: "Roboto";
-                padding: 8px 16px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QPushButton:pressed {
-                background-color: #3d8b40;
-            }
-        """)
+        self.start_btn.setStyleSheet(THEMES[SELECTED_THEME]["camera_start_button"])
         self.start_btn.clicked.connect(self.start_camera)
         self.camera_btn_lay.addWidget(self.start_btn)
 
         self.stop_btn = QPushButton("Стоп")
-        self.stop_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f44336;
-                border-radius: 8px;
-                color: #FFFFFF;
-                font-size: 14px;
-                font-family: "Roboto";
-                padding: 8px 16px;
-            }
-            QPushButton:hover {
-                background-color: #da190b;
-            }
-            QPushButton:pressed {
-                background-color: #c62828;
-            }
-        """)
+        self.stop_btn.setStyleSheet(THEMES[SELECTED_THEME]["camera_stop_button"])
         self.stop_btn.clicked.connect(self.stop_camera)
         self.stop_btn.setEnabled(False)
         self.camera_btn_lay.addWidget(self.stop_btn)

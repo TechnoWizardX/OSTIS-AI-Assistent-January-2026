@@ -29,3 +29,4 @@ interface/data/chat_history.json
 interface/data/settings_config.json
 voice-model/
 QWEN.md
+problem-solver/samples/GesturesInput/models/hand_landmarker.task
