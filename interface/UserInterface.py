@@ -339,7 +339,7 @@ class ChatSendBox(QWidget):
         send_directly = False
         main_window = self.window()
         if hasattr(main_window, 'settings_page'):
-            send_directly = main_window.settings_page.is_toggle_checked()
+            send_directly = main_window.settings_page.is_voice_toggle_checked()
 
         if send_directly:
             # Отправляем сразу в чат
@@ -733,36 +733,63 @@ class ToggleSwitchRow(QWidget):
 
     def __init__(self, text, parent=None, checked=False):
         super().__init__(parent)
-        
-        # Основной фрейм
-        self.setStyleSheet("""
+
+        # Основной лайаут
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        # фрейм для переключателя
+        self.toggle_frame = QFrame()
+        self.toggle_frame.setStyleSheet("""
             background-color: #D3D3D3;
             border-radius: 12px;
         """)
-        self.setFixedHeight(40)
-        
-        # Лайаут фрейма
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 5, 15, 10)
-        layout.setSpacing(10)
-        
+        self.toggle_frame.setFixedHeight(40)
+        main_layout.addWidget(self.toggle_frame)
+
+        # лайаут фрейма переключателя
+        self.toggle_frame_lay = QHBoxLayout(self.toggle_frame)
+        self.toggle_frame_lay.setContentsMargins(10, 5, 15, 10)
+        self.toggle_frame_lay.setSpacing(10)
+
         # Текстовая метка
         self.label = QLabel(text)
-        layout.addWidget(self.label, 1)
-        
+        self.label.setStyleSheet("""
+            color: #000000;
+            font-size: 14px;
+            font-family: "Roboto";
+        """)
+        self.toggle_frame_lay.addWidget(self.label, 1)
+
         # Переключатель
         self.toggle_switch = ToggleSwitch()
-        self.toggle_switch.setChecked(checked)
-        layout.addWidget(self.toggle_switch)
-        
+        self.toggle_frame_lay.addWidget(self.toggle_switch)
+
         # Подключаем сигнал
         self.toggle_switch.toggled.connect(self.toggled.emit)
-    
+
     def isChecked(self):
         return self.toggle_switch.isChecked()
-    
+
     def setChecked(self, state):
         self.toggle_switch.setChecked(state)
+
+
+class ToggleSwitchState:
+    """Класс для сохранения и загрузки состояния переключателя"""
+    
+    def __init__(self, config_key):
+        self.config_key = config_key
+    
+    def save(self, state):
+        """Сохраняет состояние переключателя в конфиг"""
+        BasicUtils.set_settings_config_value(self.config_key, state)
+        global_signals.settings_changed.emit({self.config_key: state})
+    
+    def load(self):
+        """Загружает состояние переключателя из конфига"""
+        settings_config = BasicUtils.load_settings_config()
+        return settings_config.get(self.config_key, False)
 
 
 # ===========================================================
@@ -854,7 +881,7 @@ class Settings(ContentPageWidget):
             border-radius: 12px;
         """)
         self.speaker_frame.setFixedHeight(40)
-        self.grid_lay.addWidget(self.speaker_frame, 3, 0)
+        self.grid_lay.addWidget(self.speaker_frame, 2, 0)
         # лайаут фрейма микрофона
         self.speaker_frame_lay = QHBoxLayout(self.speaker_frame)
         self.speaker_frame_lay.setContentsMargins(10, 5, 5, 10)
@@ -870,11 +897,19 @@ class Settings(ContentPageWidget):
 
         self.speaker_frame_lay.addWidget(self.speaker_label, 1)
         self.speaker_frame_lay.addWidget(self.speaker_dropbox, 1)
-        self.grid_lay.setRowStretch(4, 1)
+        self.grid_lay.setRowStretch(5, 1)
 
         # Переключатель для голосового ввода
         self.toggle_row_for_voice = ToggleSwitchRow("Отправлять текст из голосового ввода сразу в чат:")
-        self.grid_lay.addWidget(self.toggle_row_for_voice, 2, 0)
+        self.grid_lay.addWidget(self.toggle_row_for_voice, 3, 0)
+
+        # Перключатель для жествого ввода
+        self.toggle_row_for_gesture = ToggleSwitchRow("Отправлять текст из жестового ввода сразу в чат:")
+        self.grid_lay.addWidget(self.toggle_row_for_gesture, 4, 0)
+
+        # Создаём объекты для сохранения состояний переключателей
+        self.voice_toggle_state = ToggleSwitchState("voice_send_directly")
+        self.gesture_toggle_state = ToggleSwitchState("gesture_send_directly")
 
         # Загружаем настройки из файла
         self._load_settings()
@@ -883,15 +918,16 @@ class Settings(ContentPageWidget):
         self.camera_dropbox.currentTextChanged.connect(self._on_camera_changed)
         self.microphone_dropbox.currentTextChanged.connect(self._on_microphone_changed)
         self.speaker_dropbox.currentTextChanged.connect(self._on_speaker_changed)
-        self.toggle_row_for_voice.toggled.connect(self._on_toggle_changed)
+        self.toggle_row_for_voice.toggled.connect(self.voice_toggle_state.save)
+        self.toggle_row_for_gesture.toggled.connect(self.gesture_toggle_state.save)
 
     def _load_settings(self):
         """Загружает настройки из settings_config.json и применяет их к виджетам."""
         settings_config = BasicUtils.load_settings_config()
-        
-        # Восстанавливаем состояние переключателя
-        voice_send_directly = settings_config.get("voice_send_directly", False)
-        self.toggle_row_for_voice.setChecked(voice_send_directly)
+
+        # Восстанавливаем состояния переключателей
+        self.toggle_row_for_voice.setChecked(self.voice_toggle_state.load())
+        self.toggle_row_for_gesture.setChecked(self.gesture_toggle_state.load())
         
         # Камера (по индексу)
         camera_index = settings_config.get("camera_index", 0)
@@ -926,22 +962,19 @@ class Settings(ContentPageWidget):
         BasicUtils.set_settings_config_value("speaker_index", index)
         global_signals.settings_changed.emit({"speaker": text})
 
-    def _on_toggle_changed(self, state):
-        """Сохраняет состояние переключателя."""
-        BasicUtils.set_settings_config_value("voice_send_directly", state)
-        global_signals.settings_changed.emit({"voice_send_directly": state})
-
-
-
     def get_current_camera(self):
         return self.camera_dropbox.currentText()
 
     def get_current_microphone(self):
         return self.microphone_dropbox.currentText()
 
-    def is_toggle_checked(self):
-        """Возвращает состояние переключателя (True/False)"""
+    def is_voice_toggle_checked(self):
+        """Возвращает состояние переключателя голосового ввода (True/False)"""
         return self.toggle_row_for_voice.isChecked()
+
+    def is_gesture_toggle_checked(self):
+        """Возвращает состояние переключателя жестового ввода (True/False)"""
+        return self.toggle_row_for_gesture.isChecked()
 
     def get_current_speaker(self):
         return self.speaker_dropbox.currentText()
