@@ -1,30 +1,8 @@
 """
-Темы интерфейса — цвета отделены от шаблонов QSS.
-Добавление новой темы = только словарь цветов.
+Темы интерфейса — цвета отделены от шаблонов.
+Новая тема = только словарь из ~40 цветов.
 """
-"""
-Главное окно	        |   main_window
-Боковая панель	        |   side_panel
-Кнопки боковой панели	|   side_panel_button
-Фреймы настроек	        |   settings_frame
-Текст настроек	        |   settings_text
-ComboBox настроек	    |   settings_combobox
-Переключатель (цвета)   |   toggle_switch
-Фрейм отправки	        |   chat_send_box_frame
-Поле ввода	            |   chat_send_input
-Кнопка голоса	        |   voice_button
-Кнопка отправки	        |   send_button
-Фрейм сообщения	        |   message_frame
-Автор/текст/время	    |   message_author, message_text, message_time
-Скроллбар чата	        |   chat_scroll_area + scrollbar
-Фрейм диалога	        |   dialog_frame
-Строка профиля	        |   profile_option_frame, profile_text, profile_line
-Фото профиля	        |   profile_photo_frame
-Страницы ввода  	    |   input_page
-Камера жестов	        |   gestures_camera_frame, camera_preview_label
-Кнопки камеры   	    |   camera_start_button, camera_stop_button
-Кнопки смены тем        |   theme_button
-"""
+
 
 # ============================================================
 # ЦВЕТОВЫЕ ПАЛИТРЫ
@@ -113,7 +91,186 @@ DARK_COLORS = {
     "voice_checked_border": "#388E3C",
 }
 
-_COLOR_MAP = {"light": LIGHT_COLORS, "dark": DARK_COLORS}
+# Twilight — мягкие фиолетовые/тёплые тона, золотой акцент
+TWILIGHT = {
+    "bg_main": "#1D1F21",
+    "bg_panel": "#2B2B37",
+    "bg_frame": "#353545",
+    "bg_button": "#3A3A4A",
+    "bg_button_hover": "#4A4A5A",
+    "bg_button_pressed": "#55556A",
+    "bg_button_checked": "#D4A843",
+    "bg_button_checked_border": "#B8922E",
+    "bg_chat_box": "#2B2B37",
+    "bg_message": "#353545",
+    "bg_dialog": "#2B2B37",
+    "bg_combo": "#303040",
+    "bg_combo_hover": "#3A3A4A",
+    "bg_scrollbar": "#303040",
+    "bg_scrollbar_handle": "#50506A",
+    "bg_camera_preview": "#353545",
+    "bg_toggle_off": "#505060",
+    "bg_toggle_on": "#D4A843",
+    "circle_toggle": "#F0F0E0",
+    "text_primary": "#E8E6E3",
+    "text_secondary": "#A09E98",
+    "text_hint": "#7A7870",
+    "text_white": "#FFFFFF",
+    "border": "#4A4A5A",
+    "border_hover": "#60607A",
+    "border_pressed": "#707090",
+    "side_border": "#6A6A80",
+    "side_checked_text": "#1D1F21",
+    "selection_bg": "#4A4A60",
+    "selection_text": "#E8E6E3",
+    "profile_line": "#7A7870",
+    "btn_start": "#C17817",
+    "btn_start_hover": "#D4901A",
+    "btn_start_pressed": "#A86A10",
+    "btn_stop": "#B84D3E",
+    "btn_stop_hover": "#CC6655",
+    "btn_stop_pressed": "#A04433",
+    "voice_checked_bg": "#D4A843",
+    "voice_checked_border": "#B8922E",
+}
+
+# VS Code Dark+ — синий/фиолетовый акцент, бирюзовая кнопка старт
+VS_CODE_DARK = {
+    "bg_main": "#1E1E1E",
+    "bg_panel": "#252526",
+    "bg_frame": "#2D2D30",
+    "bg_button": "#2D2D30",
+    "bg_button_hover": "#3E3E42",
+    "bg_button_pressed": "#505055",
+    "bg_button_checked": "#007ACC",
+    "bg_button_checked_border": "#005A9E",
+    "bg_chat_box": "#252526",
+    "bg_message": "#2D2D30",
+    "bg_dialog": "#252526",
+    "bg_combo": "#3C3C3C",
+    "bg_combo_hover": "#444444",
+    "bg_scrollbar": "#333333",
+    "bg_scrollbar_handle": "#555555",
+    "bg_camera_preview": "#2D2D30",
+    "bg_toggle_off": "#555555",
+    "bg_toggle_on": "#007ACC",
+    "circle_toggle": "#D4D4D4",
+    "text_primary": "#D4D4D4",
+    "text_secondary": "#9CDCFE",
+    "text_hint": "#808080",
+    "text_white": "#FFFFFF",
+    "border": "#404040",
+    "border_hover": "#505050",
+    "border_pressed": "#606060",
+    "side_border": "#606060",
+    "side_checked_text": "#1E1E1E",
+    "selection_bg": "#264F78",
+    "selection_text": "#FFFFFF",
+    "profile_line": "#808080",
+    "btn_start": "#4EC9B0",
+    "btn_start_hover": "#5DD4BB",
+    "btn_start_pressed": "#3BA89A",
+    "btn_stop": "#F44747",
+    "btn_stop_hover": "#FF6060",
+    "btn_stop_pressed": "#D03030",
+    "voice_checked_bg": "#007ACC",
+    "voice_checked_border": "#005A9E",
+}
+
+# Nord — холодная арктическая палитра
+NORD = {
+    "bg_main": "#2E3440",
+    "bg_panel": "#3B4252",
+    "bg_frame": "#434C5E",
+    "bg_button": "#434C5E",
+    "bg_button_hover": "#4C566A",
+    "bg_button_pressed": "#5A6580",
+    "bg_button_checked": "#88C0D0",
+    "bg_button_checked_border": "#5E81AC",
+    "bg_chat_box": "#3B4252",
+    "bg_message": "#434C5E",
+    "bg_dialog": "#3B4252",
+    "bg_combo": "#3B4252",
+    "bg_combo_hover": "#434C5E",
+    "bg_scrollbar": "#3B4252",
+    "bg_scrollbar_handle": "#4C566A",
+    "bg_camera_preview": "#434C5E",
+    "bg_toggle_off": "#4C566A",
+    "bg_toggle_on": "#88C0D0",
+    "circle_toggle": "#ECEFF4",
+    "text_primary": "#ECEFF4",
+    "text_secondary": "#D8DEE9",
+    "text_hint": "#9BA3B0",
+    "text_white": "#FFFFFF",
+    "border": "#4C566A",
+    "border_hover": "#5E6E80",
+    "border_pressed": "#6B7E96",
+    "side_border": "#5E81AC",
+    "side_checked_text": "#2E3440",
+    "selection_bg": "#4C566A",
+    "selection_text": "#ECEFF4",
+    "profile_line": "#6B7E96",
+    "btn_start": "#A3BE8C",
+    "btn_start_hover": "#B5C99E",
+    "btn_start_pressed": "#8DA878",
+    "btn_stop": "#BF616A",
+    "btn_stop_hover": "#CC7079",
+    "btn_stop_pressed": "#A85059",
+    "voice_checked_bg": "#88C0D0",
+    "voice_checked_border": "#5E81AC",
+}
+
+# Gruvbox Dark — тёплая ретро-палитра (зелёный/оранжевый/жёлтый)
+GRUVBOX_DARK = {
+    "bg_main": "#282828",
+    "bg_panel": "#3C3836",
+    "bg_frame": "#504945",
+    "bg_button": "#504945",
+    "bg_button_hover": "#665C54",
+    "bg_button_pressed": "#7C6F64",
+    "bg_button_checked": "#B8BB26",
+    "bg_button_checked_border": "#98971A",
+    "bg_chat_box": "#3C3836",
+    "bg_message": "#504945",
+    "bg_dialog": "#3C3836",
+    "bg_combo": "#3C3836",
+    "bg_combo_hover": "#504945",
+    "bg_scrollbar": "#3C3836",
+    "bg_scrollbar_handle": "#665C54",
+    "bg_camera_preview": "#504945",
+    "bg_toggle_off": "#665C54",
+    "bg_toggle_on": "#B8BB26",
+    "circle_toggle": "#EBDBB2",
+    "text_primary": "#EBDBB2",
+    "text_secondary": "#D5C4A1",
+    "text_hint": "#928374",
+    "text_white": "#FFFFFF",
+    "border": "#665C54",
+    "border_hover": "#7C6F64",
+    "border_pressed": "#928374",
+    "side_border": "#928374",
+    "side_checked_text": "#282828",
+    "selection_bg": "#665C54",
+    "selection_text": "#EBDBB2",
+    "profile_line": "#928374",
+    "btn_start": "#B8BB26",
+    "btn_start_hover": "#C6C838",
+    "btn_start_pressed": "#A0A21E",
+    "btn_stop": "#FB4934",
+    "btn_stop_hover": "#FC6550",
+    "btn_stop_pressed": "#E03320",
+    "voice_checked_bg": "#B8BB26",
+    "voice_checked_border": "#98971A",
+}
+
+_COLOR_MAP = {
+    "light": LIGHT_COLORS,
+    "dark": DARK_COLORS,
+    "twilight": TWILIGHT,
+    "vs_code": VS_CODE_DARK,
+    "nord": NORD,
+    "gruvbox": GRUVBOX_DARK,
+}
 
 
 # ============================================================
@@ -349,6 +506,7 @@ _QSS = {
             background-color: {btn_stop_pressed};
         }}
     """,
+
     "theme_button": """
         QPushButton {{
             background-color: {bg_panel};
@@ -367,11 +525,6 @@ _QSS = {
         QPushButton:pressed {{
             background-color: {bg_button_pressed};
             border: 3px solid {border_pressed};
-        }}
-        QPushButton:checked {{
-            background-color: {bg_button_checked};
-            border: 3px solid {side_border};
-            color: {side_checked_text};
         }}
     """,
 
@@ -415,4 +568,8 @@ def get_theme(name: str) -> dict:
 THEMES = {
     "light": get_theme("light"),
     "dark": get_theme("dark"),
+    "twilight": get_theme("twilight"),
+    "vs_code": get_theme("vs_code"),
+    "nord": get_theme("nord"),
+    "gruvbox": get_theme("gruvbox"),
 }

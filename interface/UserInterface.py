@@ -136,6 +136,39 @@ class UserInterface(QMainWindow):
         # Подключаемся на переключение страниц — останавливаем камеру при уходе с жестов
         self.content_panel.currentChanged.connect(self._on_page_changed)
 
+        # Подписываемся на смену темы
+        global_signals.settings_changed.connect(self._on_settings_changed)
+
+    def _on_settings_changed(self, changes: dict):
+        """Реагируем на изменение настроек (в т.ч. темы)."""
+        if "theme" in changes:
+            self._apply_theme(changes["theme"])
+
+    def _apply_theme(self, theme_name: str):
+        """Применяет тему ко всему приложению."""
+        self._theme_name = theme_name
+        self._theme = THEMES[theme_name]
+        BasicUtils.set_settings_config_value("theme", theme_name)
+
+        # Главное окно
+        self.setStyleSheet(self._theme["main_window"])
+        self.side_panel.setStyleSheet(self._theme["side_panel"])
+
+        # Все страницы контента
+        for page in self.content_pages:
+            page._apply_theme(self._theme)
+
+        # Переключатель настроек (цвета paintEvent)
+        ts = self.settings_page.toggle_row_for_voice.toggle_switch
+        ts._apply_theme(self._theme)
+        ts2 = self.settings_page.toggle_row_for_gesture.toggle_switch
+        ts2._apply_theme(self._theme)
+
+    def change_theme(self, theme_name: str):
+        """Публичный метод для смены темы извне."""
+        self._apply_theme(theme_name)
+        global_signals.settings_changed.emit({"theme": theme_name})
+
     def _on_page_changed(self, index):
         """При переключении на другую страницу — останавливаем камеру."""
         page = self.content_panel.widget(index)
@@ -364,6 +397,14 @@ class ChatSendBox(QWidget):
     # Для всех остальных событий используем стандартную обработку
         return super().eventFilter(obj, event)
 
+    def _apply_theme(self, theme: dict):
+        """Обновляет стили поля отправки."""
+        self.main_frame.setStyleSheet(theme["chat_send_box_frame"])
+        self.chat_send_input.setStyleSheet(theme["chat_send_input"] + theme["scrollbar"])
+        self.voice_btn.setStyleSheet(theme["voice_button"])
+        self.send_btn.setStyleSheet(theme["send_button"])
+
+
 class Message(QWidget):
     """Виджет-сообщение в чате"""
     def __init__(self, author: str, text: str, time: str = None):
@@ -421,6 +462,14 @@ class Message(QWidget):
         main_layout.addWidget(self.main_frame)
         main_layout.addStretch()  # Прижимаем сообщение влево
 
+    def _apply_theme(self, theme: dict):
+        """Обновляет стили сообщения."""
+        self.main_frame.setStyleSheet(theme["message_frame"])
+        self.author_label.setStyleSheet(theme["message_author"])
+        self.text_label.setStyleSheet(theme["message_text"])
+        self.time_label.setStyleSheet(theme["message_time"])
+
+
 class DialogBox(QWidget):
     """Чат (здесь отображаются сообщения)"""
     def __init__(self):
@@ -473,6 +522,11 @@ class DialogBox(QWidget):
         history = BasicUtils.load_chat_history()
         for message in history:
             self.add_message(message["author"], message["text"], message["time"])
+
+    def _apply_theme(self, theme: dict):
+        """Обновляет стили чата."""
+        self.scroll_area.setStyleSheet(theme["chat_scroll_area"] + theme["scrollbar"])
+        self.main_frame.setStyleSheet(theme["dialog_frame"])
         
 #==========================================================
 #Основание для панелей контента
@@ -509,6 +563,12 @@ class ContentPageWidget(QWidget):
         # Обработка наведения
         self.side_panel_btn.enterEvent = lambda e: self._shadow.setEnabled(True)
         self.side_panel_btn.leaveEvent = lambda e: self._shadow.setEnabled(False)
+
+    def _apply_theme(self, theme: dict):
+        """Обновляет стили кнопки боковой панели."""
+        self.side_panel_btn.setStyleSheet(theme["side_panel_button"])
+        self.settings_text_qss = theme["settings_text"]
+        self.dropbox_qss = theme["settings_combobox"]
 
         
 # ===========================================================
@@ -609,6 +669,14 @@ class ToggleSwitch(QWidget):
                                    circle_radius * 2, circle_radius * 2))
         painter.end()
 
+    def _apply_theme(self, theme: dict):
+        """Обновляет цвета переключателя."""
+        ts = theme["toggle_switch"]
+        self._bg_color_off = QColor(ts["bg_off"])
+        self._bg_color_on = QColor(ts["bg_on"])
+        self._circle_color = QColor(ts["circle"])
+        self.update()
+
 
 class ToggleSwitchRow(QWidget):
     """Фрейм с меткой и переключателем для настроек"""
@@ -650,6 +718,12 @@ class ToggleSwitchRow(QWidget):
 
     def setChecked(self, state):
         self.toggle_switch.setChecked(state)
+
+    def _apply_theme(self, theme: dict):
+        """Обновляет стили фрейма и метки."""
+        self.toggle_frame.setStyleSheet(theme["toggle_switch_row"])
+        self.label.setStyleSheet(theme["toggle_switch_row_label"])
+        self.toggle_switch._apply_theme(theme)
 
 
 class ToggleSwitchState:
@@ -778,20 +852,27 @@ class Settings(ContentPageWidget):
         self.gesture_toggle_state = ToggleSwitchState("gesture_send_directly")
 
         # ================================================
-        # Область тем 
+        # Область тем
         self.theme_frame = QFrame()
         self.theme_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.theme_frame_lay = QGridLayout(self.theme_frame)
 
-        self.dark_theme_button = QPushButton("Темная тема")
-        self.dark_theme_button.clicked.connect(lambda checked: self._on_theme_changed("dark"))
-        self.setStyleSheet(THEMES[SELECTED_THEME]["theme_button"])
-        self.theme_frame_lay.addWidget(self.dark_theme_button, 0, 0)
-        
-        self.light_theme_button = QPushButton("Светлая тема")
-        self.light_theme_button.clicked.connect(lambda checked: self._on_theme_changed("light"))
-        self.setStyleSheet(THEMES[SELECTED_THEME]["theme_button"])
-        self.theme_frame_lay.addWidget(self.light_theme_button, 0, 1)
+        themes_list = [
+            ("Светлая", "light"),
+            ("Тёмная", "dark"),
+            ("Twilight", "twilight"),
+            ("VS Code", "vs_code"),
+            ("Nord", "nord"),
+            ("Gruvbox", "gruvbox"),
+        ]
+        self._theme_buttons = []
+        for i, (label, theme_key) in enumerate(themes_list):
+            row, col = divmod(i, 3)
+            btn = QPushButton(label)
+            btn.clicked.connect(lambda checked, k=theme_key: self._on_theme_changed(k))
+            btn.setStyleSheet(THEMES[SELECTED_THEME]["theme_button"])
+            self.theme_frame_lay.addWidget(btn, row, col)
+            self._theme_buttons.append(btn)
 
         self.grid_lay.addWidget(self.theme_frame, 5, 0)
         # ================================================
@@ -852,6 +933,21 @@ class Settings(ContentPageWidget):
         """Сохраняет выбранную тему."""
         BasicUtils.set_settings_config_value("theme", theme_name)
         global_signals.settings_changed.emit({"theme": theme_name})
+
+    def _apply_theme(self, theme: dict):
+        """Обновляет все стили страницы настроек."""
+        super()._apply_theme(theme)
+        self.main_frame.setStyleSheet(theme["dialog_frame"])
+        for frame in [self.camera_frame, self.microphone_frame, self.speaker_frame, self.theme_frame]:
+            frame.setStyleSheet(theme["settings_frame"])
+        for label in [self.camera_label, self.microphone_label, self.speaker_label]:
+            label.setStyleSheet(theme["settings_text"])
+        for combo in [self.camera_dropbox, self.microphone_dropbox, self.speaker_dropbox]:
+            combo.setStyleSheet(theme["settings_combobox"])
+        self.toggle_row_for_voice._apply_theme(theme)
+        self.toggle_row_for_gesture._apply_theme(theme)
+        for btn in self._theme_buttons:
+            btn.setStyleSheet(theme["theme_button"])
    
     def get_current_camera(self):
         return self.camera_dropbox.currentText()
@@ -1004,13 +1100,22 @@ class ProfileOption(QFrame):
             new_value = new_value.split()
             updates = dict(zip(self.columns, new_value))
         else:
-            updates = {self.columns[0] : new_value[0]}
+            updates = {self.columns[0]: new_value}
         DATABASE_EDITOR.update_data(self.table_name, updates, self.id)
         global_signals.profile_updated.emit()
 
     def get_value(self) -> str:
         """Возвращает текущее значение."""
         return self._current_value
+
+    def _apply_theme(self, theme: dict):
+        """Обновляет стили строки профиля."""
+        self.setStyleSheet(theme["profile_option_frame"])
+        self.text_qss = theme["profile_text"]
+        self.name_label.setStyleSheet(theme["profile_text"])
+        self.value_label.setStyleSheet(theme["profile_text"])
+        self.value_edit.setStyleSheet(theme["profile_text"] + "background: transparent; border: none;")
+        self.line.setStyleSheet(theme["profile_line"])
 
 
 class Profile(ContentPageWidget):
@@ -1093,6 +1198,16 @@ class Profile(ContentPageWidget):
 
         
         self.main_frame_lay.addStretch(1)
+
+    def _apply_theme(self, theme: dict):
+        """Обновляет стили страницы профиля."""
+        super()._apply_theme(theme)
+        self.main_frame.setStyleSheet(theme["dialog_frame"])
+        self.photo_frame.setStyleSheet(theme["profile_photo_frame"])
+        for opt in [self.sn_fn_patr, self.birthday, self.gender, self.dysfunctions, self.adaptive, self.fatigue]:
+            opt._apply_theme(theme)
+
+
 # ===========================================================
 # ГОЛОСОВОЙ ВВОД
 # ===========================================================
@@ -1117,8 +1232,13 @@ class VoiceInput(ContentPageWidget):
         self.text_input_lay.addWidget(self.dialog_box, 2)
         self.text_input_lay.addWidget(self.send_box, 1)
 
+    def _apply_theme(self, theme: dict):
+        """Обновляет стили страницы голосового ввода."""
+        super()._apply_theme(theme)
+        self.setStyleSheet(theme["input_page"])
+        self.dialog_box._apply_theme(theme)
+        self.send_box._apply_theme(theme)
 
-            
 
 # ===========================================================
 # ТЕКСТОВЫЙ ВВОД
@@ -1139,11 +1259,18 @@ class TextInput(ContentPageWidget):
         self.text_input_lay.addWidget(self.dialog_box, 2)
         self.text_input_lay.addWidget(self.send_box, 1)
 
+    def _apply_theme(self, theme: dict):
+        """Обновляет стили страницы текстового ввода."""
+        super()._apply_theme(theme)
+        self.setStyleSheet(theme["input_page"])
+        self.dialog_box._apply_theme(theme)
+        self.send_box._apply_theme(theme)
+
+
 # ===========================================================
 # ЖЕСТОВЫЙ ВВОД
 # ===========================================================
 class GesturesInput(ContentPageWidget):
-
     def __init__(self):
         super().__init__()
         
@@ -1155,7 +1282,7 @@ class GesturesInput(ContentPageWidget):
 
         # Вертикальный лайаут всей страницы
         self.chat_lay = QVBoxLayout(self)
-        self.chat_lay.setContentsMargins(15, 15, 15, 15)
+        self.chat_lay.setContentsMargins(0, 0, 0, 0)
         self.chat_lay.setSpacing(10)
 
         # Чат===============================================================
@@ -1175,7 +1302,7 @@ class GesturesInput(ContentPageWidget):
         # Правая часть: превью камеры + кнопки управления
         self.camera_frame = QFrame()
         self.camera_frame.setStyleSheet(THEMES[SELECTED_THEME]["gestures_camera_frame"])
-        self.bottom_lay.addWidget(self.camera_frame, stretch=2)
+        self.bottom_lay.addWidget(self.camera_frame, stretch=1)
 
         self.camera_lay = QVBoxLayout(self.camera_frame)
         self.camera_lay.setContentsMargins(10, 10, 10, 10)
@@ -1278,6 +1405,16 @@ class GesturesInput(ContentPageWidget):
 
     def on_status_ready(self, status: str):
         """Слот для отображения статуса жестов."""
+
+    def _apply_theme(self, theme: dict):
+        """Обновляет стили страницы жестов."""
+        super()._apply_theme(theme)
+        self.dialog_box._apply_theme(theme)
+        self.send_box._apply_theme(theme)
+        self.camera_frame.setStyleSheet(theme["gestures_camera_frame"])
+        self.camera_preview_label.setStyleSheet(theme["camera_preview_label"])
+        self.start_btn.setStyleSheet(theme["camera_start_button"])
+        self.stop_btn.setStyleSheet(theme["camera_stop_button"])
 
 # ===========================================================
 # ДИКТОР
