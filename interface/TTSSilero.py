@@ -26,7 +26,7 @@ import sounddevice as sd
 # ============================================================
 
 # Доступные русские голоса Silero v4
-RUSSIAN_VOICES = ["kseniya", "aidar", "baya", "irina", "natasha", "ruslan"]
+RUSSIAN_VOICES = ["aidar", "baya", "kseniya", "xenia", "eugene", "random"]
 
 # Идентификатор модели (v4_ru — актуальная русская модель)
 MODEL_ID = "v4_ru"
@@ -111,18 +111,17 @@ class SileroTTS:
                 speaker=MODEL_ID,
                 trust_repo=True,
             )
-            # torch.hub.load для silero_tts v4 возвращает (model, symbols, sample_rate)
-            # Но порядок может отличаться — определяем по типу
+            # torch.hub.load возвращает кортеж, но порядок зависит от версии
+            # Определяем элементы по типу: int = sample_rate, hasattr(apply_tts) = model
             if isinstance(result, tuple):
                 for item in result:
                     if isinstance(item, int):
                         self.sample_rate = item
                     elif hasattr(item, 'apply_tts'):
                         self._model = item
-                    # symbols/example_text — игнорируем
             if self._model is None and isinstance(result, tuple):
                 self._model = result[0]
-            if self.sample_rate is None or not isinstance(self.sample_rate, int):
+            if not isinstance(self.sample_rate, int):
                 self.sample_rate = SAMPLE_RATE
 
             self._model.to(self.device)
@@ -278,7 +277,7 @@ if __name__ == "__main__":
     print("Тест Silero TTS...")
     print(f"Доступные голоса: {RUSSIAN_VOICES}")
 
-    tts = SileroTTS(voice="kseniya")
+    tts = SileroTTS(voice="xenia")
     tts.speak("Привет! Я голосовой ассистент. Чем могу помочь?", block=True)
     tts.speak("Это тест синтеза речи на русском языке.", block=True)
     print("Готово!")
