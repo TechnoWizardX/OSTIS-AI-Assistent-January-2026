@@ -221,6 +221,7 @@ class GestureState:
     object_hold_frames: int = 0      # Счётчик удержания жеста объекта
     hold_action: bool = False        # Удержание жеста действия (круг)
     hold_action_progress: float = 0.0  # Прогресс удержания действия
+    exit_hold_frames: int = 0          # Защита от ложного выхода при смене пальцев
 
     def reset(self):
         """Полный сброс состояния."""
@@ -550,7 +551,11 @@ class GestureProcessor:
         # Константы удержания
         self.hold_required_frames = 50  # ~0.7 сек при 30 FPS
 
-    def _init_landmarker(self):
+    def _is_fist_gesture(self, fs: list) -> bool:
+        """Кулак: указательный опущен, поднято <=1 пальца."""
+        return (not fs[1]) and sum(fs) <= 1
+
+    def _init_landmarker(self):  
         """Инициализирует HandLandmarker."""
         if not GestureUtils.download_model():
             print("Ошибка: не удалось загрузить модель!")
@@ -708,62 +713,55 @@ class GestureProcessor:
                     self.state.hold_current_frames = 0
                     self.state.hold_progress = 0.0
             else:
-                # --- ОБЫЧНЫЙ РЕЖИМ ---
+                            # --- ОБЫЧНЫЙ РЕЖИМ ---
                 if self.state.gesture_cooldown > 0:
                     continue
 
-                # Проверяем жест "круг" — действие "открыть"
+                # 1. Определяем тип жеста действия (Круг или Кулак)
+                action_type = None
+                hold_frames = 0
+                gesture_display_name = ""
+
                 if GestureUtils.is_circle_gesture(lm, ACTIONS.get("circle", {}).get("circle_threshold", 0.05)):
+                    action_type = "circle"
                     hold_frames = ACTIONS.get("circle", {}).get("hold_frames", 50)
+                    gesture_display_name = "Круг"
+                elif self._is_fist_gesture(fs):
+                    action_type = "fist_close"
+                    hold_frames = ACTIONS.get("fist_close", {}).get("hold_frames", 40)
+                    gesture_display_name = "Кулак"
+
+                # Обработка удержания действия
+                if action_type:
                     self.state.hold_current_frames += 1
                     progress = min(1.0, self.state.hold_current_frames / hold_frames)
                     self.state.hold_action = True
                     self.state.hold_action_progress = progress
+                    self.state.hold_gesture_name = gesture_display_name  # Запоминаем имя для UI
 
                     if self.state.hold_current_frames >= hold_frames:
-                        action_cfg = ACTIONS.get("circle", {})
-                        self.state.selected_action = action_cfg.get("command_name", "открой")
+                        action_cfg = ACTIONS.get(action_type, {})
+                        self.state.selected_action = action_cfg.get("command_name", "действие")
                         self.state.action_mode = True
                         self.state.hold_current_frames = 0
                         self.state.hold_progress = 0.0
                         self.state.hold_action = False
                         self.state.hold_action_progress = 0.0
                         self.state.gesture_cooldown = SETTINGS["gesture_cooldown"]
-                        print(f"  >>> Действие '{self.state.selected_action}' выбрано. Жду объект...")
-                        return "Круг", f"Покажите объект"
+                        print(f"   > > > Действие '{self.state.selected_action}' выбрано. Жду объект...")
+                        return gesture_display_name, "Покажите объект"
 
-                    detected_gesture = "Круг"
+                    detected_gesture = gesture_display_name
                     detected_action = f"Удерживайте... {int(progress * 100)}%"
                     break
 
-                # Ладонь — отмена при удержании "круга"
+                # Ладонь — отмена при удержании действия
                 if sum(fs) >= 4 and self.state.hold_action:
                     self.state.hold_action = False
                     self.state.hold_action_progress = 0.0
                     self.state.hold_current_frames = 0
                     self.state.gesture_cooldown = SETTINGS["gesture_cooldown"]
                     return "Ладонь", "Отмена"
-
-                for g_name, g_cfg in GESTURES.items():
-                    if GestureUtils.match_gesture(fs, g_cfg["finger_pattern"]):
-                        act = g_cfg["action"]
-
-                        if act in ("activate_brightness", "activate_sound") and self.state.current_mode is None:
-                            mode = "brightness" if act == "activate_brightness" else "sound"
-                            self.state.pending_mode = mode
-                            self.state.hold_gesture_name = g_cfg["name"]
-                            print(f"  >>> Удерживайте {g_cfg['name']} для активации {'яркости' if mode == 'brightness' else 'звука'}...")
-                            return g_cfg["name"], "Удерживайте 3 секунды для активации"
-
-                        elif act == "exit" and self.state.current_mode is not None:
-                            self.state.current_mode = None
-                            self.state.hold_action = False
-                            self.state.hold_action_progress = 0.0
-                            self.state.gesture_cooldown = SETTINGS["gesture_cooldown"]
-                            print("  >>> Выход из режима")
-                            return g_cfg["name"], g_cfg["hint"]
-
-                        break
 
         return detected_gesture, detected_action
 
@@ -852,7 +850,7 @@ class GestureProcessor:
                 frame = GestureUI.draw_action_mode_ui(frame, self.state.selected_action, self.font_small)
         elif self.state.hold_action:
             # Удержание жеста "круг" — прогресс-бар действия
-            frame = GestureUI.draw_confirm_ui(frame, "Действие", self.state.hold_action_progress, "Круг (большой + указательный)", self.font_small)
+            frame = GestureUI.draw_confirm_ui(frame, "Действие", self.state.hold_action_progress, self.state.hold_gesture_name, self.font_small)
         elif self.state.pending_mode is not None:
             mode_name = "Яркость" if self.state.pending_mode == "brightness" else "Звук"
             hold_gesture = "1 палец" if self.state.pending_mode == "brightness" else "3 пальца"
