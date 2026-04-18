@@ -15,6 +15,7 @@ class AssistentCore():
     def __init__(self):
         
         self.user_interface = UserInterface()
+        self.settings_config = BasicUtils.load_settings_config()
         self.whisper_model = WHISPER_MODEL
         self.whisper_thread = None
         ui_signals.message_sent.connect(self.on_message_sent)
@@ -37,8 +38,8 @@ class AssistentCore():
             текст, и та уже создает сигнал, отправляющий сообщение
             4. Пользователь выключает кнопку -> Интерфейс создает сигнал с False -> Ядро принимает сигнал, выключает распознавание и пишет в настройки, что запись отключена
         """
-        BasicUtils.logger(self, "VoiceInputChanged", "INFO", f"Статус голосового ввода (конфиг): {BasicUtils.get_settings_config_value("recording_enabled")}")
-        BasicUtils.logger(self, "VoiceInputChanged", "INFO", f"Получен статус: {status}")
+        BasicUtils.logger("VoiceInputChanged", "INFO", f"Статус голосового ввода (конфиг): {BasicUtils.get_settings_config_value("recording_enabled")}")
+        BasicUtils.logger("VoiceInputChanged", "INFO", f"Получен статус: {status}")
         if status and BasicUtils.get_settings_config_value("recording_enabled"):
             RECOGNITION_MODEL = BasicUtils.get_settings_config_value("recognition_model")
             if RECOGNITION_MODEL == "auto":
@@ -65,13 +66,13 @@ class AssistentCore():
     def start_vosk(self):
         pass
     def check_best_voice_rec(self) -> str:
-        BasicUtils.logger(self, "CheckBestVoiceRec", "INFO", "Проверка лучшего распознавания голоса для системы...")
-        BasicUtils.logger(self, "CheckBestVoiceRec", "INFO", "Проверка Vosk...")
+        BasicUtils.logger("CheckBestVoiceRec", "INFO", "Проверка лучшего распознавания голоса для системы...")
+        BasicUtils.logger("CheckBestVoiceRec", "INFO", "Проверка Vosk...")
         # Здесь должна быть реальная проверка, но для примера просто вернем faster-whisper
-        BasicUtils.logger(self, "CheckBestVoiceRec", "INFO", "Проверка Whisper...")
+        BasicUtils.logger("CheckBestVoiceRec", "INFO", "Проверка Whisper...")
         # Здесь должна быть реальная проверка, но для примера просто вернем faster-whisper
         self.voice_recognizer = "faster-whisper"
-        BasicUtils.logger(self, "CheckBestVoiceRec", "INFO", f"Лучшее распознавание голоса: {self.voice_recognizer}")
+        BasicUtils.logger("CheckBestVoiceRec", "INFO", f"Лучшее распознавание голоса: {self.voice_recognizer}")
         return self.voice_recognizer
    
    
@@ -79,11 +80,13 @@ class AssistentCore():
     def on_message_sent(self, sender : str = "Unknown", message : str = "No Message"):
         print(f"Message from {sender}: {message}")
 
-    def on_settings_changed(self):
-        print("Settings changed")   
+    def on_settings_changed(self, new_settings: dict):
+        self.settings_config = new_settings
+
+        BasicUtils.logger("SettingsChanged", "INFO", f"Настройки конфигурации обновлены: {new_settings}") 
     
     def voice_text_recived_core(self, text: str):
-        BasicUtils.logger(self, "VoiceTextRecivedCore", "INFO", f"Распознан текст: {text}")
+        BasicUtils.logger("VoiceTextRecivedCore", "INFO", f"Распознан текст: {text}")
         ui_signals.voice_message_received.emit(text)
 
     

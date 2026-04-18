@@ -59,6 +59,8 @@ class UserInterface(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        BasicUtils.logger("UserInterface", "INFO", "Инициализация интерфейса")
+
         self._theme = THEMES[SELECTED_THEME]
 
         self.setWindowTitle("IAMOS")
@@ -270,7 +272,7 @@ class ChatSendBox(QWidget):
         # Защита от дублирования: игнорируем повторяющийся текст
         if text == self._last_voice_text or self._voice_processing or not text.strip():
             return
-        BasicUtils.logger(self, "ChatSendBox", "INFO", f"Распознан голосовой текст: {text}")
+        BasicUtils.logger("ChatSendBox", "INFO", f"Распознан голосовой текст: {text}")
         self._voice_processing = True
         self._last_voice_text = text
 

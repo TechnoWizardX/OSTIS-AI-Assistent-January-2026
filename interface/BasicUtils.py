@@ -103,7 +103,7 @@ class BasicUtils:
         })
         BasicUtils.save_chat_history(history)
     @staticmethod
-    def logger(self, object : str, type : str = "INFO", message : str = "") -> None:
+    def logger(object : str, type : str = "INFO", message : str = "") -> None:
         """Логирование событий ядра
         Args:
             object (str): Объект, который вызвал событие
@@ -150,7 +150,7 @@ class DataBaseEditor():
                      birthday: str, dysfunctions: str, adaptation_status: str):
         self._open_connection()
         self._set_cursor()
-        
+        BasicUtils.logger("DataBaseEditor", "INFO", f"Добавление данных в базу данных: {id}, {firstname}, {surname}, {patronymic}, {gender}, {birthday}, {dysfunctions}, {adaptation_status}")
         self.cursor.execute("INSERT INTO Users (id, firstname, surname, patronymic, gender, birthday, dysfunctions, adaptation_status) VALUES (?,?, ?, ?, ?, ?, ?, ?)",
                             (id, firstname, surname, patronymic, gender, birthday, dysfunctions, adaptation_status))
         self._commit()
@@ -165,7 +165,7 @@ class DataBaseEditor():
             
         # Формируем SET-часть: "firstname=?, surname=?"
         set_clause = ", ".join([f"{col} = ?" for col in updates.keys()])
-        
+        BasicUtils.logger("DataBaseEditor", "INFO", f"Обновление данных в базе данных: \n Таблица {table_name} \n Параметры {set_clause} \n ID: {id}")
         # Собираем параметры: сначала значения, в конце ID
         values = list(updates.values()) + [id]
 
@@ -180,6 +180,7 @@ class DataBaseEditor():
         self._is_safe_identifier(table_name)
         self._open_connection()
         self._set_cursor()
+        BasicUtils.logger("DataBaseEditor", "INFO", f"Удаление данных в базе данных: \n Таблица {table_name} \n ID: {id}")
         self.cursor.execute(f"DELETE FROM {table_name} WHERE id = ?", (id,))
         self._commit()
         self._close_connection()
@@ -189,6 +190,7 @@ class DataBaseEditor():
         self._is_safe_identifier(column_name)
         self._open_connection()
         self._set_cursor()
+        BasicUtils.logger("DataBaseEditor", "INFO", f"Получение данных из базы данных: \n Таблица {table_name} \n Поле(столбец) {column_name} \n ID: {id}")
         self.cursor.execute(f"SELECT {column_name} FROM {table_name} WHERE id = ?", (id,))
         data = self.cursor.fetchall()
         self._close_connection()
