@@ -19,12 +19,8 @@ if GESTURES_DIR not in sys.path:
 
 from gestures import GestureCameraThread
 
-# Добавляем путь к голосовому вводу для импорта
-VOICE_DIR = os.path.join(PROJECT_ROOT, "samples", "VoiceInput")
-if VOICE_DIR not in sys.path:
-    sys.path.insert(0, VOICE_DIR)
 
-from voiceVosk import init_voice, set_voice_callback, stop_voice, get_voice_text, download_model, MODEL_PATH
+
 
 # Базовый путь для иконок
 ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
@@ -32,7 +28,7 @@ DATABASE_EDITOR = DataBaseEditor()
 
 CONFIG = BasicUtils.load_settings_config()
 SELECTED_THEME = CONFIG.get("theme") or "light"
-
+RECOGNITION_MODEL = CONFIG.get("recognition_model")
 
 def icon_path(filename):
     """Возвращает абсолютный путь к иконке"""
@@ -50,10 +46,11 @@ class Signals(QObject):
     settings_changed = pyqtSignal(dict)
     camera_selected = pyqtSignal(str)
     microphone_selected = pyqtSignal(str)
-    profile_updated = pyqtSignal()
-    voice_text_received = pyqtSignal(str)  # Сигнал для передачи текста из голосового ввода
+    profile_updated = pyqtSignal() # Сигнал для передачи текста из голосового ввода
     message_sent = pyqtSignal(str, str)
-global_signals = Signals()
+    voice_input_changed = pyqtSignal(bool)
+    voice_message_received = pyqtSignal(str)
+ui_signals = Signals()
 # ===========================================================
 # ГЛАВНЫЙ ИНТЕРФЕЙС
 # ===========================================================
@@ -137,7 +134,7 @@ class UserInterface(QMainWindow):
         self.content_panel.currentChanged.connect(self._on_page_changed)
 
         # Подписываемся на смену темы
-        global_signals.settings_changed.connect(self._on_settings_changed)
+        ui_signals.settings_changed.connect(self._on_settings_changed)
 
     def _on_settings_changed(self, changes: dict):
         """Реагируем на изменение настроек (в т.ч. темы)."""
@@ -167,7 +164,7 @@ class UserInterface(QMainWindow):
     def change_theme(self, theme_name: str):
         """Публичный метод для смены темы извне."""
         self._apply_theme(theme_name)
-        global_signals.settings_changed.emit({"theme": theme_name})
+        ui_signals.settings_changed.emit({"theme": theme_name})
 
     def _on_page_changed(self, index):
         """При переключении на другую страницу — останавливаем камеру."""
@@ -190,13 +187,13 @@ class UserInterface(QMainWindow):
 class ChatSendBox(QWidget):
     """Виджет отправки сообщений."""
     # Сигналы для безопасной передачи текста из фоновых потоков
-    voice_text_ready = pyqtSignal(str)
     gesture_text_ready = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
 
         # Для защиты от дублирования голосового ввода
+        self._last_send_time = None
         self._last_voice_text = ""
         self._voice_processing = False
 
@@ -221,14 +218,6 @@ class ChatSendBox(QWidget):
         self.buttons_lay = QHBoxLayout()
         self.buttons_lay.setSpacing(10)
         
-        self.voice_btn = QPushButton()
-        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME]["voice_button"])
-        self.voice_btn.setIcon(QIcon(icon_path("microphone.png")))
-        self.voice_btn.setIconSize(QSize(25, 25))
-        self.voice_btn.setCheckable(True)
-        self.voice_btn.setFixedSize(45, 45)
-        self.voice_btn.setVisible(False)  # Скрываем кнопку по умолчанию
-        self.buttons_lay.addWidget(self.voice_btn)
         
         self.send_btn = QPushButton("Отправить")
         self.send_btn.setStyleSheet(THEMES[SELECTED_THEME]["send_button"])
@@ -236,83 +225,52 @@ class ChatSendBox(QWidget):
         self.send_btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self.send_btn.setIcon(QIcon(icon_path("send.png")))
         self.buttons_lay.addStretch(1)
-        self.buttons_lay.addWidget(self.voice_btn)
+        
         self.buttons_lay.addWidget(self.send_btn)
         self.main_frame_lay.addLayout(self.buttons_lay)
         self.send_btn.clicked.connect(self.send_message)
 
         self.chat_send_input.installEventFilter(self)
-
-        # Подключаем кнопку голоса к переключению записи
-        self.voice_btn.clicked.connect(self.toggle_voice_recording)
-
-        # Подключаем сигнал для безопасной обработки текста в главном потоке
-        self.voice_text_ready.connect(self.handle_voice_text)
         self.gesture_text_ready.connect(self.handle_gesture_command)
+       
 
         # Для защиты от дублирования
-        self._last_voice_text = ""
-        self._voice_processing = False
         self._last_gesture_text = ""
         self._gesture_processing = False
+        
+    def addVoiceButton(self):
+            self.voice_btn = QPushButton()
+            self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME]["voice_button"])
+            self.voice_btn.setIcon(QIcon(icon_path("microphone.png")))
+            self.voice_btn.setIconSize(QSize(25, 25))
+            self.voice_btn.setCheckable(True)
+            self.voice_btn.setFixedSize(45, 45)
+            self.voice_btn.setVisible(False)  # Скрываем кнопку по умолчанию
+            self.buttons_lay.addWidget(self.voice_btn)
+    
+            # Подключаем кнопку голоса к переключению записи
+            self.voice_btn.clicked.connect(self.toggle_voice_recording)
+            ui_signals.voice_message_received.connect(self.voice_text_recived)
+        # Подключаем сигнал для безопасной обработки текста в главном потоке
 
     def toggle_voice_recording(self, checked: bool):
         """Переключение голосовой записи (вкл/выкл)"""
         if checked:
-            # Проверяем наличие модели перед записью
-            if not os.path.exists(MODEL_PATH):
-                self.voice_btn.setChecked(False)
-                msg = QMessageBox(self)
-                msg.setWindowTitle("Модель не найдена")
-                msg.setIcon(QMessageBox.Icon.Information)
-                msg.setText("Голосовая модель не загружена")
-                msg.setInformativeText(
-                    "Для работы голосового ввода необходимо загрузить модель (~50 МБ).\n"
-                    "Хотите загрузить сейчас?"
-                )
-                msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-                msg.setDefaultButton(QMessageBox.StandardButton.Yes)
-                msg.button(QMessageBox.StandardButton.Yes).setText("Загрузить")
-                msg.button(QMessageBox.StandardButton.No).setText("Отмена")
-                reply = msg.exec()
-
-                if reply == QMessageBox.StandardButton.Yes:
-                    result = download_model()
-                    if not result:
-                        err_msg = QMessageBox(self)
-                        err_msg.setWindowTitle("Ошибка")
-                        err_msg.setIcon(QMessageBox.Icon.Warning)
-                        err_msg.setText("Не удалось загрузить модель")
-                        err_msg.setInformativeText("Проверьте подключение к интернету и попробуйте снова.")
-                        err_msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-                        err_msg.exec()
-                return
-
-            # Включаем запись
-            self._last_voice_text = ""
-            self._voice_processing = False
-            init_voice()
-
-            # Устанавливаем callback — текст придёт автоматически
-            set_voice_callback(self.on_voice_text)
-
-            print("Голосовая запись начата")
+            BasicUtils.set_settings_config_value("recording_enabled", True)
+            ui_signals.voice_input_changed.emit(True)
         else:
-            # Выключаем запись
-            stop_voice()
-            print("Голосовая запись остановлена")
+            BasicUtils.set_settings_config_value("recording_enabled", False)
+            ui_signals.voice_input_changed.emit(False)
+    def voice_text_recived(self, text: str):
+        self.handle_voice_text(text)
 
-    def on_voice_text(self, text: str):
-        """Вызывается когда распознан текст через голос (из фонового потока!)"""
-        # Отправляем сигнал в главный поток для безопасного обновления UI
-        self.voice_text_ready.emit(text)
 
     def handle_voice_text(self, text: str):
         """Обрабатывает распознанный текст (вызывается в главном потоке)"""
         # Защита от дублирования: игнорируем повторяющийся текст
         if text == self._last_voice_text or self._voice_processing or not text.strip():
             return
-        print(f"Voice text received: {text}")
+        BasicUtils.logger(self, "ChatSendBox", "INFO", f"Распознан голосовой текст: {text}")
         self._voice_processing = True
         self._last_voice_text = text
 
@@ -325,7 +283,7 @@ class ChatSendBox(QWidget):
         if send_directly:
             # Отправляем сразу в чат
             BasicUtils.add_message("user", text)
-            global_signals.message_sent.emit("user", text)
+            ui_signals.message_sent.emit("user", text)
         else:
             # Вставляем текст в поле ввода
             current_text = self.chat_send_input.toPlainText()
@@ -337,8 +295,9 @@ class ChatSendBox(QWidget):
             cursor = self.chat_send_input.textCursor()
             cursor.movePosition(cursor.MoveOperation.End)
             self.chat_send_input.setTextCursor(cursor)
-
+        self._last_voice_text = text
         self._voice_processing = False
+
 
     def handle_gesture_command(self, text: str):
         """Обрабатывает команду из жестового ввода (действие + объект)"""
@@ -358,7 +317,7 @@ class ChatSendBox(QWidget):
         if send_directly:
             # Отправляем сразу в чат
             BasicUtils.add_message("user", text)
-            global_signals.message_sent.emit("user", text)
+            ui_signals.message_sent.emit("user", text)
         else:
             # Вставляем текст в поле ввода
             current_text = self.chat_send_input.toPlainText()
@@ -381,8 +340,8 @@ class ChatSendBox(QWidget):
             return
         BasicUtils.add_message("user", text)
         self.chat_send_input.clear()
-        # Посылаем ЛОКАЛЬНЫЙ сигнал
-        global_signals.message_sent.emit("user", text)
+
+        ui_signals.message_sent.emit("user", text)
 
     def eventFilter(self, obj, event):
         """Фильтр для отправки сообщений по нажатию Enter"""
@@ -401,7 +360,8 @@ class ChatSendBox(QWidget):
         """Обновляет стили поля отправки."""
         self.main_frame.setStyleSheet(theme["chat_send_box_frame"])
         self.chat_send_input.setStyleSheet(theme["chat_send_input"] + theme["scrollbar"])
-        self.voice_btn.setStyleSheet(theme["voice_button"])
+        if hasattr(self, 'voice_btn'):
+            self.voice_btn.setStyleSheet(theme["voice_button"])
         self.send_btn.setStyleSheet(theme["send_button"])
 
 
@@ -410,7 +370,7 @@ class Message(QWidget):
     def __init__(self, author: str, text: str, time: str = None):
         super().__init__()
         
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         
         # Используем QHBoxLayout для контроля ширины
         main_layout = QHBoxLayout(self)
@@ -476,10 +436,10 @@ class DialogBox(QWidget):
         super().__init__()
         # Подключение к сигналу будет сделано извне через set_message_handler
         try:
-            global_signals.message_sent.disconnect(self.add_message)
+            ui_signals.message_sent.disconnect(self.add_message)
         except Exception:
             pass
-        global_signals.message_sent.connect(self.add_message)
+        ui_signals.message_sent.connect(self.add_message)
         self._message_handler = None
         self.dialog_box_lay = QVBoxLayout(self)  
         self.scroll_area = QScrollArea()
@@ -735,7 +695,7 @@ class ToggleSwitchState:
     def save(self, state):
         """Сохраняет состояние переключателя в конфиг"""
         BasicUtils.set_settings_config_value(self.config_key, state)
-        global_signals.settings_changed.emit({self.config_key: state})
+        ui_signals.settings_changed.emit({self.config_key: state})
     
     def load(self):
         """Загружает состояние переключателя из конфига"""
@@ -915,24 +875,24 @@ class Settings(ContentPageWidget):
         """Сохраняет выбранную камеру."""
         index = self.camera_dropbox.currentIndex()
         BasicUtils.set_settings_config_value("camera_index", index)
-        global_signals.settings_changed.emit({"camera": text})
+        ui_signals.settings_changed.emit({"camera": text})
 
     def _on_microphone_changed(self, text):
         """Сохраняет выбранный микрофон."""
         index = self.microphone_dropbox.currentIndex()
         BasicUtils.set_settings_config_value("microphone_index", index)
-        global_signals.settings_changed.emit({"microphone": text})
+        ui_signals.settings_changed.emit({"microphone": text})
 
     def _on_speaker_changed(self, text):
         """Сохраняет выбранного диктора."""
         index = self.speaker_dropbox.currentIndex()
         BasicUtils.set_settings_config_value("speaker_index", index)
-        global_signals.settings_changed.emit({"speaker": text})
+        ui_signals.settings_changed.emit({"speaker": text})
 
     def _on_theme_changed(self, theme_name: str):
         """Сохраняет выбранную тему."""
         BasicUtils.set_settings_config_value("theme", theme_name)
-        global_signals.settings_changed.emit({"theme": theme_name})
+        ui_signals.settings_changed.emit({"theme": theme_name})
 
     def _apply_theme(self, theme: dict):
         """Обновляет все стили страницы настроек."""
@@ -1102,7 +1062,7 @@ class ProfileOption(QFrame):
         else:
             updates = {self.columns[0]: new_value}
         DATABASE_EDITOR.update_data(self.table_name, updates, self.id)
-        global_signals.profile_updated.emit()
+        ui_signals.profile_updated.emit()
 
     def get_value(self) -> str:
         """Возвращает текущее значение."""
@@ -1221,7 +1181,7 @@ class VoiceInput(ContentPageWidget):
         self.text_input_lay.setContentsMargins(0, 0, 0, 0)
         self.dialog_box = DialogBox()
         self.send_box = ChatSendBox()
-
+        self.send_box.addVoiceButton()
         # Подключаем ЛОКАЛЬНЫЙ сигнал send_box к диалогу
        
 

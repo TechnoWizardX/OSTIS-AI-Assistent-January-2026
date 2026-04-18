@@ -5,6 +5,12 @@ from datetime import datetime
 from pathlib import Path
 import sqlite3
 import re 
+from PyQt6.QtCore import pyqtSignal, QObject
+
+class Signals(QObject):
+    voice_message_recognized = pyqtSignal(str)
+global_signals = Signals()
+
 CHAT_FILE = Path(__file__).parent / "data" / "chat_history.json"
 CHAT_FILE.parent.mkdir(exist_ok=True)
 
@@ -96,6 +102,16 @@ class BasicUtils:
             "day": datetime.now().strftime("%D-%m-%Y")
         })
         BasicUtils.save_chat_history(history)
+    @staticmethod
+    def logger(self, object : str, type : str = "INFO", message : str = "") -> None:
+        """Логирование событий ядра
+        Args:
+            object (str): Объект, который вызвал событие
+            type (str, optional): Тип события (INFO, WARNING, ERROR). Defaults to "INFO".
+            message (str): Сообщение для логирования
+        """
+        date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[{date}] [{type}] [{object}] {message}")
 
 
 class DataBaseEditor():
