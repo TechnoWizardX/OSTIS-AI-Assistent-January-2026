@@ -30,7 +30,7 @@ class WhisperRecognition():
         if self.stop_func is not None:
             return # Уже запущено
             
-        BasicUtils.logger("SpeechRecognition", "INFO", "Микрофон включен")
+        BasicUtils.logger("Whisper", "INFO", "Микрофон включен")
         with sr.Microphone(sample_rate=16000) as source:
             self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
         

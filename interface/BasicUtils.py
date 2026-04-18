@@ -6,7 +6,7 @@ from pathlib import Path
 import sqlite3
 import re 
 from PyQt6.QtCore import pyqtSignal, QObject
-
+from PyQt6.QtMultimedia import QMediaDevices
 class Signals(QObject):
     voice_message_recognized = pyqtSignal(str)
 global_signals = Signals()
@@ -45,7 +45,9 @@ class BasicUtils:
     
     @staticmethod
     def get_available_microphones() -> list:
-        return []
+        microphones = QMediaDevices.audioInputs()
+        mic_names = [microphone.description() for microphone in microphones]
+        return mic_names
 
     @staticmethod
     def load_settings_config() -> dict:

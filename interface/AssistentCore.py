@@ -16,6 +16,7 @@ class AssistentCore():
         
         self.user_interface = UserInterface()
         self.settings_config = BasicUtils.load_settings_config()
+        self.recognition_model = RECOGNITION_MODEL
         self.whisper_model = WHISPER_MODEL
         self.whisper_thread = None
         ui_signals.message_sent.connect(self.on_message_sent)
@@ -38,55 +39,78 @@ class AssistentCore():
             текст, и та уже создает сигнал, отправляющий сообщение
             4. Пользователь выключает кнопку -> Интерфейс создает сигнал с False -> Ядро принимает сигнал, выключает распознавание и пишет в настройки, что запись отключена
         """
-        BasicUtils.logger("VoiceInputChanged", "INFO", f"Статус голосового ввода (конфиг): {BasicUtils.get_settings_config_value("recording_enabled")}")
-        BasicUtils.logger("VoiceInputChanged", "INFO", f"Получен статус: {status}")
+        BasicUtils.logger("CORE | VoiceInputChanged", "INFO", f"Статус голосового ввода (конфиг): {BasicUtils.get_settings_config_value("recording_enabled")}")
+        BasicUtils.logger("CORE | VoiceInputChanged", "INFO", f"Получен статус: {status}")
         if status and BasicUtils.get_settings_config_value("recording_enabled"):
-            RECOGNITION_MODEL = BasicUtils.get_settings_config_value("recognition_model")
-            if RECOGNITION_MODEL == "auto":
+            self.recognition_model= BasicUtils.get_settings_config_value("recognition_model")
+            if self.recognition_model == "auto":
                 if self.check_best_voice_rec() == "vosk":
                     self.start_vosk()
                 elif self.check_best_voice_rec() == "faster-whisper":
                     self.control_whisper(True)
-            elif RECOGNITION_MODEL == "vosk":
-                pass
-            elif RECOGNITION_MODEL == "faster-whisper":
+            elif self.recognition_model == "vosk":
+                self.control_vosk(True)
+            elif self.recognition_model == "faster-whisper":
                 self.control_whisper(True)
         else:
             BasicUtils.set_settings_config_value("recording_enabled", False)
             self.control_whisper(False)
+            self.control_vosk(False)
     
     def control_whisper(self, new_status: bool):
         if new_status:
             # Просто вызываем метод, он сам создаст фоновый процесс
-            WHISPER_MODEL.start_recognition()
+            self.whisper_model.start_recognition()
         else:
             # Это мгновенно прикажет фоновому потоку перестать слушать
-            WHISPER_MODEL.stop_recognition()
+            self.whisper_model.stop_recognition()
     
-    def start_vosk(self):
+    def control_vosk(self, new_status: bool):
         pass
     def check_best_voice_rec(self) -> str:
-        BasicUtils.logger("CheckBestVoiceRec", "INFO", "Проверка лучшего распознавания голоса для системы...")
-        BasicUtils.logger("CheckBestVoiceRec", "INFO", "Проверка Vosk...")
+        BasicUtils.logger("CORE | CheckBestVoiceRec", "INFO", "Проверка лучшего распознавания голоса для системы...")
+        BasicUtils.logger("CORE | CheckBestVoiceRec", "INFO", "Проверка Vosk...")
         # Здесь должна быть реальная проверка, но для примера просто вернем faster-whisper
-        BasicUtils.logger("CheckBestVoiceRec", "INFO", "Проверка Whisper...")
+        BasicUtils.logger("CORE | CheckBestVoiceRecCORE", "INFO", "Проверка Whisper...")
         # Здесь должна быть реальная проверка, но для примера просто вернем faster-whisper
-        self.voice_recognizer = "faster-whisper"
-        BasicUtils.logger("CheckBestVoiceRec", "INFO", f"Лучшее распознавание голоса: {self.voice_recognizer}")
-        return self.voice_recognizer
+
+        self.recognition_model = "faster-whisper"
+        BasicUtils.logger("CORE | CheckBestVoiceRec", "INFO", f"Лучшее распознавание голоса: {self.recognition_model}")
+        return self.recognition_model
    
    
-    @staticmethod
+
     def on_message_sent(self, sender : str = "Unknown", message : str = "No Message"):
         print(f"Message from {sender}: {message}")
+    def update_voice_recognition_model(self, new_model: str):
+        """Функция, перезапускающая модель в реальном времени, если та включена"""
+        if new_model != self.recognition_model:
+            BasicUtils.logger("CORE | VoiceRecognitionModel", "INFO", f"Обновление модели распознавания голоса: {new_model}")
+            self.recognition_model = new_model
+            
+            self.control_whisper(False)
+            self.control_vosk(False)
+
+            target = self.recognition_model
+            if BasicUtils.get_settings_config_value("recording_enabled"):
+                if target == "auto":
+                    if self.check_best_voice_rec() == "vosk":
+                        self.control_vosk(True)
+                    elif self.check_best_voice_rec() == "faster-whisper":
+                        self.control_whisper(True)
+                elif target == "vosk":
+                    self.control_vosk(True)
+                elif target == "faster-whisper":
+                    self.control_whisper(True)
 
     def on_settings_changed(self, new_settings: dict):
-        self.settings_config = new_settings
+        BasicUtils.logger("CORE | SettingsConfiguration", "INFO", f"Настройки конфигурации обновлены: {new_settings}") 
+        if "recognition_model" in new_settings:
+            self.update_voice_recognition_model(new_settings["recognition_model"])
+            
 
-        BasicUtils.logger("SettingsChanged", "INFO", f"Настройки конфигурации обновлены: {new_settings}") 
-    
     def voice_text_recived_core(self, text: str):
-        BasicUtils.logger("VoiceTextRecivedCore", "INFO", f"Распознан текст: {text}")
+        BasicUtils.logger("CORE | VoiceTextRecivedCore", "INFO", f"Распознан текст: {text}")
         ui_signals.voice_message_received.emit(text)
 
     
