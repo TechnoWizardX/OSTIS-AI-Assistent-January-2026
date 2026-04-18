@@ -10,17 +10,16 @@ if VOICE_INPUT_DIR not in sys.path:
 import threading
 from BasicUtils import BasicUtils, DataBaseEditor, global_signals
 import WhisperRecognition as Whisper
-import voiceVosk  # ← ДОБАВЛЕН ИМПОРТ
+
+import voiceVosk 
 
 DATABASE_EDITOR = DataBaseEditor()
-print(f"📁 Текущая рабочая директория: {os.getcwd()}")
-print(f"📁 Модель Vosk будет в: {os.path.abspath('./models/vosk-model-small-ru-0.22')}")
+#print(f"📁 Текущая рабочая директория: {os.getcwd()}")
+#print(f"📁 Модель Vosk будет в: {os.path.abspath('./models/vosk-model-small-ru-0.22')}")
 # Инициализация моделей (пути можно вынести в конфиг)
 WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
 VOSK_MODEL = voiceVosk.VoskRecognizer(model_path="./models/vosk-model-small-ru-0.22")
 
-# УДАЛЕНО: лишняя инициализация потока — start_recognition() сам создаёт поток
-# WHISPER_THREAD = threading.Thread(target=WHISPER_MODEL.start_recognition, daemon=True)
 
 
 class AssistentCore():
@@ -28,11 +27,10 @@ class AssistentCore():
         self.user_interface = UserInterface()
         self.settings_config = BasicUtils.load_settings_config()
         
-        # ← ГЛАВНОЕ ИЗМЕНЕНИЕ: инкапсулированная переменная
         self.recognition_model = self.settings_config.get("recognition_model", "auto")
-        
-        self.recognition_model = RECOGNITION_MODEL
+
         self.whisper_model = WHISPER_MODEL
+        self.vosk_model = VOSK_MODEL
         self.whisper_thread = None
         
         # Подписка на сигналы интерфейса
@@ -78,18 +76,16 @@ class AssistentCore():
     def control_whisper(self, new_status: bool):
         """Управление Whisper"""
         if new_status:
-            # Просто вызываем метод, он сам создаст фоновый процесс
             self.whisper_model.start_recognition()
         else:
-            # Это мгновенно прикажет фоновому потоку перестать слушать
             self.whisper_model.stop_recognition()
     
     def control_vosk(self, new_status: bool):
-        """Управление Vosk (полный аналог control_whisper)"""
+        """Управление Vosk"""
         if new_status:
-            VOSK_MODEL.start_recognition()
+            self.vosk_model.start_recognition()
         else:
-            VOSK_MODEL.stop_recognition()
+            self.vosk_model.stop_recognition()
     
     def check_best_voice_rec(self) -> str:
         BasicUtils.logger("CORE | CheckBestVoiceRec", "INFO", "Проверка лучшего распознавания голоса для системы...")
@@ -135,7 +131,7 @@ class AssistentCore():
 
     def voice_text_recived_core(self, text: str):
         """Приём распознанного текста и пересылка в интерфейс"""
-        BasicUtils.logger("VoiceTextRecivedCore", "INFO", f"Распознан текст: {text}")
+        BasicUtils.logger("CORE | VoiceTextRecivedCore", "INFO", f"Распознан текст: {text}")
         ui_signals.voice_message_received.emit(text)
 
     def run(self):
