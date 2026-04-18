@@ -16,7 +16,7 @@ import voiceVosk
 DATABASE_EDITOR = DataBaseEditor()
 #print(f"📁 Текущая рабочая директория: {os.getcwd()}")
 #print(f"📁 Модель Vosk будет в: {os.path.abspath('./models/vosk-model-small-ru-0.22')}")
-# Инициализация моделей (пути можно вынести в конфиг)
+
 WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
 VOSK_MODEL = voiceVosk.VoskRecognizer(model_path="./models/vosk-model-small-ru-0.22")
 
@@ -31,7 +31,6 @@ class AssistentCore():
 
         self.whisper_model = WHISPER_MODEL
         self.vosk_model = VOSK_MODEL
-        self.whisper_thread = None
         
         # Подписка на сигналы интерфейса
         ui_signals.message_sent.connect(self.on_message_sent)
