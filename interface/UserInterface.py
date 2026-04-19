@@ -373,83 +373,73 @@ class ChatSendBox(QWidget):
 
 
 class Message(QWidget):
-    """Виджет-сообщение в чате"""
     def __init__(self, author: str, text: str, time: str = None):
         super().__init__()
-        
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        
-        # Используем QHBoxLayout для контроля ширины
+
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+
+
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(10, 5, 10, 5)
-        
+        main_layout.setSpacing(5)
+
+        # Пузырёк сообщения (ширина подстраивается под текст)
         self.main_frame = QFrame()
         self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["message_frame"])
-        
-        # Устанавливаем максимальную ширину
-        max_width = 500
-        self.main_frame.setMaximumWidth(max_width)
         self.main_frame.setMinimumWidth(100)
-        
-        self.main_frame_lay = QVBoxLayout(self.main_frame)
-        self.main_frame_lay.setContentsMargins(12, 10, 12, 10)
-        self.main_frame_lay.setSpacing(5)
-        
-        if author == "user":
-            self.author = "Вы"
-        else:
-            self.author = author
-    
-        
-        if time is None:
-            self.time = datetime.now().strftime("%H:%M")
-        else:
-            self.time = time
+        self.main_frame.setMaximumWidth(500)
+        self.main_frame.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
 
-        self.author_label = QLabel(self.author)
+        frame_layout = QVBoxLayout(self.main_frame)
+        frame_layout.setContentsMargins(12, 10, 12, 10)
+        frame_layout.setSpacing(5)
+
+        # Имя автора
+        display = "Вы" if author == "user" else author
+        self.author_label = QLabel(display)
         self.author_label.setStyleSheet(THEMES[SELECTED_THEME]["message_author"])
-        
+        frame_layout.addWidget(self.author_label)
+
+        # Текст
         self.text_label = QLabel(text)
-        self.text_label.setWordWrap(True)   
+        self.text_label.setWordWrap(True)
         self.text_label.setStyleSheet(THEMES[SELECTED_THEME]["message_text"])
-        
-        self.voice_btn = QPushButton()
-        self.voice_btn.setFixedSize(40, 40)
-        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME]["speaker_button"])
-        self.voice_btn.setIcon(QIcon(icon_path("speaker.png")))
-        self.voice_btn.setIconSize(QSize(25, 25))
-        self.voice_btn.clicked.connect(lambda: ui_signals.speaker_pressed.emit(text))  
-        self.time_label = QLabel(self.time)
+        frame_layout.addWidget(self.text_label)
+
+        # Время
+        time_str = time or datetime.now().strftime("%H:%M")
+        self.time_label = QLabel(time_str)
         self.time_label.setStyleSheet(THEMES[SELECTED_THEME]["message_time"])
-        
-        # Создаем горизонтальный layout для времени (чтобы прижать вправо)
         time_layout = QHBoxLayout()
         time_layout.addStretch()
         time_layout.addWidget(self.time_label)
-        
-        self.main_frame_lay.addWidget(self.author_label)
-        self.main_frame_lay.addWidget(self.text_label)
-        self.main_frame_lay.addLayout(time_layout)
-        
-        if author == "user":
-            # Справа: Кнопка -> Сообщение -> Stretch
-            main_layout.addWidget(self.voice_btn, Qt.AlignmentFlag.AlignBottom)
-            main_layout.addWidget(self.main_frame)
-            main_layout.addStretch()
-        else:
-            # Слева: Stretch -> Сообщение -> Кнопка
-            main_layout.addStretch()
-            main_layout.addWidget(self.main_frame)
-            main_layout.addWidget(self.voice_btn, Qt.AlignmentFlag.AlignBottom)
+        frame_layout.addLayout(time_layout)
 
+        # Кнопка озвучки (динамик)
+        self.voice_btn = QPushButton()
+        self.voice_btn.setFixedSize(40, 40)
+        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME].get("speaker_button", ""))
+        self.voice_btn.setIcon(QIcon(icon_path("speaker.png")))
+        self.voice_btn.setIconSize(QSize(25, 25))
+        self.voice_btn.clicked.connect(lambda: ui_signals.speaker_pressed.emit(text))
+
+        # Расположение: для пользователя кнопка слева, для других — справа
+        if author == "user":
+            main_layout.addStretch()                                   # прижимаем вправо
+            main_layout.addWidget(self.voice_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
+            main_layout.addWidget(self.main_frame)
+        else:
+            main_layout.addWidget(self.main_frame)
+            main_layout.addWidget(self.voice_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
+            main_layout.addStretch()                                   # прижимаем влево
 
     def _apply_theme(self, theme: dict):
-        """Обновляет стили сообщения."""
         self.main_frame.setStyleSheet(theme["message_frame"])
         self.author_label.setStyleSheet(theme["message_author"])
         self.text_label.setStyleSheet(theme["message_text"])
         self.time_label.setStyleSheet(theme["message_time"])
-
+        if hasattr(self, 'voice_btn'):
+            self.voice_btn.setStyleSheet(theme.get("speaker_button", ""))
 
 class DialogBox(QWidget):
     """Чат (здесь отображаются сообщения)"""
@@ -481,17 +471,9 @@ class DialogBox(QWidget):
         self.load_history()
 
     def add_message(self, author: str, text: str, time: str = None):
-        """Добавляет сообщение в чат."""
-        print(f"[DialogBox ID: {id(self)}] Добавлено сообщение")
-        
         message = Message(author, text, time)
-        alignment = Qt.AlignmentFlag.AlignLeft
-        if author == "user":
-            alignment = Qt.AlignmentFlag.AlignRight
-        else:
-            alignment = Qt.AlignmentFlag.AlignLeft
         count = self.main_frame_lay.count()
-        self.main_frame_lay.insertWidget(count - 1, message, alignment=alignment)
+        self.main_frame_lay.insertWidget(count - 1, message)   # Без alignment
         self._scroll_to_bottom()
 
     def _scroll_to_bottom(self):
