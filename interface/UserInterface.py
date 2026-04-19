@@ -375,7 +375,9 @@ class ChatSendBox(QWidget):
 class Message(QWidget):
     def __init__(self, author: str, text: str, time: str = None):
         super().__init__()
+
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+
 
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(10, 5, 10, 5)
@@ -717,6 +719,9 @@ class ToggleSwitchState:
 class Settings(ContentPageWidget):
     def __init__(self):
         super().__init__()
+
+        self.available_voices = BasicUtils.get_settings_config_value("available_silero_voices")
+        self.available_voices_reversed = BasicUtils.get_settings_config_value("available_silero_voices_reversed")
         self.side_panel_btn.setText("Настройки")
         self.side_panel_btn.setIcon(QIcon(icon_path("settings.png")))
         self.main_lay = QVBoxLayout(self)
@@ -814,7 +819,7 @@ class Settings(ContentPageWidget):
         self.speaker_frame_lay = QHBoxLayout(self.speaker_frame)
         self.speaker_frame_lay.setContentsMargins(10, 5, 5, 10)
         self.speaker_frame_lay.setSpacing(10)
-
+        
         # текстовая метка "Микрофон"
         self.speaker_label = QLabel("Диктор:")
         self.speaker_label.setStyleSheet(self.settings_text_qss)
@@ -822,7 +827,7 @@ class Settings(ContentPageWidget):
         self.speaker_dropbox = QComboBox()
         self.speaker_dropbox.setStyleSheet(self.dropbox_qss)
         self.speaker_dropbox.setMinimumHeight(30)
-
+        self.speaker_dropbox.addItems(list(self.available_voices.keys()))
         self.speaker_frame_lay.addWidget(self.speaker_label, 1)
         self.speaker_frame_lay.addWidget(self.speaker_dropbox, 1)
 
@@ -897,9 +902,10 @@ class Settings(ContentPageWidget):
             self.microphone_dropbox.setCurrentIndex(mic_index)
         
         # Диктор (по индексу)
-        speaker_index = settings_config.get("speaker_index", 0)
-        if 0 <= speaker_index < self.speaker_dropbox.count():
-            self.speaker_dropbox.setCurrentIndex(speaker_index)
+        
+
+        speaker = settings_config.get("tts_voice", "xenia")
+        self.speaker_dropbox.setCurrentText(self.available_voices_reversed[speaker])
 
         voice_model = settings_config.get("recognition_model", "auto")
         if voice_model == "auto":
@@ -932,9 +938,8 @@ class Settings(ContentPageWidget):
 
     def _on_speaker_changed(self, text):
         """Сохраняет выбранного диктора."""
-        index = self.speaker_dropbox.currentIndex()
-        BasicUtils.set_settings_config_value("speaker_index", index)
-        ui_signals.settings_changed.emit({"speaker": text})
+        BasicUtils.set_settings_config_value("tts_voice", self.available_voices[text])
+        ui_signals.settings_changed.emit({"tts_voice": self.available_voices[text]})
 
     def _on_theme_changed(self, theme_name: str):
         """Сохраняет выбранную тему."""
