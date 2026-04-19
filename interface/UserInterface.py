@@ -411,7 +411,6 @@ class Message(QWidget):
         
         self.text_label = QLabel(text)
         self.text_label.setWordWrap(True)   
-        self.text_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.text_label.setStyleSheet(THEMES[SELECTED_THEME]["message_text"])
         
         self.voice_btn = QPushButton()
@@ -442,6 +441,7 @@ class Message(QWidget):
             main_layout.addStretch()
             main_layout.addWidget(self.main_frame)
             main_layout.addWidget(self.voice_btn, Qt.AlignmentFlag.AlignBottom)
+
 
     def _apply_theme(self, theme: dict):
         """Обновляет стили сообщения."""

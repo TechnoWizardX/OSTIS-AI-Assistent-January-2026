@@ -15,9 +15,6 @@ from TTSSilero import SileroTTS
 import voiceVosk 
 
 DATABASE_EDITOR = DataBaseEditor()
-#print(f"📁 Текущая рабочая директория: {os.getcwd()}")
-#print(f"📁 Модель Vosk будет в: {os.path.abspath('./models/vosk-model-small-ru-0.22')}")
-
 WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
 VOSK_MODEL = voiceVosk.VoskRecognizer(model_path="./models/vosk-model-small-ru-0.22")
 
@@ -55,7 +52,7 @@ class AssistentCore():
             текст, и та уже создает сигнал, отправляющий сообщение
             4. Пользователь выключает кнопку -> Интерфейс создает сигнал с False -> Ядро принимает сигнал, выключает распознавание и пишет в настройки, что запись отключена
         """
-        BasicUtils.logger("CORE | VoiceInputChanged", "INFO", f"Статус голосового ввода (конфиг): {BasicUtils.get_settings_config_value("recording_enabled")}")
+        BasicUtils.logger("CORE | VoiceInputChanged", "INFO", f"Статус голосового ввода (конфиг): {BasicUtils.get_settings_config_value('recording_enabled')}")
         BasicUtils.logger("CORE | VoiceInputChanged", "INFO", f"Получен статус: {status}")
         if status and BasicUtils.get_settings_config_value("recording_enabled"):
             self.recognition_model= BasicUtils.get_settings_config_value("recognition_model")
