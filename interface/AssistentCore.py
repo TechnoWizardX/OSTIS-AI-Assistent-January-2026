@@ -10,6 +10,7 @@ if VOICE_INPUT_DIR not in sys.path:
 import threading
 from BasicUtils import BasicUtils, DataBaseEditor, global_signals
 import WhisperRecognition as Whisper
+from TTSSilero import SileroTTS 
 
 import voiceVosk 
 
@@ -20,7 +21,7 @@ DATABASE_EDITOR = DataBaseEditor()
 WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
 VOSK_MODEL = voiceVosk.VoskRecognizer(model_path="./models/vosk-model-small-ru-0.22")
 
-
+TTSSILERO_MODEL = SileroTTS()
 
 class AssistentCore():
     def __init__(self):
@@ -31,13 +32,14 @@ class AssistentCore():
 
         self.whisper_model = WHISPER_MODEL
         self.vosk_model = VOSK_MODEL
-        
+        self.tts_voice = BasicUtils.get_settings_config_value("tts_voice")
+        self.ttssilero_model = TTSSILERO_MODEL
         # Подписка на сигналы интерфейса
         ui_signals.message_sent.connect(self.on_message_sent)
         ui_signals.settings_changed.connect(self.on_settings_changed)
         ui_signals.voice_input_changed.connect(self.on_voice_input_changed)
         global_signals.voice_message_recognized.connect(self.voice_text_recived_core)
-
+        ui_signals.speaker_pressed.connect(self.text_to_speech)
     def on_voice_input_changed(self, status):
         """Принимает status: True - включена, False - выключена."""
         """
@@ -97,7 +99,33 @@ class AssistentCore():
         BasicUtils.logger("CORE | CheckBestVoiceRec", "INFO", f"Лучшее распознавание голоса: {self.recognition_model}")
         return self.recognition_model
    
-   
+    def text_to_speech(self, text: str):
+        """Преобразование текста в речь с выбором модели TTS в зависимости от настроек"""
+        if not text or not text.strip():
+            return
+        
+        # Получаем настройки
+        tts_speed = BasicUtils.get_settings_config_value("tts_speed")
+        tts_model = BasicUtils.get_settings_config_value("tts_model")
+        tts_voice = BasicUtils.get_settings_config_value("tts_voice")
+        
+        # Словарь с доступными TTS моделями
+        tts_engines = {
+            "silero": self.ttssilero_model,
+            # тут могут быть другие модели по анолии с silero
+            # 
+        }
+        
+        # Выбираем нужную модель или используем Silero по умолчанию
+        tts_engine = tts_engines.get(tts_model, self.ttssilero_model)
+        
+        if tts_model != "silero" and tts_model not in tts_engines:
+            BasicUtils.logger("CORE | TTS", "WARNING", f"Неизвестная модель TTS: {tts_model}, используем Silero")
+        
+        BasicUtils.logger("CORE | TTS", "INFO", f"TTS: модель={tts_model}, голос={tts_voice}, скорость={tts_speed}")
+        
+        # Воспроизводим
+        tts_engine.speak(text, tts_voice, tts_speed)
 
     def on_message_sent(self, sender : str = "Unknown", message : str = "No Message"):
         print(f"Message from {sender}: {message}")

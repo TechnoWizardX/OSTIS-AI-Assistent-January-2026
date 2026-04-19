@@ -13,3 +13,4 @@ sounddevice
 vosk
 pyqt6
 pyaudio
+librosa

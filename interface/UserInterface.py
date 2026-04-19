@@ -53,6 +53,7 @@ class Signals(QObject):
     message_sent = pyqtSignal(str, str)
     voice_input_changed = pyqtSignal(bool)
     voice_message_received = pyqtSignal(str)
+    speaker_pressed = pyqtSignal(str)
 ui_signals = Signals()
 # ===========================================================
 # ГЛАВНЫЙ ИНТЕРФЕЙС
@@ -409,10 +410,16 @@ class Message(QWidget):
         self.author_label.setStyleSheet(THEMES[SELECTED_THEME]["message_author"])
         
         self.text_label = QLabel(text)
-        self.text_label.setWordWrap(True)
+        self.text_label.setWordWrap(True)   
         self.text_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.text_label.setStyleSheet(THEMES[SELECTED_THEME]["message_text"])
         
+        self.voice_btn = QPushButton()
+        self.voice_btn.setFixedSize(40, 40)
+        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME]["speaker_button"])
+        self.voice_btn.setIcon(QIcon(icon_path("speaker.png")))
+        self.voice_btn.setIconSize(QSize(25, 25))
+        self.voice_btn.clicked.connect(lambda: ui_signals.speaker_pressed.emit(text))  
         self.time_label = QLabel(self.time)
         self.time_label.setStyleSheet(THEMES[SELECTED_THEME]["message_time"])
         
@@ -425,8 +432,16 @@ class Message(QWidget):
         self.main_frame_lay.addWidget(self.text_label)
         self.main_frame_lay.addLayout(time_layout)
         
-        main_layout.addWidget(self.main_frame)
-        main_layout.addStretch()  # Прижимаем сообщение влево
+        if author == "user":
+            # Справа: Кнопка -> Сообщение -> Stretch
+            main_layout.addWidget(self.voice_btn, Qt.AlignmentFlag.AlignBottom)
+            main_layout.addWidget(self.main_frame)
+            main_layout.addStretch()
+        else:
+            # Слева: Stretch -> Сообщение -> Кнопка
+            main_layout.addStretch()
+            main_layout.addWidget(self.main_frame)
+            main_layout.addWidget(self.voice_btn, Qt.AlignmentFlag.AlignBottom)
 
     def _apply_theme(self, theme: dict):
         """Обновляет стили сообщения."""

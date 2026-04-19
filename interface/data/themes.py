@@ -372,6 +372,27 @@ _QSS = {
             border: 3px solid {voice_checked_border};
         }}
     """,
+    "speaker_button": """
+        QPushButton {{
+            background-color: {bg_button};
+            border-radius: 8px;
+            border: 3px solid transparent;
+            padding: 2px;
+        }}
+        QPushButton:hover {{
+            background-color: {bg_button_hover};
+            border: 2px solid {border_hover};
+        }}
+        QPushButton:pressed {{
+            background-color: {bg_button_pressed};
+            border: 2px solid {border_pressed};
+        }}
+        QPushButton:checked {{
+            background-color: {voice_checked_bg};
+            border: 2px solid {voice_checked_border};
+        }}
+    """,
+
 
     "send_button": """
         QPushButton {{
