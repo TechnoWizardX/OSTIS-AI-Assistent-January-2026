@@ -371,71 +371,49 @@ class ChatSendBox(QWidget):
         self.send_btn.setStyleSheet(theme["send_button"])
 
 
-class Message(QWidget):
-    """Виджет-сообщение в чате"""
+class Message(QFrame):
+    """Пузырёк сообщения — ширина по тексту, от 100 до 500 пикселей."""
+    
     def __init__(self, author: str, text: str, time: str = None):
         super().__init__()
-        
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
-        
-        # Используем QHBoxLayout для контроля ширины
-        main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(10, 5, 10, 5)
-        
-        self.main_frame = QFrame()
-        self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["message_frame"])
-        
-        # Устанавливаем максимальную ширину
-        max_width = 500
-        self.main_frame.setMaximumWidth(max_width)
-        self.main_frame.setMinimumWidth(100)
-        
-        self.main_frame_lay = QVBoxLayout(self.main_frame)
-        self.main_frame_lay.setContentsMargins(12, 10, 12, 10)
-        self.main_frame_lay.setSpacing(5)
-        
-        if author == "user":
-            self.author = "Вы"
-        else:
-            self.author = author
-    
-        
-        if time is None:
-            self.time = datetime.now().strftime("%H:%M")
-        else:
-            self.time = time
 
-        self.author_label = QLabel(self.author)
+        # Policy.Maximum — не растягиваться больше sizeHint (т.е. по ширине текста)
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
+        self.setMinimumWidth(100)   # даже короткий текст не уже 100px
+        self.setMaximumWidth(500)   # длинный текст не шире 500px
+        self.setStyleSheet(THEMES[SELECTED_THEME]["message_frame"])
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(5)
+
+        # Имя автора
+        display = "Вы" if author == "user" else author
+        self.author_label = QLabel(display)
         self.author_label.setStyleSheet(THEMES[SELECTED_THEME]["message_author"])
-        
+        layout.addWidget(self.author_label)
+
+        # Текст
         self.text_label = QLabel(text)
         self.text_label.setWordWrap(True)
-        self.text_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.text_label.setStyleSheet(THEMES[SELECTED_THEME]["message_text"])
-        
-        self.time_label = QLabel(self.time)
+        layout.addWidget(self.text_label)
+
+        # Время
+        time_str = time or datetime.now().strftime("%H:%M")
+        self.time_label = QLabel(time_str)
         self.time_label.setStyleSheet(THEMES[SELECTED_THEME]["message_time"])
-        
-        # Создаем горизонтальный layout для времени (чтобы прижать вправо)
         time_layout = QHBoxLayout()
         time_layout.addStretch()
         time_layout.addWidget(self.time_label)
-        
-        self.main_frame_lay.addWidget(self.author_label)
-        self.main_frame_lay.addWidget(self.text_label)
-        self.main_frame_lay.addLayout(time_layout)
-        
-        main_layout.addWidget(self.main_frame)
-        main_layout.addStretch()  # Прижимаем сообщение влево
+        layout.addLayout(time_layout)
 
     def _apply_theme(self, theme: dict):
-        """Обновляет стили сообщения."""
-        self.main_frame.setStyleSheet(theme["message_frame"])
+        self.setStyleSheet(theme["message_frame"])
         self.author_label.setStyleSheet(theme["message_author"])
         self.text_label.setStyleSheet(theme["message_text"])
         self.time_label.setStyleSheet(theme["message_time"])
-
-
+        
 class DialogBox(QWidget):
     """Чат (здесь отображаются сообщения)"""
     def __init__(self):
@@ -466,19 +444,28 @@ class DialogBox(QWidget):
         self.load_history()
 
     def add_message(self, author: str, text: str, time: str = None):
-        """Добавляет сообщение в чат."""
-        print(f"[DialogBox ID: {id(self)}] Добавлено сообщение")
-        
-        message = Message(author, text, time)
-        alignment = Qt.AlignmentFlag.AlignLeft
-        if author == "user":
-            alignment = Qt.AlignmentFlag.AlignRight
-        else:
-            alignment = Qt.AlignmentFlag.AlignLeft
-        count = self.main_frame_lay.count()
-        self.main_frame_lay.insertWidget(count - 1, message, alignment=alignment)
-        self._scroll_to_bottom()
+        # Контейнер, который займёт всю ширину чата
+        container = QWidget()
+        container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        h_layout = QHBoxLayout(container)
+        h_layout.setContentsMargins(0, 0, 0, 0)
+        h_layout.setSpacing(0)
 
+        msg = Message(author, text, time)
+        msg.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)  # запрет расширения
+
+        # Прижимаем пузырёк к нужному краю
+        if author == "user":
+            h_layout.addStretch()      # растяжка слева → пузырёк справа
+            h_layout.addWidget(msg)
+        else:
+            h_layout.addWidget(msg)
+            h_layout.addStretch()      # растяжка справа → пузырёк слева
+
+        # Вставляем перед последним stretch в вертикальном layout чата
+        self.main_frame_lay.insertWidget(self.main_frame_lay.count() - 1, container)
+        QTimer.singleShot(50, self._scroll_to_bottom)
+    
     def _scroll_to_bottom(self):
         scroll_bar = self.scroll_area.verticalScrollBar()
         scroll_bar.setValue(scroll_bar.maximum())
@@ -797,7 +784,7 @@ class Settings(ContentPageWidget):
         self.grid_lay.addWidget(self.voice_model_frame, 2, 0)
         
         self.voice_model_dropbox = QComboBox()
-        self.voice_model_list = AVAILABLE_VOICE_MODELS + ["Автоматическая"]
+        self.voice_model_list = (AVAILABLE_VOICE_MODELS or []) + ["Автоматическая"]
         self.voice_model_dropbox.addItems(self.voice_model_list)
         self.voice_model_dropbox.setStyleSheet(self.dropbox_qss)
         self.voice_model_dropbox.setMinimumHeight(30)
