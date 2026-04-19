@@ -1,0 +1,32 @@
+{
+    "theme": "twilight",
+    "last_message_send": null,
+    "recording_enabled": true,
+    "camera_index": 0,
+    "microphone_index": 0,
+    "voice_send_directly": false,
+    "gesture_send_directly": false,
+    "recognition_model": "auto",
+    "available_silero_voices": {
+        "Сеня": "xenia",
+        "Евгений": "eugene",
+        "Байя": "baya",
+        "Айдар": "aidar",
+        "Ксения": "kseniya"
+    },
+    "available_silero_voices_reversed": {
+        "xenia": "Сеня",
+        "eugene": "Евгений",
+        "baya": "Байя",
+        "aidar": "Айдар",
+        "kseniya": "Ксения"
+    },
+    "tts_voice": "kseniya",
+    "tts_model": "silero",
+    "tts_speed": 1,
+    "available_recognition_models": [
+        "faster-whisper",
+        "vosk"
+    ],
+    "speaker_index": 0
+}
