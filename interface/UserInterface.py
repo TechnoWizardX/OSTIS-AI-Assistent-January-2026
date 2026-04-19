@@ -54,6 +54,9 @@ class Signals(QObject):
     voice_input_changed = pyqtSignal(bool)
     voice_message_received = pyqtSignal(str)
     speaker_pressed = pyqtSignal(str)
+    speaker_stop_all = pyqtSignal()        # сброс всех кнопок для воспроизведения
+    speaker_stop_request = pyqtSignal()    # остановка воспроизведения
+    speaker_finished = pyqtSignal()        # конец воспроизведения без вмешательства
 ui_signals = Signals()
 # ===========================================================
 # ГЛАВНЫЙ ИНТЕРФЕЙС
@@ -184,7 +187,6 @@ class UserInterface(QMainWindow):
         self.gestures_input_page.stop_camera()
         BasicUtils.logger("IAMOS", "INFO", "Завершение работы")
         super().closeEvent(event)
-
 
 
 
@@ -418,10 +420,19 @@ class Message(QWidget):
         # Кнопка озвучки (динамик)
         self.voice_btn = QPushButton()
         self.voice_btn.setFixedSize(40, 40)
-        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME].get("speaker_button", ""))
+        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME].get("speaker_button", "") + 
+                                     "QPushButton:checked { background-color: #4CAF50; }")  # зелёный цвет
         self.voice_btn.setIcon(QIcon(icon_path("speaker.png")))
         self.voice_btn.setIconSize(QSize(25, 25))
-        self.voice_btn.clicked.connect(lambda: ui_signals.speaker_pressed.emit(text))
+        
+        self.text_content = text                     # сохраняем текст
+        self.is_playing = False                      # состояние воспроизведения
+        self.voice_btn.setCheckable(True)            # кнопка может быть нажата
+        self.voice_btn.clicked.connect(self._on_voice_clicked)
+
+        # Подключаем глобальные сигналы
+        ui_signals.speaker_stop_all.connect(self._reset_button)
+        ui_signals.speaker_finished.connect(self._reset_button)
 
         # Расположение: для пользователя кнопка слева, для других — справа
         if author == "user":
@@ -432,14 +443,33 @@ class Message(QWidget):
             main_layout.addWidget(self.main_frame)
             main_layout.addWidget(self.voice_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
             main_layout.addStretch()                                   # прижимаем влево
+    
+    def _on_voice_clicked(self):
+        """Обработчик нажатия на кнопку динамика."""
+        if self.is_playing:
+            # Остановить текущее воспроизведение
+            ui_signals.speaker_stop_request.emit()
+            self._reset_button()
+        else:
+            # Сбросить все другие кнопки, затем запустить новое
+            ui_signals.speaker_stop_all.emit()
+            ui_signals.speaker_pressed.emit(self.text_content)
+            self.is_playing = True
+        self.voice_btn.setChecked(True)
 
+    def _reset_button(self):
+        """Возвращает кнопку в исходное неактивное состояние."""
+        self.is_playing = False
+        self.voice_btn.setChecked(False)        
+        
     def _apply_theme(self, theme: dict):
         self.main_frame.setStyleSheet(theme["message_frame"])
         self.author_label.setStyleSheet(theme["message_author"])
         self.text_label.setStyleSheet(theme["message_text"])
         self.time_label.setStyleSheet(theme["message_time"])
         if hasattr(self, 'voice_btn'):
-            self.voice_btn.setStyleSheet(theme.get("speaker_button", ""))
+            base_style = theme.get("speaker_button", "")
+            self.voice_btn.setStyleSheet(base_style + "QPushButton:checked { background-color: #4CAF50; }")    
 
 class DialogBox(QWidget):
     """Чат (здесь отображаются сообщения)"""
@@ -540,6 +570,7 @@ class ContentPageWidget(QWidget):
         self.settings_text_qss = theme["settings_text"]
         self.dropbox_qss = theme["settings_combobox"]
 
+     
         
 # ===========================================================
 # КАСТОМНЫЙ ПЕРЕКЛЮЧАТЕЛЬ
@@ -981,9 +1012,6 @@ class Settings(ContentPageWidget):
 # ===========================================================
 # ПРОФИЛЬ
 # ===========================================================
-
-
-
 class ProfileOption(QFrame):
     """
     Виджет строки профиля: Название | Значение | Кнопки управления.

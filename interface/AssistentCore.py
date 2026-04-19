@@ -37,6 +37,7 @@ class AssistentCore():
         ui_signals.voice_input_changed.connect(self.on_voice_input_changed)
         global_signals.voice_message_recognized.connect(self.voice_text_recived_core)
         ui_signals.speaker_pressed.connect(self.text_to_speech)
+        ui_signals.speaker_stop_request.connect(self.stop_speech)
     def on_voice_input_changed(self, status):
         """Принимает status: True - включена, False - выключена."""
         """
@@ -101,6 +102,9 @@ class AssistentCore():
         if not text or not text.strip():
             return
         
+        # Останавливаем предыдущее воспроизведение и сбрасываем все кнопки
+        self.stop_speech()
+        
         # Получаем настройки
         tts_speed = BasicUtils.get_settings_config_value("tts_speed")
         tts_model = BasicUtils.get_settings_config_value("tts_model")
@@ -109,8 +113,7 @@ class AssistentCore():
         # Словарь с доступными TTS моделями
         tts_engines = {
             "silero": self.ttssilero_model,
-            # тут могут быть другие модели по анолии с silero
-            # 
+            # тут могут быть другие модели по аналогии с silero
         }
         
         # Выбираем нужную модель или используем Silero по умолчанию
@@ -121,8 +124,29 @@ class AssistentCore():
         
         BasicUtils.logger("CORE | TTS", "INFO", f"TTS: модель={tts_model}, голос={tts_voice}, скорость={tts_speed}")
         
-        # Воспроизводим
-        tts_engine.speak(text, tts_voice, tts_speed)
+        # Функция обратного вызова по окончании воспроизведения
+        def on_finished():
+            BasicUtils.logger("CORE | TTS", "INFO", "Воспроизведение завершено")
+            ui_signals.speaker_finished.emit()
+        
+        # Запускаем асинхронное воспроизведение с callback
+        if hasattr(tts_engine, 'speak_async'):
+            tts_engine.speak_async(text, tts_voice, tts_speed, callback=on_finished)
+        else:
+            # fallback на обычный speak (без callback)
+            tts_engine.speak(text, tts_voice, tts_speed)
+            # В этом случае кнопка не сбросится автоматически, но можно запустить таймер
+            BasicUtils.logger("CORE | TTS", "WARNING", "Модель TTS не поддерживает speak_async, кнопка не сбросится автоматически")
+        
+    def stop_speech(self):
+        """Останавливает текущее воспроизведение речи и сбрасывает кнопки."""
+        if hasattr(self.ttssilero_model, 'stop'):
+            self.ttssilero_model.stop()
+            BasicUtils.logger("CORE | TTS", "INFO", "Воспроизведение остановлено пользователем")
+            # Сбрасываем все кнопки динамиков
+            ui_signals.speaker_stop_all.emit()
+        else:
+            BasicUtils.logger("CORE | TTS", "WARNING", "Модель TTS не поддерживает остановку")    
 
     def on_message_sent(self, sender : str = "Unknown", message : str = "No Message"):
         print(f"Message from {sender}: {message}")
