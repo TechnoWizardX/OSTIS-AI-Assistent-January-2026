@@ -4,19 +4,19 @@ from PyQt6.QtCore import pyqtSignal, QObject
 import sys
 import os
 from datetime import datetime
-VOICE_INPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'samples', 'VoiceInput'))
+VOICE_INPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'interface', 'VoiceInput'))
 if VOICE_INPUT_DIR not in sys.path:
     sys.path.insert(0, VOICE_INPUT_DIR)
 import threading
 from BasicUtils import BasicUtils, DataBaseEditor, global_signals
-import WhisperRecognition as Whisper
+import VoiceInput.WhisperRecognition as Whisper
 from TTSSilero import SileroTTS 
 
-import voiceVosk 
+import VoiceInput.VoskRecognition as Vosk 
 
 DATABASE_EDITOR = DataBaseEditor()
 WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
-VOSK_MODEL = voiceVosk.VoskRecognizer(model_path="./models/vosk-model-small-ru-0.22")
+VOSK_MODEL = Vosk.VoskRecognizer(model_path="./models/vosk-model-small-ru-0.22")
 
 TTSSILERO_MODEL = SileroTTS()
 
