@@ -93,6 +93,11 @@ class BasicUtils:
     def save_chat_history(chat_history) -> None:
         with open(CHAT_FILE, "w", encoding="utf-8") as file:
             json.dump(chat_history, file, ensure_ascii=False, indent=4)
+    
+    @staticmethod
+    def clear_chat_history() -> None:
+        """Очищает файл истории чата (сохраняет пустой список)."""
+        BasicUtils.save_chat_history([])        
 
     @staticmethod
     def add_message(author: str, message: str):

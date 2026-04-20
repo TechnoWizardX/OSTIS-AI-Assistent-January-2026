@@ -57,7 +57,9 @@ class Signals(QObject):
     speaker_stop_all = pyqtSignal()        # сброс всех кнопок для воспроизведения
     speaker_stop_request = pyqtSignal()    # остановка воспроизведения
     speaker_finished = pyqtSignal()        # конец воспроизведения без вмешательства
-ui_signals = Signals()
+    history_cleared = pyqtSignal()          # для обновления чатов после очистки
+    clear_history_requested = pyqtSignal()  # запрос на очистку истории (отправляется в ядро)ui_signals = Signals()
+ui_signals = Signals()    
 # ===========================================================
 # ГЛАВНЫЙ ИНТЕРФЕЙС
 # ===========================================================
@@ -130,10 +132,35 @@ class UserInterface(QMainWindow):
             self.content_panel.addWidget(page)
             self.side_panel_lay.addWidget(btn)
 
-
-
+        # Растяжка – занимает всё свободное место между кнопками страниц и кнопкой очистки
         self.side_panel_lay.addStretch(1)
 
+        # Кнопка очистки истории – будет в самом низу
+        self.clear_history_btn = QPushButton("Очистить историю")
+        self.clear_history_btn.setFixedSize(160, 40)
+        self.clear_history_btn.setCheckable(False)
+        self.clear_history_btn.setIcon(QIcon(icon_path("delete.png")))
+        self.clear_history_btn.setIconSize(QSize(25, 25))
+        self.clear_history_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #d32f2f;
+                border: none;
+                border-radius: 8px;
+                color: white;
+                font-weight: bold;
+                text-align: left;
+                padding-left: 15px;
+            }
+            QPushButton:hover {
+                background-color: #b71c1c;
+            }
+            QPushButton:pressed {
+                background-color: #9a0007;
+            }
+        """)
+        self.clear_history_btn.clicked.connect(self._on_clear_history_clicked)
+        self.clear_history_btn.setVisible(False)
+        self.side_panel_lay.addWidget(self.clear_history_btn)
 
         self.main_lay.addWidget(self.side_panel, 2)
         self.main_lay.addWidget(self.content_panel, 7)
@@ -144,6 +171,14 @@ class UserInterface(QMainWindow):
 
         # Подписываемся на смену темы
         ui_signals.settings_changed.connect(self._on_settings_changed)
+        
+    def _on_clear_history_clicked(self):
+        reply = QMessageBox.question(
+            self, "Подтверждение", "Вы уверены, что хотите очистить всю историю сообщений?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            ui_signals.clear_history_requested.emit()
 
     def _on_settings_changed(self, changes: dict):
         """Реагируем на изменение настроек (в т.ч. темы)."""
@@ -176,8 +211,16 @@ class UserInterface(QMainWindow):
         ui_signals.settings_changed.emit({"theme": theme_name})
 
     def _on_page_changed(self, index):
-        """При переключении на другую страницу — останавливаем камеру."""
+        """При переключении страницы: управление камерой и видимостью кнопки очистки"""
         page = self.content_panel.widget(index)
+        
+        # Показывать кнопку очистки только на страницах с чатом
+        if isinstance(page, (VoiceInput, TextInput, GesturesInput)):
+            self.clear_history_btn.setVisible(True)
+        else:
+            self.clear_history_btn.setVisible(False)
+        
+        # Остановка камеры, если ушли со страницы жестов
         if page is not self.gestures_input_page:
             if self.gestures_input_page.camera_thread is not None:
                 self.gestures_input_page.stop_camera()
@@ -481,6 +524,7 @@ class DialogBox(QWidget):
         except Exception:
             pass
         ui_signals.message_sent.connect(self.add_message)
+        ui_signals.history_cleared.connect(self.reload_history)
         self._message_handler = None
         self.dialog_box_lay = QVBoxLayout(self)  
         self.scroll_area = QScrollArea()
@@ -515,6 +559,16 @@ class DialogBox(QWidget):
         history = BasicUtils.load_chat_history()
         for message in history:
             self.add_message(message["author"], message["text"], message["time"])
+    
+    def reload_history(self):
+        """Очищает текущие сообщения и перезагружает историю из файла"""
+        # Удаляем все виджеты сообщений, оставляя только растяжку (последний элемент)
+        while self.main_frame_lay.count() > 1:
+            item = self.main_frame_lay.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        # Загружаем историю заново
+        self.load_history()        
 
     def _apply_theme(self, theme: dict):
         """Обновляет стили чата."""

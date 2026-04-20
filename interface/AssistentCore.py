@@ -38,6 +38,18 @@ class AssistentCore():
         global_signals.voice_message_recognized.connect(self.voice_text_recived_core)
         ui_signals.speaker_pressed.connect(self.text_to_speech)
         ui_signals.speaker_stop_request.connect(self.stop_speech)
+        ui_signals.clear_history_requested.connect(self.clear_chat_history)
+        
+    def clear_chat_history(self):
+        """Очищает историю чата через BasicUtils с логированием"""
+        BasicUtils.logger("CORE | ClearHistory", "INFO", "Запрошена очистка истории чата")
+        try:
+            BasicUtils.clear_chat_history()  # новый метод из BasicUtils
+            BasicUtils.logger("CORE | ClearHistory", "INFO", "История чата успешно очищена")
+            ui_signals.history_cleared.emit()
+        except Exception as e:
+            BasicUtils.logger("CORE | ClearHistory", "ERROR", f"Ошибка при очистке истории: {e}")  
+        
     def on_voice_input_changed(self, status):
         """Принимает status: True - включена, False - выключена."""
         """
