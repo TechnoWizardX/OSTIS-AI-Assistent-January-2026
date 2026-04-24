@@ -1,5 +1,9 @@
 {
-    "theme": "twilight",
+    "Wifi": {
+        "ssid": "",
+        "password": ""
+    },
+    "theme": "gruvbox",
     "last_message_send": null,
     "recording_enabled": true,
     "camera_index": 0,

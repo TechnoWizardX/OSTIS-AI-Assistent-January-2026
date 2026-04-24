@@ -14,3 +14,5 @@ vosk
 pyqt6
 pyaudio
 librosa
+AppOpener
+pyautogui
