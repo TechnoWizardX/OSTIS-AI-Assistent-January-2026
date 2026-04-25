@@ -39,7 +39,12 @@ class AssistentCore():
         ui_signals.speaker_pressed.connect(self.text_to_speech)
         ui_signals.speaker_stop_request.connect(self.stop_speech)
         ui_signals.clear_history_requested.connect(self.clear_chat_history)
+        global_signals.error_signal.connect(self.handle_error)
         
+    def handle_error(self, error_message: str):
+        """Обработка ошибок, полученных из разных частей системы, с логированием"""
+        self.text_to_speech(error_message)
+
     def clear_chat_history(self):
         """Очищает историю чата через BasicUtils с логированием"""
         BasicUtils.logger("CORE | ClearHistory", "INFO", "Запрошена очистка истории чата")
@@ -49,7 +54,8 @@ class AssistentCore():
             ui_signals.history_cleared.emit()
         except Exception as e:
             BasicUtils.logger("CORE | ClearHistory", "ERROR", f"Ошибка при очистке истории: {e}")  
-        
+            global_signals.error_signal.emit(f"Ошибка при очистке истории: {e}")
+
     def on_voice_input_changed(self, status):
         """Принимает status: True - включена, False - выключена."""
         """
@@ -162,6 +168,7 @@ class AssistentCore():
 
     def on_message_sent(self, sender : str = "Unknown", message : str = "No Message"):
         print(f"Message from {sender}: {message}")
+    
     def update_voice_recognition_model(self, new_model: str):
         """Функция, перезапускающая модель в реальном времени, если та включена"""
         if new_model != self.recognition_model:
@@ -187,7 +194,6 @@ class AssistentCore():
         BasicUtils.logger("CORE | SettingsConfiguration", "INFO", f"Настройки конфигурации обновлены: {new_settings}") 
         if "recognition_model" in new_settings:
             self.update_voice_recognition_model(new_settings["recognition_model"])
-            
 
     def voice_text_recived_core(self, text: str):
         """Приём распознанного текста и пересылка в интерфейс"""

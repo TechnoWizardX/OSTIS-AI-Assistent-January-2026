@@ -3,7 +3,7 @@
         "ssid": "",
         "password": ""
     },
-    "theme": "gruvbox",
+    "theme": "nord",
     "last_message_send": null,
     "recording_enabled": true,
     "camera_index": 0,
@@ -25,7 +25,7 @@
         "aidar": "Айдар",
         "kseniya": "Ксения"
     },
-    "tts_voice": "kseniya",
+    "tts_voice": "aidar",
     "tts_model": "silero",
     "tts_speed": 1,
     "available_recognition_models": [

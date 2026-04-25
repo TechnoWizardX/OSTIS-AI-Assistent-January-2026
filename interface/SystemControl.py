@@ -6,7 +6,7 @@ import win32process
 import psutil
 import webbrowser
 import pyautogui
-from BasicUtils import BasicUtils 
+from BasicUtils import BasicUtils, global_signals 
 import os
 import ctypes
 from comtypes import CLSCTX_ALL
@@ -25,7 +25,8 @@ class ControlSystem:
             BasicUtils.logger("SystemControl", "INFO", f"Открыт сайт: {url}")
         except Exception as e:
             BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при открытии сайта: {e}")
-    
+            global_signals.error_signal.emit(f"Не удалось открыть сайт")
+
     @staticmethod
     def close_current_tab():
         """Отправляет команду закрытия текущей вкладки (Ctrl+W)"""
@@ -34,6 +35,7 @@ class ControlSystem:
             BasicUtils.logger("SystemControl", "INFO", f"Отправлена команда закрытия вкладки (Ctrl+W)")
         except Exception as e:
             BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при закрытии вкладки: {e}")
+            global_signals.error_signal.emit(f"Не удалось закрыть вкладку")
     
     @staticmethod
     def set_brightness(level: int):
@@ -44,60 +46,7 @@ class ControlSystem:
             BasicUtils.logger("SystemControl", "INFO", f"Установлена яркость {level}")
         except Exception as e:
             BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при установке яркости: {e}")
-
-    @staticmethod
-    def get_brightness():
-
-        return sbc.get_brightness()
-
-    @staticmethod
-    def open_application(app_name: str):
-        """Открывает приложение по имени"""
-        try:
-            AppOpener.open(app_name, output=False, match_closest=True, throw_error=False)
-            BasicUtils.logger("SystemControl", "INFO", f"Открыто приложение {app_name}")
-        except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при открытии приложения {app_name}: {e}")
-
-    @staticmethod
-    def close_application(app_name: str):
-        """Закрывает приложение по имени"""
-        try:
-            AppOpener.close(app_name, output=False, match_closest=True, throw_error=False)
-            BasicUtils.logger("SystemControl", "INFO", f"Закрыто приложение {app_name}")
-        except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при закрытии приложения {app_name}: {e}")
-    
-    @staticmethod
-    def reload_application(app_name: str):
-        """Перезагружает приложение по имени"""
-        try:
-            ControlSystem.close_application(app_name)
-            time.sleep(2)  # Небольшая задержка для корректного закрытия
-            ControlSystem.open_application(app_name)
-            BasicUtils.logger("SystemControl", "INFO", f"Перезагружено приложение {app_name}")
-        except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при перезагрузке приложения {app_name}: {e}")
-    
-    @staticmethod
-    def get_active_app():
-        """Определяет активное приложение"""
-        try:
-            # Получаем дескриптор активного окна
-            hwnd = win32gui.GetForegroundWindow()
-            # Получаем ID процесса
-            _, pid = win32process.GetWindowThreadProcessId(hwnd)
-            # Получаем объект процесса
-            process = psutil.Process(pid)
-            
-            # Извлекаем имя (например, 'chrome.exe') и убираем расширение
-            app_name = process.name().replace(".exe", "").lower()
-            
-            BasicUtils.logger("SystemControl", "INFO", f"Активное приложение определено: {app_name}")
-            return app_name
-        except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при определении приложения: {e}")
-            return None
+            global_signals.error_signal.emit(f"Не удалось установить яркость")  
     
     @staticmethod
     def set_volume(level: int):
@@ -123,7 +72,65 @@ class ControlSystem:
             BasicUtils.logger("SystemControl", "INFO", f"Громкость установлена на {level}%")
         except Exception as e:
             BasicUtils.logger("SystemControl","ERROR", f"Ошибка громкости: {e}")
-   
+            global_signals.error_signal.emit(f"Не удалось установить громкость")
+    
+    @staticmethod
+    def get_brightness():
+
+        return sbc.get_brightness()
+
+    @staticmethod
+    def open_application(app_name: str):
+        """Открывает приложение по имени"""
+        try:
+            AppOpener.open(app_name, output=False, match_closest=True, throw_error=False)
+            BasicUtils.logger("SystemControl", "INFO", f"Открыто приложение {app_name}")
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при открытии приложения {app_name}: {e}")
+            global_signals.error_signal.emit(f"Не удалось открыть приложение")
+
+    @staticmethod
+    def close_application(app_name: str):
+        """Закрывает приложение по имени"""
+        try:
+            AppOpener.close(app_name, output=False, match_closest=True, throw_error=False)
+            BasicUtils.logger("SystemControl", "INFO", f"Закрыто приложение {app_name}")
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при закрытии приложения {app_name}: {e}")
+            global_signals.error_signal.emit(f"Не удалось закрыть приложение")
+    
+    @staticmethod
+    def reload_application(app_name: str):
+        """Перезагружает приложение по имени"""
+        try:
+            ControlSystem.close_application(app_name)
+            time.sleep(2)  # Небольшая задержка для корректного закрытия
+            ControlSystem.open_application(app_name)
+            BasicUtils.logger("SystemControl", "INFO", f"Перезагружено приложение {app_name}")
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при перезагрузке приложения {app_name}: {e}")
+            global_signals.error_signal.emit(f"Не удалось перезагрузить приложение")
+
+    @staticmethod
+    def get_active_app():
+        """Определяет активное приложение"""
+        try:
+            # Получаем дескриптор активного окна
+            hwnd = win32gui.GetForegroundWindow()
+            # Получаем ID процесса
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+            # Получаем объект процесса
+            process = psutil.Process(pid)
+            
+            # Извлекаем имя (например, 'chrome.exe') и убираем расширение
+            app_name = process.name().replace(".exe", "").lower()
+            
+            BasicUtils.logger("SystemControl", "INFO", f"Активное приложение определено: {app_name}")
+            return app_name
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при определении приложения: {e}")
+            return None
+    
     @staticmethod
     def empty_recycle_bin():
         """Очистка корзины через официальный WinAPI"""
@@ -142,6 +149,7 @@ class ControlSystem:
                 BasicUtils.logger("SystemControl", "INFO|ERROR", f"Корзина: код результата {result} (возможно, она уже пуста)")
         except Exception as e:
             BasicUtils.logger("SystemControl", "ERROR", f"Ошибка очистки корзины: {e}")
+            global_signals.error_signal.emit(f"Ну далось очистить корзину, возможно она уже пуста")
     
     @staticmethod
     def os_sleep():
@@ -153,6 +161,7 @@ class ControlSystem:
             BasicUtils.logger("SystemControl", "INFO", "Система уходит в спящий режим")
         except Exception as e:
             BasicUtils.logger("SystemControl", "ERROR", f"Ошибка перехода в сон: {e}")
+            global_signals.error_signal.emit(f"Не удалось перевести компьютер в спящий режим")
 
     @staticmethod
     def os_shutdown(delay=60):
@@ -174,7 +183,8 @@ class ControlSystem:
             BasicUtils.logger("SystemControl", "INFO", "Выключение отменено")
         except Exception as e:
             BasicUtils.logger("SystemControl", "INFO|ERROR", "Нет запланированных выключений для отмены")
-
+            global_signals.error_signal.emit(f"Нет запланированных выключений для отмены")
+    
     @staticmethod
     def reboot(delay=0):
         """Перезагрузка ПК через время (по умолчанию 0 секунд)"""
@@ -184,6 +194,7 @@ class ControlSystem:
             BasicUtils.logger("SystemControl", "INFO", "Перезагрузка запланирована")
         except Exception as e:
             BasicUtils.logger("SystemControl", "ERROR", f"Ошибка команды перезагрузки: {e}")
+            global_signals.error_signal.emit(f"Ошибка перезагрузки")
 
     @staticmethod
     def disconnect_wifi():
@@ -203,7 +214,8 @@ class ControlSystem:
                 BasicUtils.logger("SystemControl", f"Не удалось отключить Wi-Fi: {result.stderr}")
         except Exception as e:
             BasicUtils.logger("SystemControl", f"Ошибка при попытке отключения: {e}")
-    
+            global_signals.error_signal.emit(f"Не удалось отключиться от сети")
+
     @staticmethod
     def connect_wifi(ssid_name: str = CONFIG.get("ssid")):
         """Подключается к сохраненной Wi-Fi сети по её имени (SSID)"""
@@ -219,6 +231,7 @@ class ControlSystem:
                 BasicUtils.logger("SystemControl", f"Ошибка подключения: {result.stderr}")
         except Exception as e:
             BasicUtils.logger("SystemControl", f"Ошибка при попытке подключения: {e}")
+            global_signals.error_signal.emit(f"Не удалось подключиться к сети")
 
     @staticmethod
     def get_current_wifi_name():
@@ -234,6 +247,99 @@ class ControlSystem:
         except:
             return None
     
-ControlSystem.disconnect_wifi()
-time.sleep(5)
-ControlSystem.connect_wifi("Blue Box 2")
+    @staticmethod
+    def insert_text(text: str, target_word: str = None, target_app: str = None):
+        """
+        Вставка: забирает весь текст, обрабатывает в Python и вставляет обратно.
+        """
+        try:
+            import pyperclip
+            import pyautogui
+            import time
+            from AppOpener import open as open_app
+
+            if target_app:
+                BasicUtils.logger("SystemControl", "INFO", f"Переключение на {target_app}")
+                open_app(target_app, match_closest=True)
+                time.sleep(0.7)
+
+            original_buffer = pyperclip.paste()
+
+            if target_word:
+                # 2. Забираем текст из приложения
+                pyautogui.hotkey('ctrl', 'a')
+                time.sleep(0.1)
+                pyautogui.hotkey('ctrl', 'c')
+                time.sleep(0.2) # Ждем, пока текст долетит в буфер
+                
+                current_text = pyperclip.paste()
+
+                # 3. Ищем якорь и модифицируем текст
+                if target_word in current_text:
+                    # Вставляем текст после первого вхождения слова
+                    parts = current_text.split(target_word, 1)
+                    updated_text = parts[0] + target_word + " " + text + parts[1]
+                    
+                    # 4. Возвращаем обновленный текст в приложение
+                    pyperclip.copy(updated_text)
+                    time.sleep(0.1)
+                    pyautogui.hotkey('ctrl', 'v')
+                    
+                    BasicUtils.logger("SystemControl", "INFO", f"Текст успешно внедрен после '{target_word}'")
+                else:
+                    # Если слово не найдено, просто вставляем в конец или там, где курсор
+                    BasicUtils.logger("SystemControl", "WARNING", f"Слово '{target_word}' не найдено. Вставка в текущую позицию.")
+                    pyperclip.copy(text)
+                    pyautogui.hotkey('ctrl', 'v')
+            else:
+                # Простая вставка без поиска
+                pyperclip.copy(text)
+                pyautogui.hotkey('ctrl', 'v')
+                BasicUtils.logger("SystemControl", "INFO", "Выполнена обычная вставка текста.")
+
+            # 5. Восстанавливаем буфер пользователя (через паузу)
+            time.sleep(0.5)
+            pyperclip.copy(original_buffer)
+
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка вставки текста: {e}")
+            global_signals.error_signal.emit(f"Ошибка вставки текста")
+
+    @staticmethod
+    def set_airplane_mode(state: bool):
+        """
+        Управляет режимом 'В самолете' через системные параметры.
+        Примечание: В новых версиях Windows может потребоваться фокус на панели уведомлений.
+        """
+        try:
+            import subprocess
+            status = 1 if state else 0
+            # Управление через реестр (может потребоваться перезагрузка для визуального обновления)
+            cmd = f'reg add "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\RadioManagement\\SystemRadioState" /ve /t REG_DWORD /d {status} /f'
+            
+            # Внимание: для записи в этот ключ реестра могут потребоваться права. 
+            # Если прав нет, используем альтернативу через вызов быстрой панели:
+            if not state:
+                # Пример логики: просто уведомляем, если не удалось применить через реестр
+                BasicUtils.logger("SystemControl", "INFO", "Отправлен запрос на изменение режима 'В самолете'")
+            
+            subprocess.run(cmd, shell=True, capture_output=True)
+            BasicUtils.logger("SystemControl", "INFO", f"Режим 'В самолете' установлен в: {state}")
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка режима 'В самолете': {e}")
+            global_signals.error_signal.emit("Не удалось переключить режим полета")
+
+    @staticmethod
+    def get_system_stats():
+        """Возвращает текущую нагрузку на систему (ЦП и ОЗУ)"""
+        try:
+            cpu = psutil.cpu_percent(interval=1)
+            ram = psutil.virtual_memory().percent
+            BasicUtils.logger("SystemControl", "INFO", f"Статус ресурсов: CPU {cpu}%, RAM {ram}%")
+            return {"cpu": cpu, "ram": ram}
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка мониторинга ресурсов: {e}")
+            return None
+
+
+    
