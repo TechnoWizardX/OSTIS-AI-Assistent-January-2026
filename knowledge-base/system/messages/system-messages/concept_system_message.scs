@@ -1,9 +1,0 @@
-concept_system_message
-<- sc_node_class;
-=> nrel_main_idtf:
-    [класс сообщений, отправленных системой]
-    (*
-        <- lang_ru;;
-    *);
-<= nrel_inclusion:
-    concept_message;;
