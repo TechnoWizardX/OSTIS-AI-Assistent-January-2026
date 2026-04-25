@@ -1,7 +1,0 @@
-concept_user_class
-<- sc_node_class;
-=> nrel_main_idtf:
-    [класс пользователей]
-    (*
-        <- lang_ru;;
-    *);;

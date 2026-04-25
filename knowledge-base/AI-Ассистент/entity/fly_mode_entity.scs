@@ -1,9 +1,0 @@
-...
-<- sc_node_class;
-<- concept_button; 
-
-=> nrel_main_idtf:
-    [авиарежим]
-    (*
-        <- lang_ru;;
-    *);;
