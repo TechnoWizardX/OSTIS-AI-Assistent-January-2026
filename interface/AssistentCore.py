@@ -4,6 +4,7 @@ from PyQt6.QtCore import pyqtSignal, QObject
 import sys
 import os
 from datetime import datetime
+from pathlib import Path
 VOICE_INPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'interface', 'VoiceInput'))
 if VOICE_INPUT_DIR not in sys.path:
     sys.path.insert(0, VOICE_INPUT_DIR)
@@ -11,20 +12,22 @@ import threading
 from BasicUtils import BasicUtils, DataBaseEditor, global_signals
 import VoiceInput.WhisperRecognition as Whisper
 from TTSSilero import SileroTTS 
-
+from qwen_recommender.QwenModel import QwenModel, QWEN_MODEL
+from qwen_recommender.QwenRequest import QwenRequest
+from qwen_recommender.RecommendationManager import RecommendationManager
 import VoiceInput.VoskRecognition as Vosk 
-
+RECOMMENDATION_CACHE = Path(__file__).parent.parent / "data" / "recommendation.json"
 DATABASE_EDITOR = DataBaseEditor()
 WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
 VOSK_MODEL = Vosk.VoskRecognizer(model_path="./models/vosk-model-small-ru-0.22")
-
+QWEN_MODEL = QwenModel("./models/qwen2.5-3b/qwen2.5-3b.Q4_K_M.gguf")
+QWEN_REQUEST = QwenRequest(QWEN_MODEL.model_file, n_threads=4, n_gpu_layers=0)
 TTSSILERO_MODEL = SileroTTS()
 
 class AssistentCore():
     def __init__(self):
         self.user_interface = UserInterface()
         self.settings_config = BasicUtils.load_settings_config()
-        
         self.recognition_model = self.settings_config.get("recognition_model", "auto")
 
         self.whisper_model = WHISPER_MODEL
@@ -40,6 +43,11 @@ class AssistentCore():
         ui_signals.speaker_stop_request.connect(self.stop_speech)
         ui_signals.clear_history_requested.connect(self.clear_chat_history)
         global_signals.error_signal.connect(self.handle_error)
+        QWEN_REQUEST.recommendation_ready.connect(self._apply_recommendations)
+        self.rec_manager = RecommendationManager(QWEN_REQUEST)
+        self.rec_manager.recommendation_ready.connect(self._on_rec_ready)
+        self.rec_manager.analyze()  # Асинхронный запуск: кэш → AI → сигнал
+    
         
     def handle_error(self, error_message: str):
         """Обработка ошибок, полученных из разных частей системы, с логированием"""
@@ -204,6 +212,71 @@ class AssistentCore():
         """Запуск интерфейса"""
         self.user_interface.show()
         
+    def _check_qwen_ready(self) -> bool:
+        """Безопасная проверка готовности модели перед инференсом."""
+        if not QWEN_MODEL.is_ready:
+            BasicUtils.logger("CORE | Qwen", "WARNING", "Модель Qwen2.5:3b ещё загружается или недоступна. Запрос отклонён.")
+            # Опционально: можно отправить сигнал в UI, чтобы показать пользователю статус
+            return False
+        return True  
+
+    def _on_rec_ready(self, recommendation_text: str):
+        """Парсит ответ AI, конвертирует в русский текст для UI и сохраняет технические коды в конфиг."""
+        # 1. Очистка от знаков препинания и приведение к нижнему регистру
+        cleaned = recommendation_text.lower().replace(',', ' ').replace('.', ' ').replace(';', ' ')
+        raw_methods = cleaned.split()
+        valid_methods = {"vosk", "faster-whisper", "gesture", "text"}
+        chosen = [m for m in raw_methods if m in valid_methods]
+
+        if not chosen:
+            chosen = ["text"]
+
+        # 2. Маппинг технических названий → человекочитаемый русский текст
+        MODEL_TO_RU = {
+            "vosk": "Голосовой ввод (Vosk)",
+            "faster-whisper": "Голосовой ввод (Whisper)",
+            "gesture": "Жестовый ввод",
+            "text": "Текстовый ввод"
+        }
+
+        human_readable = [MODEL_TO_RU.get(m, m) for m in chosen]
+        rec_string = ", ".join(human_readable)
+
+        # 3. Находим первый рекомендованный голосовой движок для автоматического переключения
+        voice_model = next((m for m in chosen if m in ("vosk", "faster-whisper")), None)
+
+        # 4. Сохраняем ТЕХНИЧЕСКИЕ параметры в конфиг (для работы движков)
+        BasicUtils.set_settings_config_value("primary_input_method", chosen[0])
+        if voice_model:
+            BasicUtils.set_settings_config_value("recognition_model", voice_model)
+
+        BasicUtils.logger("CORE | Advisor", "INFO", f"AI рекомендовал способы: {rec_string}")
+
+        # 5. Отправляем в интерфейс РУССКУЮ рекомендацию + технический переключатель
+        update_payload = {
+            "ai_recommendation": f"Рекомендуемые способы: {rec_string}"
+        }
+        if voice_model:
+            update_payload["recognition_model"] = voice_model
+
+        ui_signals.settings_changed.emit(update_payload)
+        
+    def _on_rec_failed(self, error: str):
+        """Логирование ошибки без озвучки (чтобы не пугать пользователя)."""
+        BasicUtils.logger("CORE | Advisor", "ERROR", f"Сбой анализа профиля: {error}")
+        # Опционально: можно отправить fallback-текст в UI
+        ui_signals.settings_changed.emit({
+            "ai_recommendation": "Не удалось получить рекомендацию. Используются стандартные настройки."
+        })
+
+    def _handle_qwen_error(self, error_msg: str):
+        """Обработка ошибок анализа (не озвучивает, только логирует)."""
+        BasicUtils.logger("CORE | QwenAdvisor", "ERROR", f"Ошибка анализа профиля: {error_msg}")
+        
+    def _apply_recommendations(self, recommendation_text: str):
+        BasicUtils.logger("CORE | Advisor", "INFO", f"Рекомендация: {recommendation_text}")
+        ui_signals.settings_changed.emit({"ai_recommendation": recommendation_text})
+                        
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

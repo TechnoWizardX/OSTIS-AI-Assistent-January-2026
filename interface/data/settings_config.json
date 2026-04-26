@@ -3,14 +3,14 @@
         "ssid": "",
         "password": ""
     },
-    "theme": "nord",
+    "theme": "dark",
     "last_message_send": null,
     "recording_enabled": true,
     "camera_index": 0,
     "microphone_index": 0,
     "voice_send_directly": false,
     "gesture_send_directly": false,
-    "recognition_model": "auto",
+    "recognition_model": "faster-whisper",
     "available_silero_voices": {
         "Сеня": "xenia",
         "Евгений": "eugene",
@@ -32,5 +32,6 @@
         "faster-whisper",
         "vosk"
     ],
-    "speaker_index": 0
+    "speaker_index": 0,
+    "primary_input_method": "text"
 }

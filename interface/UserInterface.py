@@ -119,7 +119,7 @@ class UserInterface(QMainWindow):
 
         #создаём группу кнопок
         self.button_group = QButtonGroup(self)
-
+        
         # линкование кнопок
         for page in self.content_pages:
             btn = self.content_pages[page]
@@ -184,6 +184,10 @@ class UserInterface(QMainWindow):
         """Реагируем на изменение настроек (в т.ч. темы)."""
         if "theme" in changes:
             self._apply_theme(changes["theme"])
+            
+        # 🔹 Обновление текста рекомендации в профиле
+        if "ai_recommendation" in changes:
+            self.profile_page.rec_text.setText(changes["ai_recommendation"])    
 
     def _apply_theme(self, theme_name: str):
         """Применяет тему ко всему приложению."""
@@ -1289,9 +1293,25 @@ class Profile(ContentPageWidget):
         self.fatigue = ProfileOption("Усталость", f"{self._fatigue if self._fatigue else 'Отсутствует'}", False)
         self.main_frame_lay.addWidget(self.fatigue, Qt.AlignmentFlag.AlignLeft)
 
-
-        
         self.main_frame_lay.addStretch(1)
+
+         # Блок рекомендации ИИ в профиле
+        self.rec_frame = QFrame()
+        self.rec_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
+        self.rec_frame.setFixedHeight(80)
+        self.rec_lay = QVBoxLayout(self.rec_frame)
+        self.rec_lay.setContentsMargins(12, 8, 12, 8)
+
+        self.rec_title = QLabel("💡 Рекомендация ассистента:")
+        self.rec_title.setStyleSheet("font-weight: bold; color: #2196F3; font-size: 13px;")
+        
+        self.rec_text = QLabel("Анализ профиля ещё не выполнен...")
+        self.rec_text.setStyleSheet(THEMES[SELECTED_THEME]["profile_text"])
+        self.rec_text.setWordWrap(True)
+
+        self.rec_lay.addWidget(self.rec_title)
+        self.rec_lay.addWidget(self.rec_text)
+        self.main_frame_lay.addWidget(self.rec_frame)
 
     def _apply_theme(self, theme: dict):
         """Обновляет стили страницы профиля."""
