@@ -10,6 +10,7 @@ from PyQt6.QtMultimedia import QMediaDevices
 class Signals(QObject):
     voice_message_recognized = pyqtSignal(str)
     error_signal = pyqtSignal(str)
+    intent_recieved = pyqtSignal(dict)
 global_signals = Signals()
 
 CHAT_FILE = Path(__file__).parent / "data" / "chat_history.json"

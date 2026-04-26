@@ -11,7 +11,7 @@ import threading
 from BasicUtils import BasicUtils, DataBaseEditor, global_signals
 import VoiceInput.WhisperRecognition as Whisper
 from TTSSilero import SileroTTS 
-
+from IntentHandler import IntentHandler
 import VoiceInput.VoskRecognition as Vosk 
 
 DATABASE_EDITOR = DataBaseEditor()
@@ -19,7 +19,7 @@ WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
 VOSK_MODEL = Vosk.VoskRecognizer(model_path="./models/vosk-model-small-ru-0.22")
 
 TTSSILERO_MODEL = SileroTTS()
-
+INTENT_HANDLER = IntentHandler()
 class AssistentCore():
     def __init__(self):
         self.user_interface = UserInterface()
@@ -31,6 +31,7 @@ class AssistentCore():
         self.vosk_model = VOSK_MODEL
         self.tts_voice = BasicUtils.get_settings_config_value("tts_voice")
         self.ttssilero_model = TTSSILERO_MODEL
+        self.intent_handler = INTENT_HANDLER
         # Подписка на сигналы интерфейса
         ui_signals.message_sent.connect(self.on_message_sent)
         ui_signals.settings_changed.connect(self.on_settings_changed)
@@ -40,6 +41,7 @@ class AssistentCore():
         ui_signals.speaker_stop_request.connect(self.stop_speech)
         ui_signals.clear_history_requested.connect(self.clear_chat_history)
         global_signals.error_signal.connect(self.handle_error)
+        global_signals.intent_recieved.connect(self.handle_intent)
         
     def handle_error(self, error_message: str):
         """Обработка ошибок, полученных из разных частей системы, с логированием"""
