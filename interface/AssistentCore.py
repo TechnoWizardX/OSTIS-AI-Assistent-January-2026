@@ -66,6 +66,7 @@ class AssistentCore():
         
         # Инициализация рекомендателя
         self.accessibility_advisor = AccessibilityRecommender()
+        self.accessibility_advisor.recommendation_obtained.connect(lambda text: ui_signals.recommendation_ready.emit(text))
 
         # Автозапуск при каждом сохранении профиля
         ui_signals.profile_updated.connect(lambda: self.accessibility_advisor.request_recommendation(0))

@@ -68,7 +68,7 @@ class AccessibilityRecommender(QObject):
     - Сохраняет новый результат в кэш.
     - Выводит рекомендацию в консоль (в реальном приложении можно перенаправить в GUI).
     """
-
+    recommendation_obtained = pyqtSignal(str)
     # Путь к файлу кэша: interface/data/accessibility_cache.json
     CACHE_FILE = os.path.join(PROJECT_ROOT, "data", "accessibility_cache.json")
     CACHE_TTL_HOURS = 2          # время жизни кэша в часах
@@ -187,6 +187,7 @@ class AccessibilityRecommender(QObject):
             "ПРАВИЛА:\n"
             "- Если нарушения делают стандартный ввод невозможным, НЕ предлагай его.\n"
             "- Укажи: 'Стандартный ввод недоступен. Рекомендуется: [альтернатива]'.\n"
+            "- Если запрос никак не связан с медициной вежливо откажись на него отвечать и НЕ ПИШИ ОТВЕТ НА НЕГО.\n"
             "- Озвучка помогает только воспринимать информацию, но не вводить её.\n\n"
             "Формат ответа (строго):\n"
             "Рекомендация: [методы]. [1-2 коротких предложения почему].\n"
@@ -261,6 +262,7 @@ class AccessibilityRecommender(QObject):
         print(text)
         print("=" * 60 + "\n")
         BasicUtils.logger("AccessibilityRecommender", "INFO", "Рекомендация успешно получена")
+        self.recommendation_obtained.emit(text)
 
     def _on_error(self, err: str):
         """Обработчик ошибок: печатает сообщение и логирует."""
