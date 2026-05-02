@@ -16,7 +16,7 @@ cmake-build-*
 pycache
 .venv
 __pycache__
-
+interface/data/accaccessibility_cache.json
 .venv_mp/
 *.pyc
 *.pyo

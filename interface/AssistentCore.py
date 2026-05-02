@@ -13,9 +13,10 @@ import threading
 from BasicUtils import BasicUtils, DataBaseEditor, global_signals
 import VoiceInput.WhisperRecognition as Whisper
 from TTSSilero import SileroTTS 
-from Ai_Request.NetworkChecker import NetworkChecker
-from Ai_Request.MedicalAPI import MedicalAPI
-from Ai_Request.LocalModel import LocalModel
+from Ai_Request_Manager.NetworkChecker import NetworkChecker
+from Ai_Request_Manager.MedicalAPI import MedicalAPI
+from Ai_Request_Manager.LocalModel import LocalModel
+from Ai_Requests.AccessibilityRecommender import AccessibilityRecommender
 import VoiceInput.VoskRecognition as Vosk 
 from dotenv import load_dotenv
 
@@ -47,6 +48,28 @@ class AssistentCore():
         self.user_interface = UserInterface()
         self.settings_config = BasicUtils.load_settings_config()
         
+        self.network_checker = NetworkChecker()
+        self.network_checker.connection_changed.connect(self._on_network_status)
+        self.network_checker.start()
+        
+        # Инициализация моделей
+        try:
+            self.remote_model = MedicalAPI()
+            BasicUtils.logger("AssistentCore", "INFO", "MedicalAPI успешно инициализирован")
+        except Exception as e:
+            BasicUtils.logger("AssistentCore", "ERROR", f"Не удалось инициализировать MedicalAPI: {e}")
+            self.remote_model = None
+
+        self.local_model = LocalModel()
+        self.active_model = self.local_model
+        self.current_worker = None
+        
+        # Инициализация рекомендателя
+        self.accessibility_advisor = AccessibilityRecommender()
+
+        # Автозапуск при каждом сохранении профиля
+        ui_signals.profile_updated.connect(lambda: self.accessibility_advisor.request_recommendation(0))
+        
         self.recognition_model = self.settings_config.get("recognition_model", "auto")
 
         self.whisper_model = WHISPER_MODEL
@@ -63,21 +86,6 @@ class AssistentCore():
         ui_signals.clear_history_requested.connect(self.clear_chat_history)
         global_signals.error_signal.connect(self.handle_error)
         
-        self.network_checker = NetworkChecker()
-        self.network_checker.connection_changed.connect(self._on_network_status)
-        self.network_checker.start()
-        
-        # Инициализация моделей
-        try:
-            self.remote_model = MedicalAPI()
-            BasicUtils.logger("AssistentCore", "INFO", "MedicalAPI успешно инициализирован")
-        except Exception as e:
-            BasicUtils.logger("AssistentCore", "ERROR", f"Не удалось инициализировать MedicalAPI: {e}")
-            self.remote_model = None
-
-        self.local_model = LocalModel()
-        self.active_model = self.local_model
-        self.current_worker = None
    
     def _on_network_status(self, online: bool):
         if online and self.remote_model is not None:
