@@ -108,6 +108,6 @@ class IntentHandler:
             return None
 
 # Пример использования (для теста):
-handler = IntentHandler()
+handler = IntentHandler("gemma4:e4b")
 result = handler.send_request("Что такое Satisfactory?")
 print(result)
