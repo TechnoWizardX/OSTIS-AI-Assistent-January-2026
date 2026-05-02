@@ -1,6 +1,8 @@
 from UserInterface import UserInterface, ui_signals
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import pyqtSignal, QObject
+from PyQt6.QtCore import QThread
+from typing import Union, List
 import sys
 import os
 from datetime import datetime
@@ -11,14 +13,34 @@ import threading
 from BasicUtils import BasicUtils, DataBaseEditor, global_signals
 import VoiceInput.WhisperRecognition as Whisper
 from TTSSilero import SileroTTS 
-
+from Ai_Request.NetworkChecker import NetworkChecker
+from Ai_Request.MedicalAPI import MedicalAPI
+from Ai_Request.LocalModel import LocalModel
 import VoiceInput.VoskRecognition as Vosk 
+from dotenv import load_dotenv
 
+load_dotenv()
 DATABASE_EDITOR = DataBaseEditor()
 WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
 VOSK_MODEL = Vosk.VoskRecognizer(model_path="./models/vosk-model-small-ru-0.22")
 
 TTSSILERO_MODEL = SileroTTS()
+
+class MedicalWorker(QThread):
+    finished = pyqtSignal(object)  # str или List[str]
+
+    def __init__(self, model, prompt):
+        super().__init__()
+        self.model = model
+        self.prompt = prompt
+
+    def run(self):
+        try:
+            result = self.model.generate(self.prompt)
+            self.finished.emit(result)
+        except Exception as e:
+            BasicUtils.logger("MedicalWorker", "ERROR", f"Ошибка генерации: {e}")
+            self.finished.emit(f"Ошибка при обращении к модели: {str(e)}")
 
 class AssistentCore():
     def __init__(self):
@@ -41,6 +63,56 @@ class AssistentCore():
         ui_signals.clear_history_requested.connect(self.clear_chat_history)
         global_signals.error_signal.connect(self.handle_error)
         
+        self.network_checker = NetworkChecker()
+        self.network_checker.connection_changed.connect(self._on_network_status)
+        self.network_checker.start()
+        
+        # Инициализация моделей
+        try:
+            self.remote_model = MedicalAPI()
+            BasicUtils.logger("AssistentCore", "INFO", "MedicalAPI успешно инициализирован")
+        except Exception as e:
+            BasicUtils.logger("AssistentCore", "ERROR", f"Не удалось инициализировать MedicalAPI: {e}")
+            self.remote_model = None
+
+        self.local_model = LocalModel()
+        self.active_model = self.local_model
+        self.current_worker = None
+   
+    def _on_network_status(self, online: bool):
+        if online and self.remote_model is not None:
+            self.active_model = self.remote_model
+            BasicUtils.logger("AssistentCore", "INFO", "Активирована облачная медицинская модель")
+        else:
+            self.active_model = self.local_model
+            if not online:
+                BasicUtils.logger("AssistentCore", "WARNING", "Интернет отсутствует – активирована локальная заглушка")
+            else:
+                BasicUtils.logger("AssistentCore", "ERROR", "Облачная модель недоступна, используется локальная заглушка")
+
+    def generate_medical_answer(self, prompt: Union[str, List[str]]):
+        if self.active_model is None:
+            self._on_network_status(self.network_checker.is_online())
+        BasicUtils.logger("AssistentCore", "INFO", f"Запрос к {self.active_model.__class__.__name__}: {prompt}")
+        if self.current_worker and self.current_worker.isRunning():
+            BasicUtils.logger("AssistentCore", "WARNING", "Предыдущий запрос ещё выполняется, игнорируем новый")
+            return
+        self.current_worker = MedicalWorker(self.active_model, prompt)
+        self.current_worker.finished.connect(self._on_medical_answer)
+        self.current_worker.start()
+
+    def _on_medical_answer(self, answer: Union[str, List[str]]):
+        self.current_worker = None
+        if isinstance(answer, list):
+            for ans in answer:
+                BasicUtils.add_message("assistant", ans)
+                ui_signals.message_sent.emit("assistant", ans)
+                self.text_to_speech(ans)
+        else:
+            BasicUtils.add_message("assistant", answer)
+            ui_signals.message_sent.emit("assistant", answer)
+            self.text_to_speech(answer)
+   
     def handle_error(self, error_message: str):
         """Обработка ошибок, полученных из разных частей системы, с логированием"""
         self.text_to_speech(error_message)
@@ -166,8 +238,10 @@ class AssistentCore():
         else:
             BasicUtils.logger("CORE | TTS", "WARNING", "Модель TTS не поддерживает остановку")    
 
-    def on_message_sent(self, sender : str = "Unknown", message : str = "No Message"):
-        print(f"Message from {sender}: {message}")
+    def on_message_sent(self, sender: str = "Unknown", message: str = "No Message"):
+        BasicUtils.logger("CORE | MessageSent", "INFO", f"Сообщение от {sender}: {message}")
+        if sender == "user":
+            self.generate_medical_answer(message)
     
     def update_voice_recognition_model(self, new_model: str):
         """Функция, перезапускающая модель в реальном времени, если та включена"""

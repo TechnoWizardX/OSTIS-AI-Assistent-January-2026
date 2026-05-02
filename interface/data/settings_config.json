@@ -3,7 +3,7 @@
         "ssid": "",
         "password": ""
     },
-    "theme": "nord",
+    "theme": "dark",
     "last_message_send": null,
     "recording_enabled": true,
     "camera_index": 0,
