@@ -11,9 +11,9 @@ import threading
 from BasicUtils import BasicUtils, DataBaseEditor, global_signals
 import VoiceInput.WhisperRecognition as Whisper
 from TTSSilero import SileroTTS 
-from IntentHandler import IntentHandler
+from IntentHandler import IntentHandler, IntentWorker
 import VoiceInput.VoskRecognition as Vosk 
-
+from SystemControl import ControlSystem
 DATABASE_EDITOR = DataBaseEditor()
 WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
 VOSK_MODEL = Vosk.VoskRecognizer(model_path="./models/vosk-model-small-ru-0.22")
@@ -41,8 +41,60 @@ class AssistentCore():
         ui_signals.speaker_stop_request.connect(self.stop_speech)
         ui_signals.clear_history_requested.connect(self.clear_chat_history)
         global_signals.error_signal.connect(self.handle_error)
-        global_signals.intent_recieved.connect(self.handle_intent)
+    
+    def handle_intent(self, intent_data: dict):
+        """Обработка распознанного интента от IntentHandler и выполнение соответствующих действий"""
+        message = intent_data.get("message", "")
+        action = intent_data.get("action", "answer")
+        function = intent_data.get("function", "")
+        params = intent_data.get("params", {})
+        info = intent_data.get("info", "")
+        BasicUtils.logger("CORE | IntentHandler", "INFO", f"Получен интент: {intent_data}")
         
+        if action == "answer":
+            self.send_ai_message(message)
+        elif action == "unknown":
+            self.send_ai_message(message)
+        elif action == "invalid":
+            self.send_ai_message(message)
+        else:
+            self.send_ai_message(message)
+            self.actions_mapping(function, params, info)
+    def actions_mapping(self, function_name: str, params: dict, info: str):
+        """Здесь будет логика сопоставления имен функций к реальным функциям в коде"""
+        BasicUtils.logger("CORE | ActionsMapping", "INFO", f"Вызов функции: {function_name} с параметрами: {params} и info: {info}")
+        # Пример:
+        if function_name == "open_site":
+            url = params.get("url", "")
+            if url:
+                ControlSystem.open_site(url)
+        elif function_name == "open_application":
+            app_name = params.get("app_name", "")
+            if app_name:
+                ControlSystem.open_application(app_name)
+        elif function_name == "close_application":
+            app_name = params.get("app_name", "")
+            if app_name:
+                ControlSystem.close_application(app_name)
+        elif function_name == "reload_application":
+            app_name = params.get("app_name", "")
+            if app_name:
+                ControlSystem.reload_application(app_name)
+        elif function_name == "close_current_tab":
+            ControlSystem.close_current_tab()
+        elif function_name == "set_brightness":
+            level = params.get("level", 50)
+            ControlSystem.set_brightness(level)
+        elif function_name == "set_volume":
+            level = params.get("level", 50)
+            ControlSystem.set_volume(level)
+    
+    def send_ai_message(self, message: str):
+        """Отправляет сообщение от AI в интерфейс с логированием"""
+        BasicUtils.logger("CORE | AI Message", "INFO", f"AI: {message}")
+        ui_signals.message_sent.emit("IAMOS", message)
+        BasicUtils.add_message("IAMOS", message)
+
     def handle_error(self, error_message: str):
         """Обработка ошибок, полученных из разных частей системы, с логированием"""
         self.text_to_speech(error_message)
@@ -168,8 +220,27 @@ class AssistentCore():
         else:
             BasicUtils.logger("CORE | TTS", "WARNING", "Модель TTS не поддерживает остановку")    
 
-    def on_message_sent(self, sender : str = "Unknown", message : str = "No Message"):
-        print(f"Message from {sender}: {message}")
+    # В методе on_message_sent (Core):
+    def on_message_sent(self, sender: str = "Unknown", message: str = "No message"):
+        if sender == "user" and message != "No message":
+            BasicUtils.logger("CORE", "INFO", f"Пользователь: {message}")
+            
+            # Создаем поток для запроса
+            self.ai_thread = IntentWorker(self.intent_handler, message)
+
+            # Подключаем сигналы
+            self.ai_thread.finished.connect(self.handle_ai_result)
+            self.ai_thread.error.connect(self.handle_error)
+            
+            # Запускаем! Основной поток при этом свободен.
+            self.ai_thread.start()
+        elif sender != "user":
+            return
+
+    def handle_ai_result(self, result):
+        """Метод-обработчик успешного ответа"""
+        self.handle_intent(result)
+
     
     def update_voice_recognition_model(self, new_model: str):
         """Функция, перезапускающая модель в реальном времени, если та включена"""

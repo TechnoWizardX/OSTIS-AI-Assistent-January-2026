@@ -433,7 +433,7 @@ class Message(QWidget):
         self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["message_frame"])
         self.main_frame.setMinimumWidth(100)
         self.main_frame.setMaximumWidth(500)
-        self.main_frame.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
+        self.main_frame.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
 
         frame_layout = QVBoxLayout(self.main_frame)
         frame_layout.setContentsMargins(12, 10, 12, 10)
@@ -551,6 +551,11 @@ class DialogBox(QWidget):
         self._scroll_to_bottom()
 
     def _scroll_to_bottom(self):
+        # Используем таймер, чтобы дать Qt время пересчитать размеры виджетов
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(50, self._actual_scroll)
+
+    def _actual_scroll(self):
         scroll_bar = self.scroll_area.verticalScrollBar()
         scroll_bar.setValue(scroll_bar.maximum())
     

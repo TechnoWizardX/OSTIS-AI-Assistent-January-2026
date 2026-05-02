@@ -1,7 +1,8 @@
 import requests
 import json
-from BasicUtils import BasicUtils
-
+import re
+from BasicUtils import BasicUtils, global_signals
+from PyQt6.QtCore import QThread, pyqtSignal
 class IntentHandler:
     def __init__(self, model_name="qwen2.5:3b"):
         """Инициализация обработчика намерений"""
@@ -20,7 +21,7 @@ class IntentHandler:
         ### ТВОЙ АЛГОРИТМ:
         1. **Анализ интента**: Пойми, что хочет сделать пользователь.
         2. **Нормализация (App Normalization)**:
-        - Если названо приложение (тг, дс, рисовалка, блокнот), преобразуй его в официальное английское название в нижнем регистре (telegram, discord, paint, notepad).
+        - Если названо приложение (тг, дс, рисовалка, блокнот и т.д.), преобразуй его в официальное английское название в нижнем регистре (telegram, discord, paint, notepad и т.д.).
         - Если указано общее название (браузер, почта), выбери наиболее подходящее стандартное приложение (google chrome, outlook).
         3. **Расчет параметров**: 
         - Если просят "сделай громче/тише", возьми текущее значение из состояния системы и прибавь/отними 10-20 единиц (или столько, сколько просит пользователь).
@@ -68,8 +69,16 @@ class IntentHandler:
         - Если запрос вообще не понятен -> action: "unknown", function: "".
         - Если это просто беседа -> action: "answer", function: "".
 
-        ### ПРИМЕЧАНИЕ: Если в твоей базе знаний нету прямого определения, лучше ответь: 'Я точно не знаю, но могу поискать в интернете' и установи action: 'open', function: 'open_site', params: {'url': 'google.com/search?q=...'}.
-        
+        ### ПРИМЕЧАНИЕ(1): Если в твоей базе знаний нету прямого определения, отвечай строго: 'Я точно не знаю что это, но могу поискать в интернете' и установи action: 'open', function: 'open_site', params: {'url': 'google.com/search?q=...'}.
+        Пример(К примечанию): Пользователь спрашивает: "Что такое спотифай", но ты не знаешь что это. Твой ответ:
+        {
+        "message": "Я точно не знаю что это, но могу поискать в интернете",
+        "action": "open",
+        "function": "open_site",
+        "params": {"url": "google.com/search?q=спотифай"},
+        "info": ""
+        }
+       
         ДАННЫЕ ПОЛЬЗОВАТЕЛЯ:
         """
         BasicUtils.logger("IntentHandler", "INFO", f"Инициализирован с моделью: {self.model}")
@@ -83,22 +92,25 @@ class IntentHandler:
             "prompt": prompt,
             "stream": False,  # Ждем полный ответ, а не поток по буквам
             "format": "json"  # Просим Ollama сразу отдавать JSON
+    
         }
 
         try:
-            BasicUtils.logger("IntentHandler", "INFO", f"Отправка запроса: {user_text}")
-            
-            response = requests.post(self.url, json=payload, timeout=10)
-            
+            response = requests.post(self.url, json=payload, timeout=15)
             if response.status_code == 200:
-                # Извлекаем текст ответа из структуры Ollama
                 raw_response = response.json().get('response')
-                # Превращаем строку в Python-словарь
-                data = json.loads(raw_response)
-                return data
-            else:
-                BasicUtils.logger("IntentHandler", "ERROR", f"Ошибка сервера Ollama: {response.status_code}")
-                return None
+                
+                # Используем безопасный парсинг
+                data = parse_ai_json(raw_response)
+                
+                if data:
+                    global_signals.intent_recognized.emit(data)
+                    return data
+                else:
+                    BasicUtils.logger("IntentHandler", "ERROR", "Не удалось распарсить JSON")
+                    return {"message": "Ошибка формата", "action": "error"}
+            
+            return None
 
         except requests.exceptions.ConnectionError:
             BasicUtils.logger("IntentHandler", "ERROR", "Ollama не запущена! Проверьте, что она запущена")
@@ -107,7 +119,46 @@ class IntentHandler:
             BasicUtils.logger("IntentHandler", "ERROR", f"Непредвиденная ошибка: {e}")
             return None
 
+def parse_ai_json(raw_response) -> dict:
+    """
+    Пытается извлечь JSON из строки, даже если модель добавила лишний текст
+    """
+    try:
+        # 1. Пробуем прямой парсинг (если всё идеально)
+        return json.loads(raw_response)
+    except json.JSONDecodeError:
+        # 2. Если ошибка, ищем блок кода через регулярку
+        match = re.search(r'\{.*\}', raw_response, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group())
+            except:
+                return None
+    return None
+
+class IntentWorker(QThread):
+    # Сигнал, который передаст словарь с результатом обратно в Core
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+
+    def __init__(self, handler, user_text):
+        super().__init__()
+        self.handler = handler
+        self.user_text = user_text
+
+    def run(self):
+        try:
+            # Вызываем твой существующий метод send_request
+            result = self.handler.send_request(self.user_text)
+            if result:
+                self.finished.emit(result)
+            else:
+                self.error.emit("Пустой ответ от ИИ")
+        except Exception as e:
+            self.error.emit(str(e))
+
+if __name__ == "__main__":
 # Пример использования (для теста):
-handler = IntentHandler("gemma4:e4b")
-result = handler.send_request("Что такое Satisfactory?")
-print(result)
+    handler = IntentHandler("qwen2.5:3b")
+    result = handler.send_request("Открой сайт Ollama")
+    print(result)
