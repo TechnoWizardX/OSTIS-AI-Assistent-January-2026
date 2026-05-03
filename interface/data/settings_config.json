@@ -4,7 +4,7 @@
         "password": ""
     },
     "use_online_model": false,
-    "theme": "nord",
+    "theme": "dark",
     "last_message_send": null,
     "recording_enabled": false,
     "camera_index": 0,

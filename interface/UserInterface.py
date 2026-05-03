@@ -59,6 +59,7 @@ class Signals(QObject):
     speaker_finished = pyqtSignal()        # конец воспроизведения без вмешательства
     history_cleared = pyqtSignal()          # для обновления чатов после очистки
     clear_history_requested = pyqtSignal()  # запрос на очистку истории (отправляется в ядро)ui_signals = Signals()
+    recommendation_ready = pyqtSignal(str) 
 ui_signals = Signals()    
 # ===========================================================
 # ГЛАВНЫЙ ИНТЕРФЕЙС
@@ -1291,18 +1292,50 @@ class Profile(ContentPageWidget):
         self.main_frame_lay.addWidget(self.adaptive, Qt.AlignmentFlag.AlignLeft)
         
         self._fatigue = None
+        
         self.fatigue = ProfileOption("Усталость", f"{self._fatigue if self._fatigue else 'Отсутствует'}", False)
         self.main_frame_lay.addWidget(self.fatigue, Qt.AlignmentFlag.AlignLeft)
 
 
-        
         self.main_frame_lay.addStretch(1)
+        
+        # Создаём рекомендацию (по умолчанию имеет фиксированную высоту 35)
+        self.recommendation = ProfileOption("Рекомендация по вводу/выводу", "Не определено", False)
+        self.main_frame_lay.addWidget(self.recommendation, Qt.AlignmentFlag.AlignLeft)
 
+        # ===== НАСТРОЙКА ТОЛЬКО ДЛЯ РЕКОМЕНДАЦИИ =====
+        # Убираем фиксированную высоту (было setFixedHeight(0) – НЕПРАВИЛЬНО)
+        self.recommendation.setFixedHeight(16777215)   # максимально возможная высота (снимает ограничение)
+        self.recommendation.setSizePolicy(
+            QSizePolicy.Policy.Expanding, 
+            QSizePolicy.Policy.Minimum
+        )
+        self.recommendation.value_label.setWordWrap(True)         # перенос длинного текста
+        self.recommendation.value_label.setSizePolicy(
+            QSizePolicy.Policy.Expanding, 
+            QSizePolicy.Policy.Minimum
+        )
+        # Увеличиваем внутренние отступы (опционально)
+        self.recommendation.lay.setContentsMargins(10, 8, 10, 8)
+        # ============================================
+
+        # Подключаем сигнал обновления
+        ui_signals.recommendation_ready.connect(self.set_recommendation)
+
+        # Автоматический запрос рекомендации при запуске (через 300 мс)
+        QTimer.singleShot(300, lambda: ui_signals.profile_updated.emit())
+
+    def set_recommendation(self, text: str):
+        """Обновляет текст рекомендации."""
+        self.recommendation.value_label.setText(text)
+        self.recommendation._current_value = text
+    
     def _apply_theme(self, theme: dict):
         """Обновляет стили страницы профиля."""
         super()._apply_theme(theme)
         self.main_frame.setStyleSheet(theme["dialog_frame"])
         self.photo_frame.setStyleSheet(theme["profile_photo_frame"])
+        self.recommendation._apply_theme(theme)
         for opt in [self.sn_fn_patr, self.birthday, self.gender, self.dysfunctions, self.adaptive, self.fatigue]:
             opt._apply_theme(theme)
 
