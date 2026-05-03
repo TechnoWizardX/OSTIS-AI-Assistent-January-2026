@@ -26,7 +26,7 @@ class MedicalAPI:
         "X-Title": "IAMOS Assistant"                               # название приложения
     }
 
-    def __init__(self, api_key: str = None, model: str = "google/gemini-flash-1.5"):
+    def __init__(self, api_key: str = None, model: str = "anthropic/claude-3-haiku"):
         """
         :param api_key: API-ключ OpenRouter (если None, берётся из env OPENROUTER_API_KEY)
         :param model: идентификатор модели (например, "google/gemini-flash-1.5",

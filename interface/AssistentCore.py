@@ -249,8 +249,6 @@ class AssistentCore():
 
     def on_message_sent(self, sender: str = "Unknown", message: str = "No Message"):
         BasicUtils.logger("CORE | MessageSent", "INFO", f"Сообщение от {sender}: {message}")
-        if sender == "user":
-            self.generate_medical_answer(message)
     
     def update_voice_recognition_model(self, new_model: str):
         """Функция, перезапускающая модель в реальном времени, если та включена"""
