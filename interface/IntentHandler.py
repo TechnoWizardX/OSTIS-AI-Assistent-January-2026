@@ -1,13 +1,17 @@
 import requests
 import json
 import re
-from BasicUtils import BasicUtils, global_signals
+from BasicUtils import BasicUtils, global_signals, DataBaseEditor
 from PyQt6.QtCore import QThread, pyqtSignal
+import openai
+import subprocess
+DATABASE_EDITOR = DataBaseEditor()
 class IntentHandler:
     def __init__(self, model_name="qwen2.5:3b"):
         """Инициализация обработчика намерений"""
         self.url = "http://localhost:11434/api/generate"
         self.model = model_name
+        self.online_client = openai.OpenAI(api_key="ВАШ_КЛЮЧ", base_url="https://api.deepseek.com")
         self.basic_prompt = """
         Ты — дружелюбный ассистент-помощник для людей с психофизическими особенностями. Твоя цель: помогать управлять операционной системой, общаясь просто, тепло и понятно.
 
@@ -78,15 +82,31 @@ class IntentHandler:
         "params": {"url": "google.com/search?q=спотифай"},
         "info": ""
         }
-       
-        ДАННЫЕ ПОЛЬЗОВАТЕЛЯ:
         """
         BasicUtils.logger("IntentHandler", "INFO", f"Инициализирован с моделью: {self.model}")
-
-    def send_request(self, user_text: str):
+    def build_user_data(self, name: str, birthday: str, gender: str, chat_history: str, current_app: str, available_apps: list) -> str:
+        """Генерирует единую строку контекста"""
+        return (
+            f"ДАННЫЕ ПОЛЬЗОВАТЕЛЯ:\n"
+            f"Имя: {name}, Рождение: {birthday}, Пол: {gender}\n"
+            f"Текущее окружение: {current_app}\n\n"
+            f"Доступные приложения(системные названия): {available_apps}\n\n"
+            f"ПОСЛЕДНИЕ СООБЩЕНИЯ:{chat_history}"
+        )
+    
+    def send_request(self, user_text: str, user_data: str = "", use_online: bool = False) -> dict:
         """Отправляет чистый запрос в Ollama и возвращает ответ"""
         prompt = self.basic_prompt + "\n\nСообщение пользователя: " + user_text
-        # Формируем полезную нагрузку (payload)
+        if user_data:
+            prompt += "\n\nДанные пользователя: " + user_data
+        
+        if use_online:
+            return self._send_online_request(prompt)
+        else:
+            return self._send_offline_request(prompt)
+    
+    def _send_offline_request(self, prompt) -> dict:
+        """Отправляет запрос в Ollama"""
         payload = {
             "model": self.model,
             "prompt": prompt,
@@ -101,7 +121,7 @@ class IntentHandler:
                 raw_response = response.json().get('response')
                 
                 # Используем безопасный парсинг
-                data = parse_ai_json(raw_response)
+                data = IntentHandler.parse_ai_json(raw_response)
                 
                 if data:
                     global_signals.intent_recognized.emit(data)
@@ -118,38 +138,75 @@ class IntentHandler:
         except Exception as e:
             BasicUtils.logger("IntentHandler", "ERROR", f"Непредвиденная ошибка: {e}")
             return None
+    def _send_online_request(self, prompt) -> dict:
+        """Отправляет запрос онлайн-модели"""
+        try:
+            response = self.online_client.chat.completions.create(
+                model="deepseek-chat", # или gpt-4o-mini
+                messages=[{"role": "user", "content": prompt}],
+                response_format={ "type": "json_object" }
+            )
+            return json.loads(response.choices[0].message.content)
+        except Exception as e:
+            BasicUtils.logger("IntentHandler", "ERROR", f"Online API error: {e}")
+            return None
+    
+    def parse_ai_json(raw_response) -> dict:
+        """
+        Пытается извлечь JSON из строки, даже если модель добавила лишний текст
+        """
+        try:
+            # 1. Пробуем прямой парсинг (если всё идеально)
+            return json.loads(raw_response)
+        except json.JSONDecodeError:
+            # 2. Если ошибка, ищем блок кода через регулярку
+            match = re.search(r'\{.*\}', raw_response, re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group())
+                except:
+                    return None
+        return None
+    
+    def shutdown_ollama(self):
+        """Полная выгрузка модели из памяти"""
+        try:
 
-def parse_ai_json(raw_response) -> dict:
-    """
-    Пытается извлечь JSON из строки, даже если модель добавила лишний текст
-    """
-    try:
-        # 1. Пробуем прямой парсинг (если всё идеально)
-        return json.loads(raw_response)
-    except json.JSONDecodeError:
-        # 2. Если ошибка, ищем блок кода через регулярку
-        match = re.search(r'\{.*\}', raw_response, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group())
-            except:
-                return None
-    return None
+            unload_payload = {
+                "model": self.model,
+                "keep_alive": 0
+            }
+            requests.post("http://localhost:11434/api/generate", json=unload_payload)
+            BasicUtils.logger("CORE", "INFO", "Модель Ollama выгружена из памяти")
+            
+        except Exception as e:
+            print(f"Ошибка при закрытии Ollama: {e}")
+
+    def start_ollama(self):
+        """Запускает Ollama, если он не запущен"""
+        try:
+            # Проверяем, запущен ли процесс, если нет - стартуем (только для Windows)
+            subprocess.Popen(["ollama", "serve"], creationflags=subprocess.CREATE_NO_WINDOW)
+            BasicUtils.logger("CORE", "INFO", "Ollama serve запущен")
+        except: pass
 
 class IntentWorker(QThread):
     # Сигнал, который передаст словарь с результатом обратно в Core
     finished = pyqtSignal(dict)
     error = pyqtSignal(str)
 
-    def __init__(self, handler, user_text):
+    def __init__(self, handler, user_text, user_data="", use_online=False):
+        
         super().__init__()
         self.handler = handler
         self.user_text = user_text
+        self.user_data = user_data
+        self.use_online = use_online
 
     def run(self):
         try:
             # Вызываем твой существующий метод send_request
-            result = self.handler.send_request(self.user_text)
+            result = self.handler.send_request(self.user_text, self.user_data, self.use_online)
             if result:
                 self.finished.emit(result)
             else:

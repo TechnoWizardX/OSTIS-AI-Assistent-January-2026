@@ -3,14 +3,15 @@
         "ssid": "",
         "password": ""
     },
+    "use_online_model": false,
     "theme": "nord",
     "last_message_send": null,
-    "recording_enabled": true,
+    "recording_enabled": false,
     "camera_index": 0,
     "microphone_index": 0,
-    "voice_send_directly": false,
+    "voice_send_directly": true,
     "gesture_send_directly": false,
-    "recognition_model": "auto",
+    "recognition_model": "faster-whisper",
     "available_silero_voices": {
         "Сеня": "xenia",
         "Евгений": "eugene",

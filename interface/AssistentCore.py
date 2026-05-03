@@ -31,7 +31,10 @@ class AssistentCore():
         self.vosk_model = VOSK_MODEL
         self.tts_voice = BasicUtils.get_settings_config_value("tts_voice")
         self.ttssilero_model = TTSSILERO_MODEL
+        
         self.intent_handler = INTENT_HANDLER
+        self.intent_handler.start_ollama()
+        
         # Подписка на сигналы интерфейса
         ui_signals.message_sent.connect(self.on_message_sent)
         ui_signals.settings_changed.connect(self.on_settings_changed)
@@ -219,23 +222,30 @@ class AssistentCore():
             ui_signals.speaker_stop_all.emit()
         else:
             BasicUtils.logger("CORE | TTS", "WARNING", "Модель TTS не поддерживает остановку")    
-
     # В методе on_message_sent (Core):
     def on_message_sent(self, sender: str = "Unknown", message: str = "No message"):
-        if sender == "user" and message != "No message":
-            BasicUtils.logger("CORE", "INFO", f"Пользователь: {message}")
-            
-            # Создаем поток для запроса
-            self.ai_thread = IntentWorker(self.intent_handler, message)
-
-            # Подключаем сигналы
-            self.ai_thread.finished.connect(self.handle_ai_result)
-            self.ai_thread.error.connect(self.handle_error)
-            
-            # Запускаем! Основной поток при этом свободен.
-            self.ai_thread.start()
-        elif sender != "user":
+        if sender != "user" or message == "No message":
             return
+
+        BasicUtils.logger("CORE", "INFO", f"Пользователь: {message}")
+
+        raw_history = BasicUtils.load_chat_history()
+        formatted_history = BasicUtils.format_chat_history(raw_history)
+
+        user_context = self.intent_handler.build_user_data(
+            name=DATABASE_EDITOR.get_data("Users", "firstname", 0),
+            birthday=DATABASE_EDITOR.get_data("Users", "birthday", 0),
+            gender=DATABASE_EDITOR.get_data("Users", "gender", 0),
+            chat_history=formatted_history,
+            current_app=ControlSystem.get_active_app(),
+            available_apps=ControlSystem.get_available_apps(),
+        )
+        use_online = BasicUtils.get_settings_config_value("use_online_model") and BasicUtils.has_internet()
+        self.ai_thread = IntentWorker(self.intent_handler, message, user_context, use_online)
+
+        self.ai_thread.finished.connect(self.handle_ai_result)
+        self.ai_thread.error.connect(self.handle_error)
+        self.ai_thread.start()
 
     def handle_ai_result(self, result):
         """Метод-обработчик успешного ответа"""
@@ -282,5 +292,6 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     assistent = AssistentCore()
+    app.aboutToQuit.connect(assistent.intent_handler.shutdown_ollama)
     assistent.run()
     sys.exit(app.exec())

@@ -7,6 +7,8 @@ import sqlite3
 import re 
 from PyQt6.QtCore import pyqtSignal, QObject
 from PyQt6.QtMultimedia import QMediaDevices
+import socket
+
 class Signals(QObject):
     voice_message_recognized = pyqtSignal(str)
     error_signal = pyqtSignal(str)
@@ -82,7 +84,14 @@ class BasicUtils:
         settings_config = BasicUtils.load_settings_config()
         settings_config[key] = value
         BasicUtils.save_settings_config(settings_config)
-    
+    @staticmethod
+    def has_internet():
+        try:
+            # Пытаемся подключиться к DNS Google
+            socket.create_connection(("8.8.8.8", 53), timeout=2)
+            return True
+        except OSError:
+            return False
     
     @staticmethod
     def load_chat_history() -> list:
@@ -90,7 +99,17 @@ class BasicUtils:
             with open(CHAT_FILE, "r", encoding="utf-8") as file:
                 return json.load(file)
         return []
-    
+    @staticmethod
+    def format_chat_history(history_list: list, limit: int = 5) -> str:
+        """Превращает список словарей в строку: 'Автор: Текст'"""
+        # Берем последние сообщения, чтобы не раздувать промпт
+        recent = history_list[-limit:]
+        lines = []
+        for msg in recent:
+            author = "Пользователь" if msg['author'] == "user" else "Ассистент"
+            lines.append(f"{author}: {msg['text']}")
+        
+        return "\n".join(lines) if lines else "История пуста"
     @staticmethod
     def save_chat_history(chat_history) -> None:
         with open(CHAT_FILE, "w", encoding="utf-8") as file:

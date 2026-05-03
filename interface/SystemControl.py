@@ -132,6 +132,13 @@ class ControlSystem:
             return None
     
     @staticmethod
+    def get_available_apps():
+        apps_dict = AppOpener.give_appnames()
+    
+        # Нам нужны только названия (ключи) для ассистента
+        BasicUtils.logger("SystemControl", "INFO", f"Запрошен список доступных приложений")
+        return apps_dict
+    @staticmethod
     def empty_recycle_bin():
         """Очистка корзины через официальный WinAPI"""
         try:
@@ -342,4 +349,6 @@ class ControlSystem:
             return None
 
 
-    
+if __name__ == "__main__":
+    ControlSystem.get_available_apps()
+    ControlSystem.get_system_stats()
