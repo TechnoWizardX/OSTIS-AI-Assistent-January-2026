@@ -172,6 +172,31 @@ class AssistentCore():
         elif function_name == "set_volume":
             level = params.get("level", 50)
             ControlSystem.set_volume(level)
+        elif function_name == "os_sleep":
+            ControlSystem.os_sleep()
+        elif function_name == "os_shutdown":
+            delay = params.get("delay", 0)
+            ControlSystem.os_shutdown(delay)
+        elif function_name == "os_restart":
+            delay = params.get("delay", 0)
+            ControlSystem.os_restart(delay)
+        elif function_name == "cancel_shutdown":
+            ControlSystem.cancel_shutdown()
+        elif function_name == "connect_wifi":
+            ssid = params.get("ssid_name", "")
+            ControlSystem.connect_wifi(ssid)
+        elif function_name == "disconnect_wifi":
+            ControlSystem.disconnect_wifi()
+        elif function_name == "set_airplane_mode":
+            state = params.get("state", False)
+            ControlSystem.set_airplane_mode(state)
+        elif function_name == "empty_recycle_bin":
+            ControlSystem.empty_recycle_bin()
+        elif function_name == "insert_text":
+            text = params.get("text", "")
+            target_word = params.get("target_word", None)
+            target_app = params.get("target_app", None)
+            ControlSystem.insert_text(text, target_word, target_app)
     
     def send_ai_message(self, message: str):
         """Отправляет сообщение от AI в интерфейс с логированием"""

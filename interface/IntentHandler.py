@@ -61,12 +61,15 @@ class IntentHandler:
         - os_sleep() | ТКС: Спящий режим.
         - os_shutdown(delay: int) | ТКС: Выключить ПК через X секунд.
         - cancel_shutdown() | ТКС: Отменить выключение.
-        - reboot(delay: int) | ТКС: Перезагрузить ПК через X секунд.
+        - os_restart(delay: int) | ТКС: Перезагрузить ПК через X секунд.
 
         5. СЕРВИСНЫЕ:
         - insert_text(text: str, target_word: str|None, target_app: str|None) | ТКС: Вставить текст (можно указать после какого слова или в какое приложение).
         - empty_recycle_bin() | ТКС: Очистить корзину.
         - get_system_stats() | ТКС: Узнать нагрузку (ЦП, ОЗУ).
+        - disconnect_wifi() | ТКС: Разорвать соединение с Wi-Fi.
+        - connect_wifi(ssid_name: str) | ТКС: Подключиться к Wi-Fi.
+        - set_airplane_mode(state: bool) | ТКС: Включить режим 'В самолете'.
 
         ### ПРАВИЛА ОБРАБОТКИ ОШИБОК:
         - Если действие понятно, но функции нет -> action: "invalid", function: "".

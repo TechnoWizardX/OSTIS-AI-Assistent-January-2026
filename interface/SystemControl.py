@@ -193,7 +193,7 @@ class ControlSystem:
             global_signals.error_signal.emit(f"Нет запланированных выключений для отмены")
     
     @staticmethod
-    def reboot(delay=0):
+    def os_restart(delay=0):
         """Перезагрузка ПК через время (по умолчанию 0 секунд)"""
         try:
             import subprocess
