@@ -2,7 +2,6 @@ from UserInterface import UserInterface, ui_signals
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import pyqtSignal, QObject
 from PyQt6.QtCore import QThread
-from typing import Union, List
 import sys
 import os
 from datetime import datetime
@@ -14,7 +13,6 @@ from BasicUtils import BasicUtils, DataBaseEditor, global_signals
 import VoiceInput.WhisperRecognition as Whisper
 from TTSSilero import SileroTTS 
 from Ai_Request_Manager.NetworkChecker import NetworkChecker
-from Ai_Request_Manager.MedicalAPI import MedicalAPI
 from Ai_Request_Manager.LocalModel import LocalModel
 from Ai_Requests.AccessibilityRecommender import AccessibilityRecommender 
 from IntentHandler import IntentHandler, IntentWorker
@@ -28,21 +26,6 @@ VOSK_MODEL = Vosk.VoskRecognizer(model_path="./models/vosk-model-small-ru-0.22")
 
 TTSSILERO_MODEL = SileroTTS()
 INTENT_HANDLER = IntentHandler()
-class MedicalWorker(QThread):
-    finished = pyqtSignal(object)  # str или List[str]
-
-    def __init__(self, model, prompt):
-        super().__init__()
-        self.model = model
-        self.prompt = prompt
-
-    def run(self):
-        try:
-            result = self.model.generate(self.prompt)
-            self.finished.emit(result)
-        except Exception as e:
-            BasicUtils.logger("MedicalWorker", "ERROR", f"Ошибка генерации: {e}")
-            self.finished.emit(f"Ошибка при обращении к модели: {str(e)}")
 
 class AssistentCore():
     def __init__(self):
@@ -52,21 +35,15 @@ class AssistentCore():
         self.network_checker = NetworkChecker()
         self.network_checker.connection_changed.connect(self._on_network_status)
         self.network_checker.start()
-        
-        # Инициализация моделей
-        try:
-            self.remote_model = MedicalAPI()
-            BasicUtils.logger("AssistentCore", "INFO", "MedicalAPI успешно инициализирован")
-        except Exception as e:
-            BasicUtils.logger("AssistentCore", "ERROR", f"Не удалось инициализировать MedicalAPI: {e}")
-            self.remote_model = None
 
+        # Локальная модель используется только как заглушка
         self.local_model = LocalModel()
         self.active_model = self.local_model
         self.current_worker = None
-        
-        # Инициализация рекомендателя
+
+        # Инициализация рекомендателя (рекомендации отправляются только в профиль)
         self.accessibility_advisor = AccessibilityRecommender()
+        # Подключаем сигнал рекомендателя к сигналу интерфейса для обновления профиля
         self.accessibility_advisor.recommendation_obtained.connect(lambda text: ui_signals.recommendation_ready.emit(text))
 
         # Автозапуск при каждом сохранении профиля
@@ -94,38 +71,12 @@ class AssistentCore():
         
    
     def _on_network_status(self, online: bool):
-        if online and self.remote_model is not None:
-            self.active_model = self.remote_model
-            BasicUtils.logger("AssistentCore", "INFO", "Активирована облачная медицинская модель")
+        """Обработка статуса сети (для информации)."""
+        if not online:
+            BasicUtils.logger("AssistentCore", "WARNING", "Интернет отсутствует")
         else:
-            self.active_model = self.local_model
-            if not online:
-                BasicUtils.logger("AssistentCore", "WARNING", "Интернет отсутствует – активирована локальная заглушка")
-            else:
-                BasicUtils.logger("AssistentCore", "ERROR", "Облачная модель недоступна, используется локальная заглушка")
+            BasicUtils.logger("AssistentCore", "INFO", "Интернет подключён")
 
-    def generate_medical_answer(self, prompt: Union[str, List[str]]):
-        if self.active_model is None:
-            self._on_network_status(self.network_checker.is_online())
-        BasicUtils.logger("AssistentCore", "INFO", f"Запрос к {self.active_model.__class__.__name__}: {prompt}")
-        if self.current_worker and self.current_worker.isRunning():
-            BasicUtils.logger("AssistentCore", "WARNING", "Предыдущий запрос ещё выполняется, игнорируем новый")
-            return
-        self.current_worker = MedicalWorker(self.active_model, prompt)
-        self.current_worker.finished.connect(self._on_medical_answer)
-        self.current_worker.start()
-
-    def _on_medical_answer(self, answer: Union[str, List[str]]):
-        self.current_worker = None
-        if isinstance(answer, list):
-            for ans in answer:
-                BasicUtils.add_message("assistant", ans)
-                ui_signals.message_sent.emit("assistant", ans)
-                self.text_to_speech(ans)
-        else:
-            BasicUtils.add_message("assistant", answer)
-            ui_signals.message_sent.emit("assistant", answer)
-            self.text_to_speech(answer)
     def handle_intent(self, intent_data: dict):
         """Обработка распознанного интента от IntentHandler и выполнение соответствующих действий"""
         message = intent_data.get("message", "")
@@ -326,14 +277,14 @@ class AssistentCore():
             # Сбрасываем все кнопки динамиков
             ui_signals.speaker_stop_all.emit()
         else:
-            BasicUtils.logger("CORE | TTS", "WARNING", "Модель TTS не поддерживает остановку")    
-    # В методе on_message_sent (Core):
+            BasicUtils.logger("CORE | TTS", "WARNING", "Модель TTS не поддерживает остановку")
+
     def on_message_sent(self, sender: str = "Unknown", message: str = "No message"):
+        """Обработка сообщения пользователя: отправка в IntentHandler для анализа."""
         if sender != "user" or message == "No message":
             return
 
         BasicUtils.logger("CORE", "INFO", f"Пользователь: {message}")
-        self.generate_medical_answer(message)
         raw_history = BasicUtils.load_chat_history()
         formatted_history = BasicUtils.format_chat_history(raw_history)
 

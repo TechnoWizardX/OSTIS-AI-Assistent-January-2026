@@ -191,7 +191,7 @@ class AccessibilityRecommender(QObject):
             "- Озвучка помогает только воспринимать информацию, но не вводить её.\n\n"
             "Формат ответа (строго):\n"
             "Рекомендация: [методы]. [1-2 коротких предложения почему].\n"
-            "Не пиши лишнего. Ответь на русском языке."
+            "Не пиши лишнего и рекомендуй только доступные метоы. Ответь на русском языке."
         )
         return system_prompt, user_prompt
 
@@ -219,7 +219,7 @@ class AccessibilityRecommender(QObject):
         """
         dys = self._get_dysfunctions(user_id)
         if not dys:
-            print("\n⚠️ Нарушения не указаны в профиле. Анализ пропущен.\n")
+            BasicUtils.logger("AccessibilityRecommender", "INFO", "Нарушения не указаны в профиле. Анализ пропущен.")
             return
 
         # Если не принудительное обновление — пробуем взять из кэша
@@ -256,18 +256,13 @@ class AccessibilityRecommender(QObject):
 
     # ---------- Обратные вызовы ----------
     def _on_success(self, text: str):
-        """Обработчик успешного получения рекомендации: печатает в консоль и логирует."""
-        print("\n" + "=" * 60)
-        print("🤖 РЕКОМЕНДАЦИЯ ПО ВВОДУ/ВЫВОДУ:")
-        print(text)
-        print("=" * 60 + "\n")
-        BasicUtils.logger("AccessibilityRecommender", "INFO", "Рекомендация успешно получена")
+        """Обработчик успешного получения рекомендации: логирует и отправляет в UI."""
+        BasicUtils.logger("AccessibilityRecommender", "INFO", f"Рекомендация: {text[:100]}...")
         self.recommendation_obtained.emit(text)
 
     def _on_error(self, err: str):
-        """Обработчик ошибок: печатает сообщение и логирует."""
-        print(f"\n❌ Ошибка получения рекомендации: {err}\n")
-        BasicUtils.logger("AccessibilityRecommender", "ERROR", f"Ошибка API/сети: {err}")
+        """Обработчик ошибок: логирует ошибку."""
+        BasicUtils.logger("AccessibilityRecommender", "ERROR", f"Ошибка получения рекомендации: {err}")
 
 
 # -------------------------------------------------------------------
