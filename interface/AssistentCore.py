@@ -25,7 +25,7 @@ WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
 VOSK_MODEL = Vosk.VoskRecognizer(model_path="./models/vosk-model-small-ru-0.22")
 
 TTSSILERO_MODEL = SileroTTS()
-INTENT_HANDLER = IntentHandler()
+INTENT_HANDLER = IntentHandler(online_model="")
 
 class AssistentCore():
     def __init__(self):

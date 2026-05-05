@@ -5,13 +5,20 @@ from BasicUtils import BasicUtils, global_signals, DataBaseEditor
 from PyQt6.QtCore import QThread, pyqtSignal
 import openai
 import subprocess
+import os
+from dotenv import load_dotenv, set_key
 DATABASE_EDITOR = DataBaseEditor()
 class IntentHandler:
-    def __init__(self, model_name="qwen2.5:3b"):
+    def __init__(self, model_name="qwen2.5:3b", api_key = None, online_model = "openrouter/auto"):
         """Инициализация обработчика намерений"""
-        self.url = "http://localhost:11434/api/generate"
-        self.model = model_name
-        self.online_client = openai.OpenAI(api_key="ВАШ_КЛЮЧ", base_url="https://api.deepseek.com")
+        load_dotenv()
+        self.ollama_url = "http://localhost:11434/api/generate"
+        self.offline_model = model_name
+        
+        self.online_model = online_model
+        self._api_key = api_key or os.getenv("OPENROUTER_API_KEY")
+        self.online_client = openai.OpenAI(api_key=self._api_key, base_url="https://openrouter.ai/api/v1")
+        
         self.basic_prompt = """
         Ты — дружелюбный ассистент-помощник для людей с психофизическими особенностями. Твоя цель: помогать управлять операционной системой, общаясь просто, тепло и понятно.
 
@@ -60,7 +67,7 @@ class IntentHandler:
         4. ПИТАНИЕ ПК:
         - os_sleep() | ТКС: Спящий режим.
         - os_shutdown(delay: int) | ТКС: Выключить ПК через X секунд.
-        - cancel_shutdown() | ТКС: Отменить выключение.
+        - cancel_shutdown() | ТКС: Отменить выключение/перезагрузку ПК
         - os_restart(delay: int) | ТКС: Перезагрузить ПК через X секунд.
 
         5. СЕРВИСНЫЕ:
@@ -86,7 +93,15 @@ class IntentHandler:
         "info": ""
         }
         """
-        BasicUtils.logger("IntentHandler", "INFO", f"Инициализирован с моделью: {self.model}")
+        
+        BasicUtils.logger("IntentHandler", "INFO", f"Инициализирован с моделью: {self.offline_model}")
+    
+    def update_api_key(self, new_key: str):
+        """Обновляет API ключ для онлайн-запросов"""
+        self._api_key = new_key
+        self.online_client = openai.OpenAI(api_key=self._api_key, base_url="https://openrouter.ai/api/v1")
+        BasicUtils.logger("IntentHandler", "INFO", "API ключ обновлен")
+    
     def build_user_data(self, name: str, birthday: str, gender: str, chat_history: str, current_app: str, available_apps: list) -> str:
         """Генерирует единую строку контекста"""
         return (
@@ -104,14 +119,16 @@ class IntentHandler:
             prompt += "\n\nДанные пользователя: " + user_data
         
         if use_online:
-            return self._send_online_request(prompt)
+            BasicUtils.logger("IntentHandler", "INFO", "Отправлен онлайн-запрос")
+            return self._send_online_request(prompt, self.online_model)
         else:
-            return self._send_offline_request(prompt)
+            BasicUtils.logger("IntentHandler", "INFO", "Отправлен офлайн-запрос")
+            return self._send_offline_request(prompt, self.offline_model )
     
-    def _send_offline_request(self, prompt) -> dict:
+    def _send_offline_request(self, prompt, model) -> dict:
         """Отправляет запрос в Ollama"""
         payload = {
-            "model": self.model,
+            "model": self.offline_model,
             "prompt": prompt,
             "stream": False,  # Ждем полный ответ, а не поток по буквам
             "format": "json"  # Просим Ollama сразу отдавать JSON
@@ -119,7 +136,7 @@ class IntentHandler:
         }
 
         try:
-            response = requests.post(self.url, json=payload, timeout=15)
+            response = requests.post(self.ollama_url, json=payload, timeout=15)
             if response.status_code == 200:
                 raw_response = response.json().get('response')
                 
@@ -141,11 +158,13 @@ class IntentHandler:
         except Exception as e:
             BasicUtils.logger("IntentHandler", "ERROR", f"Непредвиденная ошибка: {e}")
             return None
-    def _send_online_request(self, prompt) -> dict:
+    
+    def _send_online_request(self, prompt, model="openrouter/auto") -> dict:
         """Отправляет запрос онлайн-модели"""
         try:
+            online_model = model
             response = self.online_client.chat.completions.create(
-                model="deepseek-chat", # или gpt-4o-mini
+                model=online_model, 
                 messages=[{"role": "user", "content": prompt}],
                 response_format={ "type": "json_object" }
             )
@@ -176,7 +195,7 @@ class IntentHandler:
         try:
 
             unload_payload = {
-                "model": self.model,
+                "model": self.offline_model,
                 "keep_alive": 0
             }
             requests.post("http://localhost:11434/api/generate", json=unload_payload)

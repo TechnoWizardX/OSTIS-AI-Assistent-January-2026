@@ -3,7 +3,8 @@
         "ssid": "",
         "password": ""
     },
-    "use_online_model": false,
+    "use_online_model": true,
+    "allow_online_model_user_info": false,
     "theme": "dark",
     "last_message_send": null,
     "recording_enabled": false,

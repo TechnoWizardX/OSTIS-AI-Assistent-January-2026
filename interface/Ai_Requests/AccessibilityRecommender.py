@@ -80,8 +80,8 @@ class AccessibilityRecommender(QObject):
         """
         super().__init__()
         self.db = DataBaseEditor()                 # для доступа к БД
-        self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
-        if not self.api_key:
+        self._api_key = api_key or os.getenv("OPENROUTER_API_KEY")
+        if not self._api_key:
             raise ValueError("❌ Не найден OPENROUTER_API_KEY. Загрузите .env или передайте ключ.")
 
         self.default_model = default_model
@@ -243,7 +243,7 @@ class AccessibilityRecommender(QObject):
 
         used_model = model if model else self.default_model
         # Создаём и запускаем рабочий поток
-        self._worker = RecommendationWorker(usr_prompt, sys_prompt, self.api_key, used_model)
+        self._worker = RecommendationWorker(usr_prompt, sys_prompt, self._api_key, used_model)
 
         # Внутренний слот, который обновит кэш после успешного ответа
         def on_success_with_cache(text: str):
