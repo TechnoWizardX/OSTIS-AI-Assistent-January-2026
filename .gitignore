@@ -17,6 +17,7 @@ pycache
 .venv
 __pycache__
 interface/data/accessibility_cache.json
+interface/data/database.db
 .venv_mp/
 *.pyc
 *.pyo

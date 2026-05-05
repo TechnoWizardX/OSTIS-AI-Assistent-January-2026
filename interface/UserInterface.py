@@ -11,17 +11,6 @@ from BasicUtils import BasicUtils, DataBaseEditor
 from data.themes import THEMES
 from datetime import datetime
 
-# Добавляем путь к жестам для импорта
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GESTURES_DIR = os.path.join(PROJECT_ROOT, "samples", "GesturesInput")
-if GESTURES_DIR not in sys.path:
-    sys.path.insert(0, GESTURES_DIR)
-
-from gestures import GestureCameraThread
-
-
-
-
 # Базовый путь для иконок
 ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
 DATABASE_EDITOR = DataBaseEditor()
@@ -29,6 +18,8 @@ DATABASE_EDITOR = DataBaseEditor()
 CONFIG = BasicUtils.load_settings_config()
 SELECTED_THEME = CONFIG.get("theme") or "light"
 RECOGNITION_MODEL = CONFIG.get("recognition_model")
+
+from GesturesInput.gestures import GestureCameraThread
 
 def icon_path(filename):
     """Возвращает абсолютный путь к иконке"""
@@ -42,6 +33,7 @@ layout - лэйаут - lay
 frame - рамка/фрейм - frame
 Qt Style Sheets - стили qss - qss
 """
+
 class Signals(QObject):
     settings_changed = pyqtSignal(dict)
     camera_selected = pyqtSignal(str)
@@ -56,8 +48,137 @@ class Signals(QObject):
     speaker_finished = pyqtSignal()        # конец воспроизведения без вмешательства
     history_cleared = pyqtSignal()          # для обновления чатов после очистки
     clear_history_requested = pyqtSignal()  # запрос на очистку истории (отправляется в ядро)ui_signals = Signals()
-    recommendation_ready = pyqtSignal(str) 
-ui_signals = Signals()    
+    recommendation_ready = pyqtSignal(list, str)  # (список методов, текст для пользователя)
+ui_signals = Signals()
+
+
+#==========================================================
+#Бегущая подсветка
+#==========================================================
+class RunningLineOverlay(QWidget):
+    """
+    Overlay-виджет для отрисовки бегущей линии по периметру кнопки.
+    """
+    def __init__(self, parent, button):
+        super().__init__(parent)
+        self.button = button
+        self.phase = 0
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+        
+        # Тень для линии
+        self.glow_effect = QGraphicsDropShadowEffect(self)
+        self.glow_effect.setBlurRadius(20)
+        self.glow_effect.setColor(QColor(76, 175, 80, 255))
+        self.glow_effect.setXOffset(0)
+        self.glow_effect.setYOffset(0)
+        self.setGraphicsEffect(self.glow_effect)
+    
+    def paintEvent(self, event):
+        """Рисует бегущую линию по периметру с скруглёнными углами."""
+        from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath
+        import math
+        
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Размеры кнопки
+        w = self.width()
+        h = self.height()
+        margin = 2  # отступ для границы
+        corner_radius = 12  # радиус скругления как у кнопки
+        
+        # Рисуем полный контур кнопки (скруглённый прямоугольник)
+        path = QPainterPath()
+        path.addRoundedRect(margin, margin, w - 2*margin, h - 2*margin, corner_radius, corner_radius)
+        
+        # Получаем длину контура
+        perimeter = path.length()
+        
+        # Позиция бегущей линии
+        line_length = perimeter * 0.35  # длина линии 35% от периметра
+        start_pos = (self.phase % 4) * perimeter / 4
+        
+        # Рисуем линию вдоль контура с градиентом прозрачности
+        num_segments = int(line_length)
+        for i in range(num_segments):
+            pos = (start_pos + i) % perimeter
+            prev_pos = (start_pos + i - 1) % perimeter if i > 0 else pos
+            
+            # Градиент прозрачности: яркий центр, тусклые края
+            dist_from_start = i / line_length
+            # Используем синусоиду для плавного градиента
+            alpha = int(255 * math.sin(dist_from_start * math.pi))
+            
+            point = path.pointAtPercent(pos / perimeter)
+            prev_point = path.pointAtPercent(prev_pos / perimeter)
+            
+            # Рисуем сегмент линии
+            pen = QPen(QColor(0, 255, 0, alpha), 3)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(pen)
+            
+            if i > 0:
+                painter.drawLine(prev_point, point)
+        
+        painter.end()
+        
+class RecommendationGlowEffect:
+    """
+    Класс для управления анимированной 'бегущей' подсветкой по периметру кнопки.
+    Создает overlay-виджет с бегущей линией и тенью поверх кнопки.
+    """
+    
+    def __init__(self, button: QPushButton):
+        self.button = button
+        self.overlay = None
+        self.animation_timer = QTimer()
+        self.animation_timer.timeout.connect(self._update_position)
+        self.phase = 0
+        self.is_active = False
+        
+    def start(self):
+        """Запускает анимацию бегущей линии."""
+        if self.is_active:
+            return
+        self.is_active = True
+        
+        # Создаем overlay-виджет если ещё не создан
+        if not self.overlay:
+            self._create_overlay()
+        
+        self.overlay.show()
+        self.animation_timer.start(16)  # ~60 FPS для плавности
+    
+    def stop(self):
+        """Останавливает анимацию и скрывает overlay."""
+        self.is_active = False
+        self.animation_timer.stop()
+        if self.overlay:
+            self.overlay.hide()
+    
+    def _create_overlay(self):
+        """Создает overlay-виджет для отрисовки бегущей линии."""
+        self.overlay = RunningLineOverlay(self.button.parent(), self.button)
+        self.overlay.setGeometry(self.button.geometry())
+        self.overlay.raise_()
+    
+    def _update_position(self):
+        """Обновляет позицию бегущей линии."""
+        if not self.is_active or not self.overlay:
+            return
+        
+        self.phase += 0.03  # Медленнее для плавности
+        
+        # Синхронизируем overlay с позицией и размером кнопки
+        self.overlay.setGeometry(self.button.geometry())
+        self.overlay.raise_()
+        
+        # Обновляем фазу для отрисовки
+        self.overlay.phase = self.phase
+        self.overlay.update()  # Вызываем перерисовку        
+
+
 # ===========================================================
 # ГЛАВНЫЙ ИНТЕРФЕЙС
 # ===========================================================
@@ -169,6 +290,17 @@ class UserInterface(QMainWindow):
 
         # Подписываемся на смену темы
         ui_signals.settings_changed.connect(self._on_settings_changed)
+
+        # Подписываемся на рекомендации — подсвечиваем кнопки
+        ui_signals.recommendation_ready.connect(self._on_recommendation_ready)
+
+        # Сохраняем рекомендуемые методы и эффекты свечения
+        self._recommended_methods = []
+        self._glow_effects = {}
+        self._method_to_button = {}
+        
+        # Инициализируем эффекты свечения после полной инициализации интерфейса
+        QTimer.singleShot(100, self._init_glow_effects)
         
     def _on_clear_history_clicked(self):
         reply = QMessageBox.question(
@@ -177,6 +309,28 @@ class UserInterface(QMainWindow):
         )
         if reply == QMessageBox.StandardButton.Yes:
             ui_signals.clear_history_requested.emit()
+
+    def _init_glow_effects(self):
+        """Инициализирует эффекты свечения для кнопок после загрузки интерфейса."""
+        self._method_to_button = {
+            "voice": self.voice_input_page.side_panel_btn,
+            "gesture": self.gestures_input_page.side_panel_btn,
+            "text": self.text_input_page.side_panel_btn,
+        }
+        # Сохраняем оригинальные стили кнопок
+        for method, btn in self._method_to_button.items():
+            self._glow_effects[method] = RecommendationGlowEffect(btn)
+            # Подключаемся на клик кнопки — останавливаем анимацию
+            btn.clicked.connect(lambda checked, m=method: self._on_button_clicked(m))
+
+    def _on_button_clicked(self, method: str):
+        """
+        Обработка клика на кнопку — останавливает анимацию.
+        При переключении на другую страницу анимация возобновится.
+        :param method: название метода (voice, gesture, text)
+        """
+        if method in self._glow_effects:
+            self._glow_effects[method].stop()
 
     def _on_settings_changed(self, changes: dict):
         """Реагируем на изменение настроек (в т.ч. темы)."""
@@ -202,6 +356,13 @@ class UserInterface(QMainWindow):
         ts._apply_theme(self._theme)
         ts2 = self.settings_page.toggle_row_for_gesture.toggle_switch
         ts2._apply_theme(self._theme)
+        
+        # Пересоздаем overlay для эффектов свечения (обновляем позицию)
+        for method in self._method_to_button:
+            if method in self._glow_effects and self._glow_effects[method].overlay:
+                # Обновляем позицию overlay
+                btn = self._method_to_button[method]
+                self._glow_effects[method].overlay.setGeometry(btn.geometry())
 
     def change_theme(self, theme_name: str):
         """Публичный метод для смены темы извне."""
@@ -209,19 +370,59 @@ class UserInterface(QMainWindow):
         ui_signals.settings_changed.emit({"theme": theme_name})
 
     def _on_page_changed(self, index):
-        """При переключении страницы: управление камерой и видимостью кнопки очистки"""
+        """При переключении страницы: управление камерой и видимостью кнопки очистки."""
         page = self.content_panel.widget(index)
-        
+
         # Показывать кнопку очистки только на страницах с чатом
         if isinstance(page, (VoiceInput, TextInput, GesturesInput)):
             self.clear_history_btn.setVisible(True)
         else:
             self.clear_history_btn.setVisible(False)
-        
+
         # Остановка камеры, если ушли со страницы жестов
         if page is not self.gestures_input_page:
             if self.gestures_input_page.camera_thread is not None:
                 self.gestures_input_page.stop_camera()
+
+        # Проверка: если текущая страница рекомендуется — запускаем/обновляем свечение
+        self._update_button_glow_for_current_page(page)
+        
+        # Возобновляем анимацию для всех рекомендуемых кнопок (кроме той, на которую кликнули)
+        self._resume_glow_for_recommended_pages()
+
+    def _update_button_glow_for_current_page(self, page):
+        """
+        Проверяет, является ли текущая страница рекомендуемой, и обновляет свечение кнопки.
+        Это позволяет подсветке работать без необходимости обновлять рекомендацию.
+        """
+        # Сопоставление страниц и методов
+        page_to_method = {
+            self.voice_input_page: "voice",
+            self.gestures_input_page: "gesture",
+            self.text_input_page: "text",
+        }
+
+        current_method = page_to_method.get(page)
+        if not current_method:
+            return
+
+        # Если метод рекомендуется — включаем свечение
+        if current_method in self._recommended_methods:
+            if current_method in self._glow_effects:
+                # Сбрасываем фазу анимации для красивого эффекта
+                self._glow_effects[current_method].phase = 0
+                self._glow_effects[current_method].start()
+
+    def _resume_glow_for_recommended_pages(self):
+        """
+        Возобновляет анимацию для всех рекомендуемых кнопок.
+        Вызывается при переключении страниц.
+        """
+        for method in self._recommended_methods:
+            if method in self._glow_effects:
+                # Перезапускаем анимацию
+                self._glow_effects[method].phase = 0
+                self._glow_effects[method].start()
 
     def closeEvent(self, event):
         """При закрытии окна — останавливаем камеру."""
@@ -229,6 +430,25 @@ class UserInterface(QMainWindow):
         BasicUtils.logger("IAMOS", "INFO", "Завершение работы")
         super().closeEvent(event)
 
+    def _on_recommendation_ready(self, methods: list, text: str):
+        """
+        Обработка рекомендации: запускает анимацию бегущей линии по периметру кнопки.
+        :param methods: список рекомендуемых методов (voice, gesture, text, tts)
+        :param text: текст рекомендации для отображения в профиле
+        """
+        # Сохраняем рекомендуемые методы
+        self._recommended_methods = methods
+
+        # Останавливаем все текущие анимации
+        for method in self._glow_effects:
+            self._glow_effects[method].stop()
+
+        # Запускаем анимацию для рекомендуемых методов
+        for method in methods:
+            if method in self._method_to_button:
+                # Сбрасываем фазу анимации
+                self._glow_effects[method].phase = 0
+                self._glow_effects[method].start()
 
 
 # ==========================================================
@@ -601,25 +821,32 @@ class ContentPageWidget(QWidget):
 
         # состояние кнопки при нажатии
         self.side_panel_btn.setCheckable(True)
-        
+
         # единый размер иконок
         self._icon_size = QSize(25, 25)
 
         self.side_panel_btn.setIconSize(self._icon_size)
-        
-        # Тень при наведении
-        self._shadow = QGraphicsDropShadowEffect(self.side_panel_btn)
+
+        # Тень при наведении — создаём без родителя, чтобы не удалялся
+        self._shadow = QGraphicsDropShadowEffect()
         self._shadow.setBlurRadius(20)
         self._shadow.setXOffset(0)
         self._shadow.setYOffset(4)
         self._shadow.setColor(QColor(0, 0, 0, 120))
-        
+
         self.side_panel_btn.setGraphicsEffect(self._shadow)
         self._shadow.setEnabled(False)
+
+        # Обработка наведения — с проверкой существования эффекта
+        def on_enter(e):
+            if hasattr(self, '_shadow') and self._shadow:
+                self._shadow.setEnabled(True)
+        def on_leave(e):
+            if hasattr(self, '_shadow') and self._shadow:
+                self._shadow.setEnabled(False)
         
-        # Обработка наведения
-        self.side_panel_btn.enterEvent = lambda e: self._shadow.setEnabled(True)
-        self.side_panel_btn.leaveEvent = lambda e: self._shadow.setEnabled(False)
+        self.side_panel_btn.enterEvent = on_enter
+        self.side_panel_btn.leaveEvent = on_leave
 
     def _apply_theme(self, theme: dict):
         """Обновляет стили кнопки боковой панели."""
@@ -1328,14 +1555,14 @@ class Profile(ContentPageWidget):
         self.recommendation = RecommendationBadge("Рекомендация по вводу/выводу", "Не определено")
         self.main_frame_lay.addWidget(self.recommendation, Qt.AlignmentFlag.AlignLeft)
 
-        # Подключаем сигнал обновления
-        ui_signals.recommendation_ready.connect(self.set_recommendation)
+        # Подключаем сигнал обновления (принимает только текст, игнорируя методы)
+        ui_signals.recommendation_ready.connect(self._on_recommendation_ready)
 
         # Автоматический запрос рекомендации при запуске (через 300 мс)
         QTimer.singleShot(300, lambda: ui_signals.profile_updated.emit())
 
-    def set_recommendation(self, text: str):
-        """Обновляет текст рекомендации."""
+    def _on_recommendation_ready(self, methods: list, text: str):
+        """Обновляет текст рекомендации (методы игнорируются, они обрабатываются в UserInterface)."""
         self.recommendation.set_recommendation(text)
 
     def _apply_theme(self, theme: dict):
