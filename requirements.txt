@@ -16,3 +16,9 @@ pyaudio
 librosa
 AppOpener
 pyautogui
+openai
+python-dotenv
+faster-whisper
+torch
+pyperclip
+pywin32
