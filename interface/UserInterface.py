@@ -1218,6 +1218,70 @@ class ProfileOption(QFrame):
         self.line.setStyleSheet(theme["profile_line"])
 
 
+class RecommendationBadge(QFrame):
+    """
+    Виджет плашки рекомендаций с вертикальным расположением:
+    - Заголовок сверху
+    - Разделительная линия
+    - Текст рекомендации снизу
+    """
+    def __init__(self, title: str = "Рекомендация по вводу/выводу", 
+                 recommendation_text: str = "Не определено", parent=None):
+        super().__init__(parent)
+        
+        self.setStyleSheet(THEMES[SELECTED_THEME]["profile_option_frame"])
+        self.text_qss = THEMES[SELECTED_THEME]["profile_text"]
+        
+        # Убираем фиксированную высоту, позволяем растягиваться
+        self.setFixedHeight(16777215)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        
+        # Вертикальный лэйаут
+        self.lay = QVBoxLayout(self)
+        self.lay.setContentsMargins(10, 8, 10, 8)
+        self.lay.setSpacing(8)
+        
+        # Заголовок сверху
+        self.title_label = QLabel(title)
+        self.title_label.setStyleSheet(self.text_qss + "font-weight: bold;")
+        self.title_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.lay.addWidget(self.title_label)
+        
+        # Горизонтальная разделительная линия
+        self.line = QFrame()
+        self.line.setFrameShape(QFrame.Shape.HLine)
+        self.line.setFrameShadow(QFrame.Shadow.Sunken)
+        self.line.setStyleSheet(THEMES[SELECTED_THEME]["profile_line"])
+        self.lay.addWidget(self.line)
+        
+        # Текст рекомендации снизу
+        self.recommendation_label = QLabel(recommendation_text)
+        self.recommendation_label.setStyleSheet(self.text_qss)
+        self.recommendation_label.setWordWrap(True)
+        self.recommendation_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.lay.addWidget(self.recommendation_label)
+        
+        # Сохраняем текущее значение для совместимости
+        self._current_value = recommendation_text
+    
+    def set_recommendation(self, text: str):
+        """Обновляет текст рекомендации."""
+        self.recommendation_label.setText(text)
+        self._current_value = text
+    
+    def get_value(self) -> str:
+        """Возвращает текущее значение рекомендации."""
+        return self._current_value
+    
+    def _apply_theme(self, theme: dict):
+        """Обновляет стили плашки."""
+        self.setStyleSheet(theme["profile_option_frame"])
+        self.text_qss = theme["profile_text"]
+        self.title_label.setStyleSheet(theme["profile_text"] + "font-weight: bold;")
+        self.recommendation_label.setStyleSheet(theme["profile_text"])
+        self.line.setStyleSheet(theme["profile_line"])
+
+
 class Profile(ContentPageWidget):
     def __init__(self):
         super().__init__()
@@ -1298,26 +1362,10 @@ class Profile(ContentPageWidget):
 
 
         self.main_frame_lay.addStretch(1)
-        
-        # Создаём рекомендацию (по умолчанию имеет фиксированную высоту 35)
-        self.recommendation = ProfileOption("Рекомендация по вводу/выводу", "Не определено", False)
-        self.main_frame_lay.addWidget(self.recommendation, Qt.AlignmentFlag.AlignLeft)
 
-        # ===== НАСТРОЙКА ТОЛЬКО ДЛЯ РЕКОМЕНДАЦИИ =====
-        # Убираем фиксированную высоту (было setFixedHeight(0) – НЕПРАВИЛЬНО)
-        self.recommendation.setFixedHeight(16777215)   # максимально возможная высота (снимает ограничение)
-        self.recommendation.setSizePolicy(
-            QSizePolicy.Policy.Expanding, 
-            QSizePolicy.Policy.Minimum
-        )
-        self.recommendation.value_label.setWordWrap(True)         # перенос длинного текста
-        self.recommendation.value_label.setSizePolicy(
-            QSizePolicy.Policy.Expanding, 
-            QSizePolicy.Policy.Minimum
-        )
-        # Увеличиваем внутренние отступы (опционально)
-        self.recommendation.lay.setContentsMargins(10, 8, 10, 8)
-        # ============================================
+        # Создаём рекомендацию с новым виджетом RecommendationBadge
+        self.recommendation = RecommendationBadge("Рекомендация по вводу/выводу", "Не определено")
+        self.main_frame_lay.addWidget(self.recommendation, Qt.AlignmentFlag.AlignLeft)
 
         # Подключаем сигнал обновления
         ui_signals.recommendation_ready.connect(self.set_recommendation)
@@ -1327,9 +1375,8 @@ class Profile(ContentPageWidget):
 
     def set_recommendation(self, text: str):
         """Обновляет текст рекомендации."""
-        self.recommendation.value_label.setText(text)
-        self.recommendation._current_value = text
-    
+        self.recommendation.set_recommendation(text)
+
     def _apply_theme(self, theme: dict):
         """Обновляет стили страницы профиля."""
         super()._apply_theme(theme)
