@@ -10,9 +10,14 @@ psutil
 comtypes
 py-sc-kpm
 sounddevice
-vosk
 pyqt6
 pyaudio
 librosa
 AppOpener
 pyautogui
+openai
+python-dotenv
+faster-whisper
+torch
+pyperclip
+pywin32

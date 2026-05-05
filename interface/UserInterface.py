@@ -26,9 +26,6 @@ from gestures import GestureCameraThread
 ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
 DATABASE_EDITOR = DataBaseEditor()
 
-AVAILABLE_VOICE_MODELS = BasicUtils.load_settings_config().get("available_recognition_models")
-
-
 CONFIG = BasicUtils.load_settings_config()
 SELECTED_THEME = CONFIG.get("theme") or "light"
 RECOGNITION_MODEL = CONFIG.get("recognition_model")
@@ -880,26 +877,6 @@ class Settings(ContentPageWidget):
 
         self.microphone_frame_lay.addWidget(self.microphone_label, 1)
         self.microphone_frame_lay.addWidget(self.microphone_dropbox, 1)
-        
-
-        self.voice_model_frame = QFrame()
-        self.voice_model_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
-        self.voice_model_frame.setFixedHeight(40)
-        self.grid_lay.addWidget(self.voice_model_frame, 2, 0)
-        
-        self.voice_model_dropbox = QComboBox()
-        self.voice_model_list = AVAILABLE_VOICE_MODELS + ["Автоматическая"]
-        self.voice_model_dropbox.addItems(self.voice_model_list)
-        self.voice_model_dropbox.setStyleSheet(self.dropbox_qss)
-        self.voice_model_dropbox.setMinimumHeight(30)
-        self.voice_model_frame_lay = QHBoxLayout(self.voice_model_frame)
-        self.voice_model_frame_lay.setContentsMargins(10, 5, 5, 10)
-        self.voice_model_frame_lay.setSpacing(10)
-
-        self.voice_model_label = QLabel("Модель распознавателя речи:")
-        self.voice_model_label.setStyleSheet(self.settings_text_qss)
-        self.voice_model_frame_lay.addWidget(self.voice_model_label, 1)
-        self.voice_model_frame_lay.addWidget(self.voice_model_dropbox, 1)
 
 
         self.speaker_frame = QFrame()
@@ -969,7 +946,6 @@ class Settings(ContentPageWidget):
         # Подключаем сигналы для сохранения настроек
         self.camera_dropbox.currentTextChanged.connect(self._on_camera_changed)
         self.microphone_dropbox.currentTextChanged.connect(self._on_microphone_changed)
-        self.voice_model_dropbox.currentTextChanged.connect(self._on_voice_model_changed)
         self.speaker_dropbox.currentTextChanged.connect(self._on_speaker_changed)
         self.toggle_row_for_voice.toggled.connect(self.voice_toggle_state.save)
         self.toggle_row_for_gesture.toggled.connect(self.gesture_toggle_state.save)
@@ -993,27 +969,12 @@ class Settings(ContentPageWidget):
             self.microphone_dropbox.setCurrentIndex(mic_index)
         
         # Диктор (по индексу)
-        
-
         speaker = settings_config.get("tts_voice", "xenia")
         self.speaker_dropbox.setCurrentText(self.available_voices_reversed[speaker])
-
-        voice_model = settings_config.get("recognition_model", "auto")
-        if voice_model == "auto":
-            voice_model = "Автоматическая"
-        self.voice_model_dropbox.setCurrentText(voice_model)
 
         # Тема
         theme = settings_config.get("theme", "light")
         self._on_theme_changed(theme)
-
-    def _on_voice_model_changed(self, text):
-        """Сохраняет выбранную модель распознавания речи."""
-        #index = self.voice_model_dropbox.currentIndex()
-        if text == "Автоматическая":
-            text = "auto"    
-        BasicUtils.set_settings_config_value("recognition_model", text)
-        ui_signals.settings_changed.emit({"recognition_model": text})
    
     def _on_camera_changed(self, text):
         """Сохраняет выбранную камеру."""
@@ -1041,11 +1002,11 @@ class Settings(ContentPageWidget):
         """Обновляет все стили страницы настроек."""
         super()._apply_theme(theme)
         self.main_frame.setStyleSheet(theme["dialog_frame"])
-        for frame in [self.camera_frame, self.microphone_frame, self.speaker_frame, self.theme_frame, self.voice_model_frame]:
+        for frame in [self.camera_frame, self.microphone_frame, self.speaker_frame, self.theme_frame]:
             frame.setStyleSheet(theme["settings_frame"])
-        for label in [self.camera_label, self.microphone_label, self.speaker_label, self.voice_model_label]:
+        for label in [self.camera_label, self.microphone_label, self.speaker_label]:
             label.setStyleSheet(theme["settings_text"])
-        for combo in [self.camera_dropbox, self.microphone_dropbox, self.speaker_dropbox, self.voice_model_dropbox]:
+        for combo in [self.camera_dropbox, self.microphone_dropbox, self.speaker_dropbox]:
             combo.setStyleSheet(theme["settings_combobox"])
         self.toggle_row_for_voice._apply_theme(theme)
         self.toggle_row_for_gesture._apply_theme(theme)
@@ -1218,6 +1179,70 @@ class ProfileOption(QFrame):
         self.line.setStyleSheet(theme["profile_line"])
 
 
+class RecommendationBadge(QFrame):
+    """
+    Виджет плашки рекомендаций с вертикальным расположением:
+    - Заголовок сверху
+    - Разделительная линия
+    - Текст рекомендации снизу
+    """
+    def __init__(self, title: str = "Рекомендация по вводу/выводу", 
+                 recommendation_text: str = "Не определено", parent=None):
+        super().__init__(parent)
+        
+        self.setStyleSheet(THEMES[SELECTED_THEME]["profile_option_frame"])
+        self.text_qss = THEMES[SELECTED_THEME]["profile_text"]
+        
+        # Убираем фиксированную высоту, позволяем растягиваться
+        self.setFixedHeight(16777215)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        
+        # Вертикальный лэйаут
+        self.lay = QVBoxLayout(self)
+        self.lay.setContentsMargins(10, 8, 10, 8)
+        self.lay.setSpacing(8)
+        
+        # Заголовок сверху
+        self.title_label = QLabel(title)
+        self.title_label.setStyleSheet(self.text_qss + "font-weight: bold;")
+        self.title_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.lay.addWidget(self.title_label)
+        
+        # Горизонтальная разделительная линия
+        self.line = QFrame()
+        self.line.setFrameShape(QFrame.Shape.HLine)
+        self.line.setFrameShadow(QFrame.Shadow.Sunken)
+        self.line.setStyleSheet(THEMES[SELECTED_THEME]["profile_line"])
+        self.lay.addWidget(self.line)
+        
+        # Текст рекомендации снизу
+        self.recommendation_label = QLabel(recommendation_text)
+        self.recommendation_label.setStyleSheet(self.text_qss)
+        self.recommendation_label.setWordWrap(True)
+        self.recommendation_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.lay.addWidget(self.recommendation_label)
+        
+        # Сохраняем текущее значение для совместимости
+        self._current_value = recommendation_text
+    
+    def set_recommendation(self, text: str):
+        """Обновляет текст рекомендации."""
+        self.recommendation_label.setText(text)
+        self._current_value = text
+    
+    def get_value(self) -> str:
+        """Возвращает текущее значение рекомендации."""
+        return self._current_value
+    
+    def _apply_theme(self, theme: dict):
+        """Обновляет стили плашки."""
+        self.setStyleSheet(theme["profile_option_frame"])
+        self.text_qss = theme["profile_text"]
+        self.title_label.setStyleSheet(theme["profile_text"] + "font-weight: bold;")
+        self.recommendation_label.setStyleSheet(theme["profile_text"])
+        self.line.setStyleSheet(theme["profile_line"])
+
+
 class Profile(ContentPageWidget):
     def __init__(self):
         super().__init__()
@@ -1298,26 +1323,10 @@ class Profile(ContentPageWidget):
 
 
         self.main_frame_lay.addStretch(1)
-        
-        # Создаём рекомендацию (по умолчанию имеет фиксированную высоту 35)
-        self.recommendation = ProfileOption("Рекомендация по вводу/выводу", "Не определено", False)
-        self.main_frame_lay.addWidget(self.recommendation, Qt.AlignmentFlag.AlignLeft)
 
-        # ===== НАСТРОЙКА ТОЛЬКО ДЛЯ РЕКОМЕНДАЦИИ =====
-        # Убираем фиксированную высоту (было setFixedHeight(0) – НЕПРАВИЛЬНО)
-        self.recommendation.setFixedHeight(16777215)   # максимально возможная высота (снимает ограничение)
-        self.recommendation.setSizePolicy(
-            QSizePolicy.Policy.Expanding, 
-            QSizePolicy.Policy.Minimum
-        )
-        self.recommendation.value_label.setWordWrap(True)         # перенос длинного текста
-        self.recommendation.value_label.setSizePolicy(
-            QSizePolicy.Policy.Expanding, 
-            QSizePolicy.Policy.Minimum
-        )
-        # Увеличиваем внутренние отступы (опционально)
-        self.recommendation.lay.setContentsMargins(10, 8, 10, 8)
-        # ============================================
+        # Создаём рекомендацию с новым виджетом RecommendationBadge
+        self.recommendation = RecommendationBadge("Рекомендация по вводу/выводу", "Не определено")
+        self.main_frame_lay.addWidget(self.recommendation, Qt.AlignmentFlag.AlignLeft)
 
         # Подключаем сигнал обновления
         ui_signals.recommendation_ready.connect(self.set_recommendation)
@@ -1327,9 +1336,8 @@ class Profile(ContentPageWidget):
 
     def set_recommendation(self, text: str):
         """Обновляет текст рекомендации."""
-        self.recommendation.value_label.setText(text)
-        self.recommendation._current_value = text
-    
+        self.recommendation.set_recommendation(text)
+
     def _apply_theme(self, theme: dict):
         """Обновляет стили страницы профиля."""
         super()._apply_theme(theme)
