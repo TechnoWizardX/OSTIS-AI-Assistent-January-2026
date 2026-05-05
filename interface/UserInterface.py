@@ -26,9 +26,6 @@ from gestures import GestureCameraThread
 ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
 DATABASE_EDITOR = DataBaseEditor()
 
-AVAILABLE_VOICE_MODELS = BasicUtils.load_settings_config().get("available_recognition_models")
-
-
 CONFIG = BasicUtils.load_settings_config()
 SELECTED_THEME = CONFIG.get("theme") or "light"
 RECOGNITION_MODEL = CONFIG.get("recognition_model")
@@ -880,26 +877,6 @@ class Settings(ContentPageWidget):
 
         self.microphone_frame_lay.addWidget(self.microphone_label, 1)
         self.microphone_frame_lay.addWidget(self.microphone_dropbox, 1)
-        
-
-        self.voice_model_frame = QFrame()
-        self.voice_model_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
-        self.voice_model_frame.setFixedHeight(40)
-        self.grid_lay.addWidget(self.voice_model_frame, 2, 0)
-        
-        self.voice_model_dropbox = QComboBox()
-        self.voice_model_list = AVAILABLE_VOICE_MODELS + ["Автоматическая"]
-        self.voice_model_dropbox.addItems(self.voice_model_list)
-        self.voice_model_dropbox.setStyleSheet(self.dropbox_qss)
-        self.voice_model_dropbox.setMinimumHeight(30)
-        self.voice_model_frame_lay = QHBoxLayout(self.voice_model_frame)
-        self.voice_model_frame_lay.setContentsMargins(10, 5, 5, 10)
-        self.voice_model_frame_lay.setSpacing(10)
-
-        self.voice_model_label = QLabel("Модель распознавателя речи:")
-        self.voice_model_label.setStyleSheet(self.settings_text_qss)
-        self.voice_model_frame_lay.addWidget(self.voice_model_label, 1)
-        self.voice_model_frame_lay.addWidget(self.voice_model_dropbox, 1)
 
 
         self.speaker_frame = QFrame()
@@ -969,7 +946,6 @@ class Settings(ContentPageWidget):
         # Подключаем сигналы для сохранения настроек
         self.camera_dropbox.currentTextChanged.connect(self._on_camera_changed)
         self.microphone_dropbox.currentTextChanged.connect(self._on_microphone_changed)
-        self.voice_model_dropbox.currentTextChanged.connect(self._on_voice_model_changed)
         self.speaker_dropbox.currentTextChanged.connect(self._on_speaker_changed)
         self.toggle_row_for_voice.toggled.connect(self.voice_toggle_state.save)
         self.toggle_row_for_gesture.toggled.connect(self.gesture_toggle_state.save)
@@ -993,27 +969,12 @@ class Settings(ContentPageWidget):
             self.microphone_dropbox.setCurrentIndex(mic_index)
         
         # Диктор (по индексу)
-        
-
         speaker = settings_config.get("tts_voice", "xenia")
         self.speaker_dropbox.setCurrentText(self.available_voices_reversed[speaker])
-
-        voice_model = settings_config.get("recognition_model", "auto")
-        if voice_model == "auto":
-            voice_model = "Автоматическая"
-        self.voice_model_dropbox.setCurrentText(voice_model)
 
         # Тема
         theme = settings_config.get("theme", "light")
         self._on_theme_changed(theme)
-
-    def _on_voice_model_changed(self, text):
-        """Сохраняет выбранную модель распознавания речи."""
-        #index = self.voice_model_dropbox.currentIndex()
-        if text == "Автоматическая":
-            text = "auto"    
-        BasicUtils.set_settings_config_value("recognition_model", text)
-        ui_signals.settings_changed.emit({"recognition_model": text})
    
     def _on_camera_changed(self, text):
         """Сохраняет выбранную камеру."""
@@ -1041,11 +1002,11 @@ class Settings(ContentPageWidget):
         """Обновляет все стили страницы настроек."""
         super()._apply_theme(theme)
         self.main_frame.setStyleSheet(theme["dialog_frame"])
-        for frame in [self.camera_frame, self.microphone_frame, self.speaker_frame, self.theme_frame, self.voice_model_frame]:
+        for frame in [self.camera_frame, self.microphone_frame, self.speaker_frame, self.theme_frame]:
             frame.setStyleSheet(theme["settings_frame"])
-        for label in [self.camera_label, self.microphone_label, self.speaker_label, self.voice_model_label]:
+        for label in [self.camera_label, self.microphone_label, self.speaker_label]:
             label.setStyleSheet(theme["settings_text"])
-        for combo in [self.camera_dropbox, self.microphone_dropbox, self.speaker_dropbox, self.voice_model_dropbox]:
+        for combo in [self.camera_dropbox, self.microphone_dropbox, self.speaker_dropbox]:
             combo.setStyleSheet(theme["settings_combobox"])
         self.toggle_row_for_voice._apply_theme(theme)
         self.toggle_row_for_gesture._apply_theme(theme)
