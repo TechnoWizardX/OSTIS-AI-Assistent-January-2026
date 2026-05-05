@@ -1,0 +1,103 @@
+{
+  "gestures": {
+    "one_finger": {
+      "name": "1 палец",
+      "description": "Активация режима яркости",
+      "finger_pattern": [false, true, false, false, false],
+      "action": "activate_brightness",
+      "hint": "Режим яркости"
+    },
+    "three_fingers": {
+      "name": "3 пальца",
+      "description": "Активация режима звука",
+      "finger_pattern": [false, true, true, true, false],
+      "action": "activate_sound",
+      "hint": "Режим звука"
+    },
+    "open_hand": {
+      "name": "Ладонь",
+      "description": "Отмена активации",
+      "finger_pattern": [true, true, true, true, true],
+      "action": "cancel",
+      "hint": "Отмена"
+    },
+    "two_fingers": {
+      "name": "2 пальца",
+      "description": "Выход из режима",
+      "finger_pattern": [false, true, true, false, false],
+      "action": "exit",
+      "hint": "Выход из режима"
+    }
+  },
+  "actions": {
+    "circle": {
+      "name": "Круг (большой + указательный)",
+      "description": "Действие: открыть",
+      "command_name": "открой",
+      "circle_threshold": 0.05,
+      "hold_frames": 50
+    },
+    "fist_close": {
+      "name": "Кулак (сжатая ладонь)",
+      "description": "Действие: закрыть",
+      "command_name": "закрой",
+      "hold_frames": 40
+    }
+  },
+  "objects": {
+    "one_finger": {
+      "name": "1 палец вверх",
+      "description": "Объект: браузер",
+      "command_name": "браузер",
+      "finger_pattern": [false, true, false, false, false],
+      "hold_frames": 50
+    },
+    "two_fingers_explorer": {
+      "name": "2 пальца (указательный+средний)",
+      "description": "Объект: проводник",
+      "command_name": "проводник",
+      "finger_pattern": [false, true, true, false, false],
+      "hold_frames": 50
+    },
+    "three_fingers_settings": {
+      "name": "3 пальца (указательный+средний+безымянный)",
+      "description": "Объект: настройки",
+      "command_name": "настройки",
+      "finger_pattern": [false, true, true, true, false],
+      "hold_frames": 50
+    }
+  },
+  "modes": {
+    "brightness": {
+      "name": "Яркость",
+      "control_fingers": ["thumb", "index"],
+      "slider_color": [0, 255, 0],
+      "label": "Яркость: {}%"
+    },
+    "sound": {
+      "name": "Звук",
+      "control_fingers": ["thumb", "index"],
+      "slider_color": [255, 165, 0],
+      "label": "Звук: {}%"
+    }
+  },
+  "ui_texts": {
+    "title": "Жестовое управление",
+    "mode_active": "РЕЖИМ АКТИВЕН",
+    "confirm_hint": "Удерживайте жест для активации",
+    "action_prompt": "Покажите объект",
+    "object_selected": "Объект выбран"
+  },
+  "settings": {
+    "gesture_cooldown": 30,
+    "gesture_display_time": 60,
+    "min_distance": 30,
+    "max_distance": 200,
+    "camera_width": 1280,
+    "camera_height": 720,
+    "detection_confidence": 0.7,
+    "tracking_confidence": 0.6,
+    "max_hands": 2,
+    "smoothing_factor": 0.3
+  }
+}

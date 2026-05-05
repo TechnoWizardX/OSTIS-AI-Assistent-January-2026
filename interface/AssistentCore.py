@@ -41,7 +41,8 @@ class AssistentCore():
         # Инициализация рекомендателя (рекомендации отправляются только в профиль)
         self.accessibility_advisor = AccessibilityRecommender()
         # Подключаем сигнал рекомендателя к сигналу интерфейса для обновления профиля
-        self.accessibility_advisor.recommendation_obtained.connect(lambda text: ui_signals.recommendation_ready.emit(text))
+        # accessibility_advisor передаёт (methods, text), recommendation_ready принимает то же
+        self.accessibility_advisor.recommendation_obtained.connect(lambda methods, text: ui_signals.recommendation_ready.emit(methods, text))
 
         # Автозапуск при каждом сохранении профиля
         ui_signals.profile_updated.connect(lambda: self.accessibility_advisor.request_recommendation(0))

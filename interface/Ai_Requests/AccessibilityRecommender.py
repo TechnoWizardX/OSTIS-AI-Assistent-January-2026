@@ -68,7 +68,7 @@ class AccessibilityRecommender(QObject):
     - Сохраняет новый результат в кэш.
     - Выводит рекомендацию в консоль (в реальном приложении можно перенаправить в GUI).
     """
-    recommendation_obtained = pyqtSignal(str)
+    recommendation_obtained = pyqtSignal(object, str)  # (список методов, текст для пользователя)
     # Путь к файлу кэша: interface/data/accessibility_cache.json
     CACHE_FILE = os.path.join(PROJECT_ROOT, "data", "accessibility_cache.json")
     CACHE_TTL_HOURS = 2          # время жизни кэша в часах
@@ -120,10 +120,10 @@ class AccessibilityRecommender(QObject):
         normalized = diagnosis.strip().lower()
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
-    def _check_cache(self, diagnosis: str) -> Optional[str]:
+    def _check_cache(self, diagnosis: str) -> Optional[tuple]:
         """
         Проверяет наличие актуальной (не устаревшей) рекомендации в кэше.
-        Возвращает текст рекомендации или None, если кэш не подходит.
+        Возвращает кортеж (methods, user_text) или None, если кэш не подходит.
         """
         key = self._get_cache_key(diagnosis)
         if key not in self._cache:
@@ -141,14 +141,19 @@ class AccessibilityRecommender(QObject):
             return None
 
         BasicUtils.logger("AccessibilityRecommender", "INFO", "✅ Данные успешно взяты из кэша")
-        return entry["recommendation"]
+        methods = entry.get("methods", [])
+        user_text = entry.get("user_text", entry["recommendation"])
+        return methods, user_text
 
     def _update_cache(self, diagnosis: str, recommendation: str, model: str):
         """Добавляет или обновляет запись в кэше и сохраняет файл."""
         key = self._get_cache_key(diagnosis)
+        methods, user_text = self._parse_recommendation(recommendation)
         self._cache[key] = {
             "diagnosis": diagnosis,
             "recommendation": recommendation,
+            "methods": methods,
+            "user_text": user_text,
             "timestamp": datetime.now().isoformat(),
             "model": model
         }
@@ -179,18 +184,22 @@ class AccessibilityRecommender(QObject):
             f"Пользователь имеет особенности здоровья: {dysfunctions}\n"
             "Оцени, какие способы взаимодействия с системой будут наиболее удобны и безопасны.\n"
             "Доступные методы (ВЫБИРАЙ ТОЛЬКО ИЗ ЭТОГО СПИСКА):\n"
-            "- Жестовый ввод (требует подвижности кистей/пальцев)\n"
-            "- Голосовой ввод Whisper (работает при особенностях/нарушениях речи)\n"
-            "- Текстовый ввод (требует моторики и зрительного контроля)\n"
-            "- Озвучка сообщений (только ВЫВОД информации, НЕ решает задачу ввода)\n\n"
+            "- voice (Голосовой ввод Whisper — работает при особенностях/нарушениях речи)\n"
+            "- gesture (Жестовый ввод — требует подвижности кистей/пальцев)\n"
+            "- text (Текстовый ввод — требует моторики и зрительного контроля)\n"
+            "- tts (Озвучка сообщений — только ВЫВОД информации, НЕ решает задачу ввода)\n\n"
             "ПРАВИЛА:\n"
             "- ВЫБИРАЙ ТОЛЬКО методы из списка выше. НЕ предлагай айтрекер, свитчи, нейроинтерфейс, помощь ассистента или другие технологии.\n"
             "- Если нарушения делают стандартный ввод невозможным, НЕ предлагай его — выбери альтернативу из доступных методов.\n"
             "- Озвучка помогает только воспринимать информацию, но не вводить её.\n"
             "- Если запрос не связан с медициной — вежливо откажись отвечать и НЕ ПИШИ ОТВЕТ НА НЕГО.\n\n"
-            "Формат ответа (строго):\n"
-            "Рекомендация: [методы]. [1-2 коротких предложения почему].\n"
-            "Пиши без эмодзи, без цифр, без скобок в названии методов. Ответь на русском языке."
+            "Формат ответа (СТРОГО):\n"
+            "METHODS: voice,gesture,text,tts (перечисли только рекомендуемые через запятую)\n"
+            "TEXT: [1-2 предложения на русском почему эти методы рекомендуются]\n\n"
+            "Пример правильного ответа:\n"
+            "METHODS: voice,tts\n"
+            "TEXT: Рекомендуется использовать голосовой ввод и озвучку сообщений, так как они не требуют точной моторики рук.\n\n"
+            "ВАЖНО: Сначала строка METHODS, затем строка TEXT. Без эмодзи, без скобок."
         )
         return system_prompt, user_prompt
 
@@ -225,7 +234,8 @@ class AccessibilityRecommender(QObject):
         if not force_refresh:
             cached_result = self._check_cache(dys)
             if cached_result:
-                self._on_success(cached_result)   # выводим сохранённую рекомендацию
+                methods, user_text = cached_result
+                self._on_success_cached(methods, user_text)   # выводим сохранённую рекомендацию
                 return
             BasicUtils.logger("AccessibilityRecommender", "INFO", "Кэш отсутствует или устарел. Запрос к API...")
         else:
@@ -254,10 +264,44 @@ class AccessibilityRecommender(QObject):
         self._worker.start()
 
     # ---------- Обратные вызовы ----------
+    def _parse_recommendation(self, text: str):
+        """
+        Парсит ответ LLM, извлекая методы и текст для пользователя.
+        Возвращает кортеж: (список методов, текст)
+        """
+        methods = []
+        user_text = text
+
+        try:
+            lines = text.strip().split("\n")
+            for line in lines:
+                if line.startswith("METHODS:"):
+                    methods_str = line.replace("METHODS:", "").strip()
+                    methods = [m.strip() for m in methods_str.split(",") if m.strip()]
+                elif line.startswith("TEXT:"):
+                    user_text = line.replace("TEXT:", "").strip()
+
+            # Если не удалось спарсить, используем весь текст как user_text
+            if not user_text:
+                user_text = text
+        except Exception as e:
+            BasicUtils.logger("AccessibilityRecommender", "WARNING", f"Ошибка парсинга рекомендации: {e}")
+            user_text = text
+
+        return methods, user_text
+
+    def _on_success_cached(self, methods: list, user_text: str):
+        """Обработчик успешного получения рекомендации из кэша."""
+        BasicUtils.logger("AccessibilityRecommender", "INFO", f"Методы: {methods}")
+        BasicUtils.logger("AccessibilityRecommender", "INFO", f"Текст: {user_text[:100]}...")
+        self.recommendation_obtained.emit(methods, user_text)
+
     def _on_success(self, text: str):
         """Обработчик успешного получения рекомендации: логирует и отправляет в UI."""
         BasicUtils.logger("AccessibilityRecommender", "INFO", f"Рекомендация: {text[:100]}...")
-        self.recommendation_obtained.emit(text)
+        methods, user_text = self._parse_recommendation(text)
+        BasicUtils.logger("AccessibilityRecommender", "INFO", f"Методы: {methods}")
+        self.recommendation_obtained.emit(methods, user_text)
 
     def _on_error(self, err: str):
         """Обработчик ошибок: логирует ошибку."""
