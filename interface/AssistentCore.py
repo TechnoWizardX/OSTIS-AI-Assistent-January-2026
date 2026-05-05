@@ -22,11 +22,11 @@ load_dotenv()
 DATABASE_EDITOR = DataBaseEditor()
 WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
 TTSSILERO_MODEL = SileroTTS()
-INTENT_HANDLER = IntentHandler(online_model="")
+INTENT_HANDLER = IntentHandler(online_model="google/gemma-4-26b-a4b-it:free")
 
 class AssistentCore():
-    def __init__(self):
-        self.user_interface = UserInterface()
+    def __init__(self, api_key: str = ""):
+        self.user_interface = UserInterface(api_key=api_key)
         self.settings_config = BasicUtils.load_settings_config()
         
         self.network_checker = NetworkChecker()
@@ -64,7 +64,7 @@ class AssistentCore():
         ui_signals.speaker_stop_request.connect(self.stop_speech)
         ui_signals.clear_history_requested.connect(self.clear_chat_history)
         global_signals.error_signal.connect(self.handle_error)
-        
+        ui_signals.openrouter_api_key_changed.connect(lambda key: self.intent_handler.update_api_key(key))
    
     def _on_network_status(self, online: bool):
         """Обработка статуса сети (для информации)."""
@@ -303,7 +303,8 @@ class AssistentCore():
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    assistent = AssistentCore()
+    api_key = BasicUtils.get_env_variable("OPENROUTER_API_KEY")
+    assistent = AssistentCore(api_key)
     app.aboutToQuit.connect(assistent.intent_handler.shutdown_ollama)
     assistent.run()
     sys.exit(app.exec())

@@ -57,15 +57,15 @@ class Signals(QObject):
     history_cleared = pyqtSignal()          # для обновления чатов после очистки
     clear_history_requested = pyqtSignal()  # запрос на очистку истории (отправляется в ядро)ui_signals = Signals()
     recommendation_ready = pyqtSignal(str) 
+    openrouter_api_key_changed = pyqtSignal(str)  # Сигнал для изменения API ключа OpenRouter
 ui_signals = Signals()    
 # ===========================================================
 # ГЛАВНЫЙ ИНТЕРФЕЙС
 # ===========================================================
 class UserInterface(QMainWindow):
     """Основной интерфейс приложения."""
-    def __init__(self):
+    def __init__(self, api_key = ""):
         super().__init__()
-
         BasicUtils.logger("UserInterface", "INFO", "Инициализация интерфейса")
 
         self._theme = THEMES[SELECTED_THEME]
@@ -84,7 +84,7 @@ class UserInterface(QMainWindow):
         self.main_lay.setSpacing(10)
 
 
-        self.settings_page = Settings()
+        self.settings_page = Settings(api_key)
         self.profile_page = Profile()
         self.voice_input_page = VoiceInput()
         self.text_input_page = TextInput()
@@ -805,7 +805,8 @@ class ToggleSwitchState:
 # НАСТРОЙКИ
 # ===========================================================
 class Settings(ContentPageWidget):
-    def __init__(self):
+    def __init__(self, api_key = ""):
+        
         super().__init__()
 
         self.available_voices = BasicUtils.get_settings_config_value("available_silero_voices")
@@ -938,10 +939,37 @@ class Settings(ContentPageWidget):
 
         self.grid_lay.addWidget(self.theme_frame, 6, 0)
         # ================================================
+        # API ключ
+        self.api_frame = QFrame()
+        self.api_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
+        self.api_frame_lay = QHBoxLayout(self.api_frame)
+        
+        self.api_label = QLabel("API Ключ")
+        self.api_label.setStyleSheet(self.settings_text_qss)
+        self.api_frame_lay.addWidget(self.api_label)
+        
+        self.api_key_input = QLineEdit()
+        self.api_key_input.setText(api_key)
+        self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.api_key_input.setPlaceholderText("Введите sk-or-v1-...")
+        self.api_frame_lay.addWidget(self.api_key_input)
+        
+        self.show_api_key = QPushButton("👁")
+        self.show_api_key.setFixedSize(30, 30)
+        self.show_api_key.setCheckable(True)
+        self.show_api_key.clicked.connect(self._toggle_api_key_visibility)
+        self.api_frame_lay.addWidget(self.show_api_key)
 
-        self.grid_lay.setRowStretch(7, 1)
+        self.save_key_btn = QPushButton("Сохранить")
+        self.save_key_btn.clicked.connect(self._save_api_key)
+        self.api_frame_lay.addWidget(self.save_key_btn)
+        
+        self.grid_lay.addWidget(self.api_frame, 7, 0)
+
+        self.grid_lay.setRowStretch(8, 1)
         # Загружаем настройки из файла
         self._load_settings()
+
 
         # Подключаем сигналы для сохранения настроек
         self.camera_dropbox.currentTextChanged.connect(self._on_camera_changed)
@@ -949,6 +977,18 @@ class Settings(ContentPageWidget):
         self.speaker_dropbox.currentTextChanged.connect(self._on_speaker_changed)
         self.toggle_row_for_voice.toggled.connect(self.voice_toggle_state.save)
         self.toggle_row_for_gesture.toggled.connect(self.gesture_toggle_state.save)
+    
+    def _toggle_api_key_visibility(self):
+        if self.show_api_key.isChecked():
+            self.api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
+        else:
+            self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+
+    def _save_api_key(self):
+        new_key = self.api_key_input.text().strip()
+        if new_key:
+            ui_signals.openrouter_api_key_changed.emit(new_key)
+            QMessageBox.information(self, "Успех", "API ключ сохранен и обновлен")
 
     def _load_settings(self):
         """Загружает настройки из settings_config.json и применяет их к виджетам."""

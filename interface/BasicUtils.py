@@ -8,7 +8,8 @@ import re
 from PyQt6.QtCore import pyqtSignal, QObject
 from PyQt6.QtMultimedia import QMediaDevices
 import socket
-
+import os
+from dotenv import load_dotenv
 class Signals(QObject):
     voice_message_recognized = pyqtSignal(str)
     error_signal = pyqtSignal(str)
@@ -33,6 +34,11 @@ DEFAULT_SETTINGS_CONFIG = {
     "voice_send_directly": False
 }
 class BasicUtils:
+    @staticmethod
+    def get_env_variable(name: str) -> str:
+        """Получает значение переменной окружения. Если переменная не найдена, возвращает пустую строку."""
+        load_dotenv() 
+        return os.getenv(name, "")
     @staticmethod
     def get_available_cameras() -> list:
         cameras = []
