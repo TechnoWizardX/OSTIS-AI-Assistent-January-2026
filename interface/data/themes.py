@@ -340,6 +340,24 @@ _QSS = {
         }}
     """,
 
+    "settings_input": """
+        QLineEdit {{
+            background-color: {bg_combo};
+            border: 1px solid {border};
+            border-radius: 4px;
+            font-size: 14px;
+            color: {text_primary};
+            padding: 4px 8px;
+        }}
+        QLineEdit:hover {{
+            border: 1px solid {border_hover};
+            background-color: {bg_combo_hover};
+        }}
+        QLineEdit:focus {{
+            border: 1px solid {border_pressed};
+        }}
+    """,
+
     "chat_send_box_frame": "background-color: {bg_chat_box}; border-radius: 16px;",
 
     "chat_send_input": """
@@ -538,6 +556,23 @@ _QSS = {
             border: 3px solid transparent;
             padding: 5px 5px 5px 16px;
             text-align: left;
+        }}
+        QPushButton:hover {{
+            background-color: {bg_button_hover};
+            border: 3px solid {border_hover};
+        }}
+        QPushButton:pressed {{
+            background-color: {bg_button_pressed};
+            border: 3px solid {border_pressed};
+        }}
+    """,
+
+    "icon_button": """
+        QPushButton {{
+            background-color: {bg_button};
+            border-radius: 12px;
+            border: 3px solid transparent;
+            color: {text_primary};
         }}
         QPushButton:hover {{
             background-color: {bg_button_hover};
