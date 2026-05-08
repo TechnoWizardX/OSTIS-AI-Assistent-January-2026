@@ -9,15 +9,15 @@ import os
 from dotenv import load_dotenv, set_key
 DATABASE_EDITOR = DataBaseEditor()
 class IntentHandler:
-    def __init__(self, model_name="qwen2.5:3b", api_key = None, online_model = "openrouter/auto"):
+    def __init__(self, offline_model="qwen2.5:3b", api_key = None, online_model = "openrouter/auto", base_url = "https://openrouter.ai/api/v1"):
         """Инициализация обработчика намерений"""
         load_dotenv()
         self.ollama_url = "http://localhost:11434/api/generate"
-        self.offline_model = model_name
-        
+        self.offline_model = offline_model
+        self.base_url = base_url
         self.online_model = online_model
         self._api_key = api_key or os.getenv("OPENROUTER_API_KEY")
-        self.online_client = openai.OpenAI(api_key=self._api_key, base_url="https://openrouter.ai/api/v1")
+        self.online_client = openai.OpenAI(api_key=self._api_key, base_url=self.base_url)
         
         self.basic_prompt = """
         Ты — дружелюбный ассистент-помощник для людей с психофизическими особенностями. Твоя цель: помогать управлять операционной системой, общаясь просто, тепло и понятно.
@@ -99,7 +99,7 @@ class IntentHandler:
     def update_api_key(self, new_key: str):
         """Обновляет API ключ для онлайн-запросов"""
         self._api_key = new_key
-        self.online_client = openai.OpenAI(api_key=self._api_key, base_url="https://openrouter.ai/api/v1")
+        self.online_client = openai.OpenAI(api_key=self._api_key, base_url=self.base_url)
         BasicUtils.logger("IntentHandler", "INFO", "API ключ обновлен")
     
     def build_user_data(self, name: str, birthday: str, gender: str, chat_history: str, current_app: str, available_apps: list) -> str:
@@ -168,6 +168,7 @@ class IntentHandler:
                 messages=[{"role": "user", "content": prompt}],
                 response_format={ "type": "json_object" }
             )
+            BasicUtils.logger("IntentHandler", "INFO", f"Онлайн-модель ответила. Модель: {online_model}")
             return json.loads(response.choices[0].message.content)
         except Exception as e:
             BasicUtils.logger("IntentHandler", "ERROR", f"Online API error: {e}")

@@ -22,7 +22,7 @@ load_dotenv()
 DATABASE_EDITOR = DataBaseEditor()
 WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
 TTSSILERO_MODEL = SileroTTS()
-INTENT_HANDLER = IntentHandler(online_model="google/gemma-4-26b-a4b-it:free")
+INTENT_HANDLER = IntentHandler(online_model="nvidia/nemotron-3-super:free", base_url="https://openrouter.ai/api/v1")
 
 class AssistentCore():
     def __init__(self, api_key: str = ""):
