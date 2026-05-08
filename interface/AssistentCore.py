@@ -11,10 +11,8 @@ if VOICE_INPUT_DIR not in sys.path:
 import threading
 from BasicUtils import BasicUtils, DataBaseEditor, global_signals
 import VoiceInput.WhisperRecognition as Whisper
-from TTSSilero import SileroTTS 
-from Ai_Request_Manager.NetworkChecker import NetworkChecker
-from Ai_Request_Manager.LocalModel import LocalModel
-from Ai_Requests.AccessibilityRecommender import AccessibilityRecommender
+from TTSSilero import SileroTTS
+from ai_services import NetworkChecker, LocalModel, AccessibilityRecommender
 from IntentHandler import IntentHandler, IntentWorker
 from dotenv import load_dotenv
 from SystemControl import ControlSystem

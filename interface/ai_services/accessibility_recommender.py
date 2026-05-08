@@ -22,7 +22,7 @@ if PROJECT_ROOT not in sys.path:
 
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
 from BasicUtils import BasicUtils, DataBaseEditor
-from Ai_Request_Manager.MedicalAPI import MedicalAPI
+from .services import MedicalAPI
 
 
 class RecommendationWorker(QThread):
@@ -39,10 +39,12 @@ class RecommendationWorker(QThread):
         self.system_prompt = system_prompt
         self.api_key = api_key
         self.model = model
+        BasicUtils.logger("RecommendationWorker", "INFO", f"Инициализация: model={model}")
 
     def run(self):
         """Запускается в отдельном потоке, отправляет запрос и эмитит сигнал."""
         try:
+            BasicUtils.logger("RecommendationWorker", "INFO", "Запуск запроса к MedicalAPI")
             api = MedicalAPI(api_key=self.api_key, model=self.model)
             result = api.chat(
                 prompt=self.user_prompt,
@@ -52,10 +54,13 @@ class RecommendationWorker(QThread):
             )
             # Если ответ начинается с эмодзи-предупреждений — считаем ошибкой
             if result.startswith(("⚠️", "❌")):
+                BasicUtils.logger("RecommendationWorker", "ERROR", f"API вернул ошибку: {result[:100]}")
                 self.error.emit(result)
             else:
+                BasicUtils.logger("RecommendationWorker", "INFO", f"Успешный ответ от API: {result[:100]}...")
                 self.finished.emit(result)
         except Exception as e:
+            BasicUtils.logger("RecommendationWorker", "ERROR", f"Критическая ошибка потока: {str(e)}")
             self.error.emit(f"❌ Критическая ошибка потока: {str(e)}")
 
 
@@ -79,9 +84,11 @@ class AccessibilityRecommender(QObject):
         :param default_model: модель LLM, используемая по умолчанию
         """
         super().__init__()
+        BasicUtils.logger("AccessibilityRecommender", "INFO", "=== Инициализация AccessibilityRecommender ===")
         self.db = DataBaseEditor()                 # для доступа к БД
         self._api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         if not self._api_key:
+            BasicUtils.logger("AccessibilityRecommender", "ERROR", "❌ Не найден OPENROUTER_API_KEY")
             raise ValueError("❌ Не найден OPENROUTER_API_KEY. Загрузите .env или передайте ключ.")
 
         self.default_model = default_model
@@ -89,6 +96,7 @@ class AccessibilityRecommender(QObject):
         self._cache: Dict = self._load_cache()                # загружаем кэш из файла
         BasicUtils.logger("AccessibilityRecommender", "INFO",
                          f"Кэш инициализирован: {len(self._cache)} записей")
+        BasicUtils.logger("AccessibilityRecommender", "INFO", f"Модель по умолчанию: {default_model}")
 
     # ---------- Управление кэшем ----------
     def _load_cache(self) -> Dict:
@@ -96,7 +104,11 @@ class AccessibilityRecommender(QObject):
         try:
             if os.path.exists(self.CACHE_FILE):
                 with open(self.CACHE_FILE, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    cache = json.load(f)
+                BasicUtils.logger("AccessibilityRecommender", "INFO", f"Кэш загружен: {len(cache)} записей")
+                return cache
+            else:
+                BasicUtils.logger("AccessibilityRecommender", "INFO", "Файл кэша не найден, создан пустой кэш")
         except Exception as e:
             BasicUtils.logger("AccessibilityRecommender", "WARNING", f"Ошибка чтения кэша: {e}")
         return {}
@@ -106,7 +118,7 @@ class AccessibilityRecommender(QObject):
         try:
             cache_dir = os.path.dirname(self.CACHE_FILE)
             if cache_dir:
-                os.makedirs(cache_dir, exist_ok=True)   # создаём interface/data, если её нет
+                os.makedirs(cache_dir, exist_ok=True)
             with open(self.CACHE_FILE, "w", encoding="utf-8") as f:
                 json.dump(self._cache, f, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -137,7 +149,7 @@ class AccessibilityRecommender(QObject):
             BasicUtils.logger("AccessibilityRecommender", "INFO",
                              f"Кэш устарел (TTL={self.CACHE_TTL_HOURS}ч), удаляем запись")
             del self._cache[key]
-            self._save_cache()          # сразу сохраняем очищенный кэш
+            self._save_cache()
             return None
 
         BasicUtils.logger("AccessibilityRecommender", "INFO", "✅ Данные успешно взяты из кэша")
@@ -157,6 +169,7 @@ class AccessibilityRecommender(QObject):
             "timestamp": datetime.now().isoformat(),
             "model": model
         }
+        BasicUtils.logger("AccessibilityRecommender", "INFO", f"Кэш обновлён для диагноза: {diagnosis[:50]}...")
         self._save_cache()
 
     def clear_cache(self):
@@ -225,6 +238,7 @@ class AccessibilityRecommender(QObject):
         :param force_refresh: если True — игнорирует кэш и всегда обращается к API
         :param model: позволяет временно переопределить модель (иначе используется default_model)
         """
+        BasicUtils.logger("AccessibilityRecommender", "INFO", f"=== Запрос рекомендации: user_id={user_id}, force_refresh={force_refresh} ===")
         dys = self._get_dysfunctions(user_id)
         if not dys:
             BasicUtils.logger("AccessibilityRecommender", "INFO", "Нарушения не указаны в профиле. Анализ пропущен.")
@@ -235,6 +249,7 @@ class AccessibilityRecommender(QObject):
             cached_result = self._check_cache(dys)
             if cached_result:
                 methods, user_text = cached_result
+                BasicUtils.logger("AccessibilityRecommender", "INFO", "Использована рекомендация из кэша")
                 self._on_success_cached(methods, user_text)   # выводим сохранённую рекомендацию
                 return
             BasicUtils.logger("AccessibilityRecommender", "INFO", "Кэш отсутствует или устарел. Запрос к API...")
@@ -251,6 +266,7 @@ class AccessibilityRecommender(QObject):
         BasicUtils.logger("AccessibilityRecommender", "INFO", f"Анализ нарушений: {dys}")
 
         used_model = model if model else self.default_model
+        BasicUtils.logger("AccessibilityRecommender", "INFO", f"Используемая модель: {used_model}")
         # Создаём и запускаем рабочий поток
         self._worker = RecommendationWorker(usr_prompt, sys_prompt, self._api_key, used_model)
 
@@ -261,6 +277,7 @@ class AccessibilityRecommender(QObject):
 
         self._worker.finished.connect(on_success_with_cache)
         self._worker.error.connect(self._on_error)
+        BasicUtils.logger("AccessibilityRecommender", "INFO", "Запуск RecommendationWorker")
         self._worker.start()
 
     # ---------- Обратные вызовы ----------
