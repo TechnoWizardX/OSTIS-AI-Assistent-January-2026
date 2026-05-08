@@ -8,7 +8,7 @@ from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainte
 import sys
 import os
 from BasicUtils import BasicUtils, DataBaseEditor
-from data.themes import THEMES
+from data.themes import THEMES, _COLOR_MAP
 from datetime import datetime
 
 # Базовый путь для иконок
@@ -1179,12 +1179,39 @@ class Settings(ContentPageWidget):
         self.api_key_input.setText(api_key)
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_input.setPlaceholderText("Введите sk-or-v1-...")
+        self.api_key_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: transparent;
+                border: none;
+                border-radius: 4px;
+                font-size: 14px;
+                color: {_COLOR_MAP[SELECTED_THEME]["text_primary"]};
+                padding: 4px 8px;
+            }}
+        """)
         self.api_frame_lay.addWidget(self.api_key_input)
         
-        self.show_api_key = QPushButton("👁")
+        self.show_api_key = QPushButton()
         self.show_api_key.setFixedSize(30, 30)
         self.show_api_key.setCheckable(True)
+        self.show_api_key.setIcon(QIcon(icon_path("hide.png")))
+        self.show_api_key.setIconSize(QSize(20, 20))
         self.show_api_key.clicked.connect(self._toggle_api_key_visibility)
+        self.show_api_key.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: none;
+                border-radius: 12px;
+            }}
+            QPushButton:hover {{
+                background-color: transparent;
+                border: none;
+            }}
+            QPushButton:pressed {{
+                background-color: transparent;
+                border: none;
+            }}
+        """)
         self.api_frame_lay.addWidget(self.show_api_key)
 
         self.save_key_btn = QPushButton("Сохранить")
@@ -1208,8 +1235,10 @@ class Settings(ContentPageWidget):
     def _toggle_api_key_visibility(self):
         if self.show_api_key.isChecked():
             self.api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
+            self.show_api_key.setIcon(QIcon(icon_path("show.png")))
         else:
             self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+            self.show_api_key.setIcon(QIcon(icon_path("hide.png")))
 
     def _save_api_key(self):
         new_key = self.api_key_input.text().strip()
@@ -1268,17 +1297,49 @@ class Settings(ContentPageWidget):
     def _apply_theme(self, theme: dict):
         """Обновляет все стили страницы настроек."""
         super()._apply_theme(theme)
+        # Получаем имя текущей темы для доступа к цветам
+        theme_name = BasicUtils.get_settings_config_value("theme") or "light"
+        colors = _COLOR_MAP.get(theme_name, _COLOR_MAP["light"])
+        
         self.main_frame.setStyleSheet(theme["dialog_frame"])
-        for frame in [self.camera_frame, self.microphone_frame, self.speaker_frame, self.theme_frame]:
+        for frame in [self.camera_frame, self.microphone_frame, self.speaker_frame, self.theme_frame, self.api_frame]:
             frame.setStyleSheet(theme["settings_frame"])
-        for label in [self.camera_label, self.microphone_label, self.speaker_label]:
-            label.setStyleSheet(theme["settings_text"])
+        for label in [self.camera_label, self.microphone_label, self.speaker_label, self.api_label]:
+            label.setStyleSheet(self.settings_text_qss)
         for combo in [self.camera_dropbox, self.microphone_dropbox, self.speaker_dropbox]:
-            combo.setStyleSheet(theme["settings_combobox"])
+            combo.setStyleSheet(self.dropbox_qss)
+        # Поле API-ключа с прозрачным фоном
+        self.api_key_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: transparent;
+                border: none;
+                border-radius: 4px;
+                font-size: 14px;
+                color: {colors["text_primary"]};
+                padding: 4px 8px;
+            }}
+        """)
         self.toggle_row_for_voice._apply_theme(theme)
         self.toggle_row_for_gesture._apply_theme(theme)
         for btn in self._theme_buttons:
             btn.setStyleSheet(theme["theme_button"])
+        # Применяем тему к кнопкам API-ключа (без границ и фона)
+        self.show_api_key.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: none;
+                border-radius: 12px;
+            }}
+            QPushButton:hover {{
+                background-color: transparent;
+                border: none;
+            }}
+            QPushButton:pressed {{
+                background-color: transparent;
+                border: none;
+            }}
+        """)
+        self.save_key_btn.setStyleSheet(theme["theme_button"])
    
     def get_current_camera(self):
         return self.camera_dropbox.currentText()
