@@ -3,9 +3,9 @@
         "ssid": "",
         "password": ""
     },
-    "use_online_model": false,
+    "use_online_model": true,
     "allow_online_model_user_info": false,
-    "theme": "light",
+    "theme": "vs_code",
     "last_message_send": null,
     "recording_enabled": false,
     "camera_index": 0,

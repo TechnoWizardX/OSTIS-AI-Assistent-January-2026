@@ -102,7 +102,8 @@ class IntentHandler:
         self.online_client = openai.OpenAI(api_key=self._api_key, base_url=self.base_url)
         BasicUtils.logger("IntentHandler", "INFO", "API ключ обновлен")
     
-    def build_user_data(self, name: str, birthday: str, gender: str, chat_history: str, current_app: str, available_apps: list) -> str:
+    def build_user_data(self, name: str= "", birthday: str = "", gender: str = "", 
+                        chat_history: str = "", current_app: str= "", available_apps: list = []) -> str:
         """Генерирует единую строку контекста"""
         return (
             f"ДАННЫЕ ПОЛЬЗОВАТЕЛЯ:\n"

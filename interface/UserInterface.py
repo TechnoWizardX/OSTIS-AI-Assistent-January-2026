@@ -1220,7 +1220,16 @@ class Settings(ContentPageWidget):
         
         self.grid_lay.addWidget(self.api_frame, 7, 0)
 
-        self.grid_lay.setRowStretch(8, 1)
+        self.use_onlie_model = ToggleSwitchRow("Использовать облачный ИИ (требуется API ключ)")
+        self.grid_lay.addWidget(self.use_onlie_model, 8, 0)
+
+        self.online_model_allows = ToggleSwitchRow("Разрешить облачному ИИ доступ к персональным данным")
+        self.grid_lay.addWidget(self.online_model_allows, 9, 0)
+
+        self.use_online_model_state = ToggleSwitchState("use_online_model")
+        self.online_model_allows_state = ToggleSwitchState("allow_online_model_user_info")
+
+        self.grid_lay.setRowStretch(10, 1)
         # Загружаем настройки из файла
         self._load_settings()
 
@@ -1231,6 +1240,8 @@ class Settings(ContentPageWidget):
         self.speaker_dropbox.currentTextChanged.connect(self._on_speaker_changed)
         self.toggle_row_for_voice.toggled.connect(self.voice_toggle_state.save)
         self.toggle_row_for_gesture.toggled.connect(self.gesture_toggle_state.save)
+        self.use_onlie_model.toggled.connect(self.use_online_model_state.save)
+        self.online_model_allows.toggled.connect(self.online_model_allows_state.save)   
     
     def _toggle_api_key_visibility(self):
         if self.show_api_key.isChecked():
@@ -1253,6 +1264,8 @@ class Settings(ContentPageWidget):
         # Восстанавливаем состояния переключателей
         self.toggle_row_for_voice.setChecked(self.voice_toggle_state.load())
         self.toggle_row_for_gesture.setChecked(self.gesture_toggle_state.load())
+        self.use_onlie_model.setChecked(self.use_online_model_state.load())
+        self.online_model_allows.setChecked(self.online_model_allows_state.load())
         
         # Камера (по индексу)
         camera_index = settings_config.get("camera_index", 0)
@@ -1321,6 +1334,8 @@ class Settings(ContentPageWidget):
         """)
         self.toggle_row_for_voice._apply_theme(theme)
         self.toggle_row_for_gesture._apply_theme(theme)
+        self.use_onlie_model._apply_theme(theme)
+        self.online_model_allows._apply_theme(theme)
         for btn in self._theme_buttons:
             btn.setStyleSheet(theme["theme_button"])
         # Применяем тему к кнопкам API-ключа (без границ и фона)
@@ -1354,6 +1369,14 @@ class Settings(ContentPageWidget):
     def is_gesture_toggle_checked(self):
         """Возвращает состояние переключателя жестового ввода (True/False)"""
         return self.toggle_row_for_gesture.isChecked()
+    
+    def is_online_model_allowed(self):
+        """Возвращает состояние переключателя разрешающего доступ облачному ИИ к персональным данным (True/False)"""
+        return self.online_model_allows.isChecked()
+
+    def is_online_model_used(self):        
+        """Возвращает состояние переключателя использования облачного ИИ (True/False)"""
+        return self.use_onlie_model.isChecked()
 
     def get_current_speaker(self):
         return self.speaker_dropbox.currentText()

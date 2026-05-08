@@ -22,7 +22,7 @@ load_dotenv()
 DATABASE_EDITOR = DataBaseEditor()
 WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
 TTSSILERO_MODEL = SileroTTS()
-INTENT_HANDLER = IntentHandler(online_model="nvidia/nemotron-3-super:free", base_url="https://openrouter.ai/api/v1")
+INTENT_HANDLER = IntentHandler(online_model="poolside/laguna-xs.2:free", base_url="https://openrouter.ai/api/v1")
 
 class AssistentCore():
     def __init__(self, api_key: str = ""):
@@ -254,17 +254,39 @@ class AssistentCore():
         BasicUtils.logger("CORE", "INFO", f"Пользователь: {message}")
         raw_history = BasicUtils.load_chat_history()
         formatted_history = BasicUtils.format_chat_history(raw_history)
-
-        user_context = self.intent_handler.build_user_data(
-            name=DATABASE_EDITOR.get_data("Users", "firstname", 0),
-            birthday=DATABASE_EDITOR.get_data("Users", "birthday", 0),
-            gender=DATABASE_EDITOR.get_data("Users", "gender", 0),
-            chat_history=formatted_history,
-            current_app=ControlSystem.get_active_app(),
-            available_apps=ControlSystem.get_available_apps(),
-        )
+        
+        
         use_online = BasicUtils.get_settings_config_value("use_online_model") and BasicUtils.has_internet()
-        self.ai_thread = IntentWorker(self.intent_handler, message, user_context, use_online)
+        if use_online:
+            BasicUtils.logger("CORE", "INFO", "Использование облачного ИИ для обработки запроса")
+            if BasicUtils.get_settings_config_value("allow_online_model_user_info"):
+                BasicUtils.logger("CORE", "INFO", "Разрешён доступ облачному ИИ к персональным данным")
+                user_context = self.intent_handler.build_user_data(
+                    name=DATABASE_EDITOR.get_data("Users", "firstname", 0),
+                    birthday=DATABASE_EDITOR.get_data("Users", "birthday", 0),
+                    gender=DATABASE_EDITOR.get_data("Users", "gender", 0),
+                    chat_history=formatted_history,
+                    current_app=ControlSystem.get_active_app(),
+                    available_apps=ControlSystem.get_available_apps(),
+                )
+            else:
+                BasicUtils.logger("CORE", "INFO", "Доступ облачному ИИ к персональным данным запрещён")
+                user_context = self.intent_handler.build_user_data(
+                    chat_history=formatted_history,
+                    current_app=ControlSystem.get_active_app(),
+                    available_apps=ControlSystem.get_available_apps(),
+                )
+        else:
+            BasicUtils.logger("CORE", "INFO", "Использование локального ИИ для обработки запроса")
+            user_context = self.intent_handler.build_user_data(
+                    name=DATABASE_EDITOR.get_data("Users", "firstname", 0),
+                    birthday=DATABASE_EDITOR.get_data("Users", "birthday", 0),
+                    gender=DATABASE_EDITOR.get_data("Users", "gender", 0),
+                    chat_history=formatted_history,
+                    current_app=ControlSystem.get_active_app(),
+                    available_apps=ControlSystem.get_available_apps(),
+                )
+        self.ai_thread = IntentWorker(handler=self.intent_handler, user_text=message, user_data=user_context, use_online = use_online)
 
         self.ai_thread.finished.connect(self.handle_ai_result)
         self.ai_thread.error.connect(self.handle_error)
