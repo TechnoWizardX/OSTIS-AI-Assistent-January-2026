@@ -4,7 +4,7 @@
         "password": ""
     },
     "use_online_model": true,
-    "use_online_rec": false,
+    "use_online_rec": true,
     "allow_online_model_user_info": false,
     "theme": "dark",
     "last_message_send": null,
