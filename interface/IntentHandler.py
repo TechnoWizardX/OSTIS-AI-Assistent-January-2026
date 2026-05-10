@@ -180,7 +180,6 @@ class IntentHandler:
         Пытается извлечь JSON из строки, даже если модель добавила лишний текст
         """
         try:
-            # 1. Пробуем прямой парсинг (если всё идеально)
             return json.loads(raw_response)
         except json.JSONDecodeError:
             # 2. Если ошибка, ищем блок кода через регулярку

@@ -3,6 +3,7 @@ import AppOpener
 import time
 import win32gui
 import win32process
+import win32con
 import psutil
 import webbrowser
 import pyautogui
@@ -11,6 +12,7 @@ import os
 import ctypes
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+import wmi
 CONFIG = BasicUtils.get_settings_config_value("Wifi")
 class ControlSystem:
     
@@ -58,11 +60,8 @@ class ControlSystem:
             APPCOMMAND_VOLUME_DOWN = 0x09
             APPCOMMAND_VOLUME_MUTE = 0x08
             
-            # Находим дескриптор активного окна (или рабочего стола)
             hwnd = ctypes.windll.user32.GetForegroundWindow()
             
-            # Для простоты и надежности без "дичи" в консоли, используем такой цикл:
-            # (Он шлет команды напрямую системе, не в текстовое поле)
             for _ in range(50): # Обнуляем
                 ctypes.windll.user32.SendMessageW(hwnd, WM_APPCOMMAND, hwnd, APPCOMMAND_VOLUME_DOWN * 0x10000)
             
@@ -138,6 +137,7 @@ class ControlSystem:
         # Нам нужны только названия (ключи) для ассистента
         BasicUtils.logger("SystemControl", "INFO", f"Запрошен список доступных приложений")
         return apps_dict
+    
     @staticmethod
     def empty_recycle_bin():
         """Очистка корзины через официальный WinAPI"""
@@ -348,7 +348,190 @@ class ControlSystem:
             BasicUtils.logger("SystemControl", "ERROR", f"Ошибка мониторинга ресурсов: {e}")
             return None
 
+    @staticmethod
+    def minimize_all_windows():
+        """Сворачивает все окна (показывает рабочий стол)"""
+        try:
+            pyautogui.hotkey('win', 'd')
+            BasicUtils.logger("SystemControl", "INFO", "Все окна свёрнуты")
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка сворачивания: {e}")
+
+    @staticmethod
+    def toggle_always_on_top():
+        """Переключает режим 'Поверх всех окон' для активного окна"""
+        try:
+            hwnd = win32gui.GetForegroundWindow()
+            ex_style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
+            if ex_style & win32con.WS_EX_TOPMOST:
+                win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0,0,0,0, win32con.SWP_NOMOVE|win32con.SWP_NOSIZE)
+            else:
+                win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0,0,0,0, win32con.SWP_NOMOVE|win32con.SWP_NOSIZE)
+            BasicUtils.logger("SystemControl", "INFO", "Режим 'поверх окон' переключён")
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка переключения: {e}")
+    
+    @staticmethod
+    def media_control(command: str):
+        """Управление медиаплеером: play, pause, next, prev"""
+        commands = {
+            "play": "playpause",
+            "pause": "playpause",
+            "next": "nexttrack",
+            "prev": "prevtrack"
+        }
+        if command in commands:
+            pyautogui.press(commands[command])
+            BasicUtils.logger("SystemControl", "INFO", f"Media command: {command}")
+
+    @staticmethod
+    def _get_valid_path(folder_name: str):
+        """Вспомогательный метод для определения реального пути (с учетом OneDrive)"""
+        home = os.path.expanduser("~")
+        variants = [
+            os.path.join(home, folder_name),
+            os.path.join(home, "OneDrive", folder_name)
+        ]
+        
+        for path in variants:
+            if os.path.exists(path):
+                return path
+        default_path = os.path.join(home, folder_name)
+        os.makedirs(default_path, exist_ok=True)
+        return default_path
+
+    @staticmethod
+    def open_directory(path_type: str):
+        """Открывает папки: downloads, documents, desktop, pictures"""
+        try:
+            folder_map = {
+                "downloads": "Downloads",
+                "documents": "Documents",
+                "desktop": "Desktop",
+                "pictures": "Pictures"
+            }
+            
+            folder_name = folder_map.get(path_type.lower(), path_type)
+            target = ControlSystem._get_valid_path(folder_name)
+            
+            os.startfile(target)
+            BasicUtils.logger("SystemControl", "INFO", f"Открыта папка: {target}")
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка открытия папки: {e}")
+
+    @staticmethod
+    def create_quick_note(content: str, filename: str = "note.txt"):
+        """Создает текстовый файл на рабочем столе"""
+        try:
+            desktop = ControlSystem._get_valid_path("Desktop")
+            file_path = os.path.join(desktop, filename)
+            
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            
+            BasicUtils.logger("SystemControl", "INFO", f"Заметка создана: {file_path}")
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка создания заметки: {e}")
+
+    @staticmethod
+    def get_windows_shell_path(folder_guid: str):
+        """
+        Получает путь к спецпапкам через реестр.
+        Используем GUID для максимально точного попадания в системные папки.
+        """
+        try:
+            import winreg
+            shell_folders_key = r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, shell_folders_key) as key:
+                path, _ = winreg.QueryValueEx(key, folder_guid)
+                return os.path.expandvars(path)
+        except Exception:
+            return None
+
+    @staticmethod
+    def take_screenshot(name: str = None):
+        """Делает скриншот в стандартную папку OneDrive/Изображения/Снимки экрана"""
+        try:
+            import time
+            if not name:
+                name = f"scr_{int(time.time())}.png"
+            
+            screenshot_guid = "{B7BEDE81-DF94-4682-A7D8-57A52620B86F}"
+            
+            save_dir = ControlSystem.get_windows_shell_path(screenshot_guid)
+            
+            if not save_dir:
+                pics_path = ControlSystem.get_windows_shell_path("My Pictures")
+                save_dir = os.path.join(pics_path, "Screenshots") 
+
+            full_path = os.path.join(save_dir, name)
+            
+            pyautogui.screenshot(full_path)
+            
+            BasicUtils.logger("SystemControl", "INFO", f"Скриншот сохранен в системную папку: {full_path}")
+            return full_path
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка скриншота: {e}")
+    @staticmethod
+    def set_window_state(action: str):
+        """
+        Управляет состоянием активного окна.
+        action: 'maximize', 'minimize', 'restore', 'close'
+        """
+        try:
+            hwnd = win32gui.GetForegroundWindow()
+            if action == 'maximize':
+                win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+            elif action == 'minimize':
+                win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+            elif action == 'restore':
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            elif action == 'close':
+                win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+            
+            BasicUtils.logger("SystemControl", "INFO", f"Окно: выполнено действие {action}")
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка изменения состояния окна: {e}")
+
+    @staticmethod
+    def snap_window(side: str = "left"):
+        """
+        Прижимает окно к краю экрана (лево/право).
+        side: 'left', 'right'
+        """
+        try:
+            hwnd = win32gui.GetForegroundWindow()
+            from win32api import GetMonitorInfo, MonitorFromWindow
+            monitor_info = GetMonitorInfo(MonitorFromWindow(hwnd))
+            work_area = monitor_info['Work'] # (left, top, right, bottom)
+            
+            width = (work_area[2] - work_area[0]) // 2
+            height = work_area[3] - work_area[1]
+            ControlSystem.set_window_state('restore') 
+            if side == 'left':
+                win32gui.MoveWindow(hwnd, work_area[0], work_area[1], width, height, True)
+            elif side == 'right':
+                win32gui.MoveWindow(hwnd, work_area[0] + width, work_area[1], width, height, True)
+                
+            BasicUtils.logger("SystemControl", "INFO", f"Окно прижато к краю: {side}")
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка привязки окна: {e}")
+
+    @staticmethod
+    def set_window_transparency(alpha: int = 255):
+        """
+        Устанавливает прозрачность активного окна (0 - невидимое, 255 - обычное).
+        """
+        try:
+            hwnd = win32gui.GetForegroundWindow()
+            style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
+            win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, style | win32con.WS_EX_LAYERED)
+            
+            ctypes.windll.user32.SetLayeredWindowAttributes(hwnd, 0, alpha, win32con.LWA_ALPHA)
+            
+            BasicUtils.logger("SystemControl", "INFO", f"Прозрачность установлена на {alpha}")
+        except Exception as e:
+            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка прозрачности: {e}")
 
 if __name__ == "__main__":
-    ControlSystem.get_available_apps()
-    ControlSystem.get_system_stats()
+    c = ControlSystem()
