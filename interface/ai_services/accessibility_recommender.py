@@ -22,36 +22,120 @@ if PROJECT_ROOT not in sys.path:
 
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
 from BasicUtils import BasicUtils, DataBaseEditor
-from .services import MedicalAPI
+from .services import MedicalAPI, LocalModel
+
+
+class RecommendationFormatter:
+    """
+    Форматирует ответ от LLM (онлайн или локальной) в единый формат.
+    Извлекает методы и текст пользователя из сырого ответа.
+    """
+    
+    @staticmethod
+    def parse_response(text: str) -> tuple:
+        """
+        Парсит ответ LLM, извлекая методы и текст для пользователя.
+        Возвращает кортеж: (список методов, текст)
+        """
+        import re
+        import json
+        methods = []
+        user_text = text
+
+        try:
+            # Сначала пробуем найти JSON в ответе
+            json_match = re.search(r'\{.*\}', text, re.DOTALL)
+            if json_match:
+                try:
+                    data = json.loads(json_match.group())
+                    methods_val = data.get("METHODS", data.get("methods", ""))
+                    text_val = data.get("TEXT", data.get("text", data.get("recommendation", "")))
+                    if methods_val:
+                        methods = [m.strip() for m in methods_val.split(",") if m.strip()]
+                    if text_val:
+                        user_text = text_val
+                    if methods:
+                        return methods, user_text
+                except: pass
+            
+            # Пробуем найти METHODS: и TEXT: в тексте
+            lines = text.strip().split("\n")
+            for line in lines:
+                if line.startswith("METHODS:"):
+                    methods_str = line.replace("METHODS:", "").strip()
+                    methods = [m.strip() for m in methods_str.split(",") if m.strip()]
+                elif line.startswith("TEXT:"):
+                    user_text = line.replace("TEXT:", "").strip()
+
+            # Если не удалось спарсить, используем весь текст как user_text
+            if not user_text:
+                user_text = text
+        except Exception as e:
+            BasicUtils.logger("RecommendationFormatter", "WARNING", f"Ошибка парсинга рекомендации: {e}")
+            user_text = text
+
+        return methods, user_text
+    
+    @staticmethod
+    def format_for_profile(methods: list, user_text: str) -> str:
+        """
+        Форматирует рекомендацию для отображения в профиле.
+        :param methods: список рекомендованных методов
+        :param user_text: текст объяснения от LLM
+        :return: отформатированная строка для вывода
+        """
+        if not methods:
+            return user_text
+        
+        # Формируем читаемые названия методов
+        method_names = {
+            "voice": "Голосовой ввод",
+            "gesture": "Жестовый ввод",
+            "text": "Текстовый ввод",
+            "tts": "Озвучка сообщений"
+        }
+        
+        readable_methods = [method_names.get(m, m) for m in methods]
+        methods_str = ", ".join(readable_methods)
+        
+        return f"Рекомендуемые методы ввода: {methods_str}\n\n{user_text}"
 
 
 class RecommendationWorker(QThread):
     """
-    Рабочий поток для выполнения запроса к MedicalAPI (LLM).
+    Рабочий поток для выполнения запроса к LLM (MedicalAPI или LocalModel).
     Позволяет не блокировать графический интерфейс во время ожидания ответа.
     """
     finished = pyqtSignal(str)   # сигнал с успешным ответом
     error = pyqtSignal(str)      # сигнал с текстом ошибки
 
-    def __init__(self, user_prompt: str, system_prompt: str, api_key: str, model: str):
+    def __init__(self, user_prompt: str, system_prompt: str, api_key: str, model: str, use_online: bool = True):
         super().__init__()
         self.user_prompt = user_prompt
         self.system_prompt = system_prompt
         self.api_key = api_key
         self.model = model
-        BasicUtils.logger("RecommendationWorker", "INFO", f"Инициализация: model={model}")
+        self.use_online = use_online
+        BasicUtils.logger("RecommendationWorker", "INFO", f"Инициализация: model={model}, use_online={use_online}")
 
     def run(self):
         """Запускается в отдельном потоке, отправляет запрос и эмитит сигнал."""
         try:
-            BasicUtils.logger("RecommendationWorker", "INFO", "Запуск запроса к MedicalAPI")
-            api = MedicalAPI(api_key=self.api_key, model=self.model)
-            result = api.chat(
-                prompt=self.user_prompt,
-                system_prompt=self.system_prompt,
-                temperature=0.2,      # низкая температура для детерминированных ответов
-                max_tokens=300
-            )
+            BasicUtils.logger("RecommendationWorker", "INFO", "Запуск запроса к LLM")
+            if self.use_online:
+                api = MedicalAPI(api_key=self.api_key, model=self.model)
+                result = api.chat(
+                    prompt=self.user_prompt,
+                    system_prompt=self.system_prompt,
+                    temperature=0.2,
+                    max_tokens=300
+                )
+            else:
+                local_model = LocalModel(model=self.model)
+                full_prompt = f"{self.system_prompt}\n\n{self.user_prompt}"
+                result = local_model.generate(prompt=full_prompt)
+                result = self._normalize_local_response(result)
+
             # Если ответ начинается с эмодзи-предупреждений — считаем ошибкой
             if result.startswith(("⚠️", "❌")):
                 BasicUtils.logger("RecommendationWorker", "ERROR", f"API вернул ошибку: {result[:100]}")
@@ -62,7 +146,43 @@ class RecommendationWorker(QThread):
         except Exception as e:
             BasicUtils.logger("RecommendationWorker", "ERROR", f"Критическая ошибка потока: {str(e)}")
             self.error.emit(f"❌ Критическая ошибка потока: {str(e)}")
-
+    
+    def _normalize_local_response(self, raw_response: str) -> str:
+        """Нормализует ответ локальной модели к формату онлайн."""
+        import re
+        import json
+        try:
+            # Сначала пробуем найти JSON в ответе
+            json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
+            if json_match:
+                try:
+                    data = json.loads(json_match.group())
+                    methods_val = data.get("METHODS", data.get("methods", ""))
+                    text_val = data.get("TEXT", data.get("text", data.get("recommendation", "")))
+                    if methods_val and text_val:
+                        return f"METHODS: {methods_val}\nTEXT: {text_val}"
+                except: pass
+            
+            # Пробуем найти METHODS: и TEXT: в тексте
+            result_lines = raw_response.strip().split("\n")
+            methods_line = text_line = None
+            for line in result_lines:
+                line = line.strip()
+                if line.upper().startswith("METHODS:"): methods_line = line
+                elif line.upper().startswith("TEXT:"): text_line = line
+            if methods_line and text_line:
+                return f"{methods_line}\n{text_line}"
+            
+            # Если нашли только METHODS
+            if methods_line:
+                methods = [m.strip() for m in methods_line.replace("METHODS:", "").strip().split(",") if m.strip()]
+                if methods:
+                    return f"METHODS: {','.join(methods)}\nTEXT: {raw_response}"
+            
+            return raw_response
+        except Exception as e:
+            BasicUtils.logger("RecommendationWorker", "WARNING", f"Ошибка нормализации: {e}")
+            return raw_response
 
 class AccessibilityRecommender(QObject):
     """
@@ -78,10 +198,13 @@ class AccessibilityRecommender(QObject):
     CACHE_FILE = os.path.join(PROJECT_ROOT, "data", "accessibility_cache.json")
     CACHE_TTL_HOURS = 2          # время жизни кэша в часах
 
-    def __init__(self, api_key: str = None, default_model: str = "~anthropic/claude-haiku-latest"):
+    def __init__(self, api_key: str = None, 
+                 online_model: str = "~anthropic/claude-haiku-latest", 
+                 offline_model: str = "qwen2.5:3b"):
         """
         :param api_key: ключ OpenRouter (если None, берётся из переменной окружения)
-        :param default_model: модель LLM, используемая по умолчанию
+        :param online_model: модель LLM для онлайн-режима (OpenRouter)
+        :param offline_model: модель LLM для оффлайн-режима (Ollama)
         """
         super().__init__()
         BasicUtils.logger("AccessibilityRecommender", "INFO", "=== Инициализация AccessibilityRecommender ===")
@@ -91,12 +214,13 @@ class AccessibilityRecommender(QObject):
             BasicUtils.logger("AccessibilityRecommender", "ERROR", "❌ Не найден OPENROUTER_API_KEY")
             raise ValueError("❌ Не найден OPENROUTER_API_KEY. Загрузите .env или передайте ключ.")
 
-        self.default_model = default_model
+        self.online_model = online_model
+        self.offline_model = offline_model
         self._worker: Optional[RecommendationWorker] = None   # текущий рабочий поток
         self._cache: Dict = self._load_cache()                # загружаем кэш из файла
         BasicUtils.logger("AccessibilityRecommender", "INFO",
                          f"Кэш инициализирован: {len(self._cache)} записей")
-        BasicUtils.logger("AccessibilityRecommender", "INFO", f"Модель по умолчанию: {default_model}")
+        BasicUtils.logger("AccessibilityRecommender", "INFO", f"Онлайн-модель: {online_model}, оффлайн-модель: {offline_model}")
 
     # ---------- Управление кэшем ----------
     def _load_cache(self) -> Dict:
@@ -212,7 +336,7 @@ class AccessibilityRecommender(QObject):
             "Пример правильного ответа:\n"
             "METHODS: voice,tts\n"
             "TEXT: Рекомендуется использовать голосовой ввод и озвучку сообщений, так как они не требуют точной моторики рук.\n\n"
-            "ВАЖНО: Сначала строка METHODS, затем строка TEXT. Без эмодзи, без скобок."
+            "ВАЖНО: Сначала строка METHODS, затем строка TEXT. БЕЗ ЭМОДЗИ, без скобок."
         )
         return system_prompt, user_prompt
 
@@ -239,6 +363,15 @@ class AccessibilityRecommender(QObject):
         :param model: позволяет временно переопределить модель (иначе используется default_model)
         """
         BasicUtils.logger("AccessibilityRecommender", "INFO", f"=== Запрос рекомендации: user_id={user_id}, force_refresh={force_refresh} ===")
+        
+        # Проверяем настройку use_online_rec и наличие интернета
+        use_online_rec = BasicUtils.get_settings_config_value("use_online_rec")
+        has_internet = BasicUtils.has_internet()
+        use_online = use_online_rec and has_internet
+        
+        if use_online_rec and not has_internet:
+            BasicUtils.logger("AccessibilityRecommender", "WARNING", "use_online_rec=true, но интернета нет — используем локальную модель")
+        
         dys = self._get_dysfunctions(user_id)
         if not dys:
             BasicUtils.logger("AccessibilityRecommender", "INFO", "Нарушения не указаны в профиле. Анализ пропущен.")
@@ -265,10 +398,15 @@ class AccessibilityRecommender(QObject):
         sys_prompt, usr_prompt = self._build_prompts(dys)
         BasicUtils.logger("AccessibilityRecommender", "INFO", f"Анализ нарушений: {dys}")
 
-        used_model = model if model else self.default_model
-        BasicUtils.logger("AccessibilityRecommender", "INFO", f"Используемая модель: {used_model}")
+        # Выбираем модель в зависимости от режима
+        if use_online:
+            used_model = model if model else self.online_model
+        else:
+            used_model = model if model else self.offline_model
+        
+        BasicUtils.logger("AccessibilityRecommender", "INFO", f"Используемая модель: {used_model}, онлайн={use_online}")
         # Создаём и запускаем рабочий поток
-        self._worker = RecommendationWorker(usr_prompt, sys_prompt, self._api_key, used_model)
+        self._worker = RecommendationWorker(usr_prompt, sys_prompt, self._api_key, used_model, use_online=use_online)
 
         # Внутренний слот, который обновит кэш после успешного ответа
         def on_success_with_cache(text: str):
@@ -286,26 +424,7 @@ class AccessibilityRecommender(QObject):
         Парсит ответ LLM, извлекая методы и текст для пользователя.
         Возвращает кортеж: (список методов, текст)
         """
-        methods = []
-        user_text = text
-
-        try:
-            lines = text.strip().split("\n")
-            for line in lines:
-                if line.startswith("METHODS:"):
-                    methods_str = line.replace("METHODS:", "").strip()
-                    methods = [m.strip() for m in methods_str.split(",") if m.strip()]
-                elif line.startswith("TEXT:"):
-                    user_text = line.replace("TEXT:", "").strip()
-
-            # Если не удалось спарсить, используем весь текст как user_text
-            if not user_text:
-                user_text = text
-        except Exception as e:
-            BasicUtils.logger("AccessibilityRecommender", "WARNING", f"Ошибка парсинга рекомендации: {e}")
-            user_text = text
-
-        return methods, user_text
+        return RecommendationFormatter.parse_response(text)
 
     def _on_success_cached(self, methods: list, user_text: str):
         """Обработчик успешного получения рекомендации из кэша."""
@@ -316,7 +435,7 @@ class AccessibilityRecommender(QObject):
     def _on_success(self, text: str):
         """Обработчик успешного получения рекомендации: логирует и отправляет в UI."""
         BasicUtils.logger("AccessibilityRecommender", "INFO", f"Рекомендация: {text[:100]}...")
-        methods, user_text = self._parse_recommendation(text)
+        methods, user_text = RecommendationFormatter.parse_response(text)
         BasicUtils.logger("AccessibilityRecommender", "INFO", f"Методы: {methods}")
         self.recommendation_obtained.emit(methods, user_text)
 

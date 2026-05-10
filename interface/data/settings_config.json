@@ -4,8 +4,9 @@
         "password": ""
     },
     "use_online_model": true,
+    "use_online_rec": false,
     "allow_online_model_user_info": false,
-    "theme": "vs_code",
+    "theme": "dark",
     "last_message_send": null,
     "recording_enabled": false,
     "camera_index": 0,

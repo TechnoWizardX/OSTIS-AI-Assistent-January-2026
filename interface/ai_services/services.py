@@ -130,32 +130,65 @@ class MedicalAPI:
 
 
 # ============================================================================
-# LocalModel — заглушка для локальных моделей
+# LocalModel — локальная LLM через Ollama
 # ============================================================================
 
 class LocalModel:
     """
-    Заглушка для локальных LLM (Ollama и аналоги).
-    В будущем: реальная интеграция через ollama.Client(host='http://localhost:11434')
+    Локальная LLM через Ollama (qwen2.5:3b).
+    Работает оффлайн, без зависимости от интернета.
     """
 
-    def __init__(self):
-        BasicUtils.logger("LocalModel", "INFO", "Инициализация заглушки локальной модели")
-        pass
+    def __init__(self, model: str = "qwen2.5:3b", ollama_url: str = "http://localhost:11434/api/generate"):
+        self.model = model
+        self.ollama_url = ollama_url
+        BasicUtils.logger("LocalModel", "INFO", f"Инициализация локальной модели: {model} ({ollama_url})")
 
-    def generate(self, prompt: Union[str, List[str]]) -> Union[str, List[str]]:
+    def _send_offline_request(self, prompt: str) -> str:
+        """Отправляет запрос в Ollama и возвращает ответ"""
+        import requests
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": False,
+            "format": "json"
+        }
+        try:
+            response = requests.post(self.ollama_url, json=payload, timeout=60)
+            if response.status_code == 200:
+                result = response.json().get('response', '')
+                BasicUtils.logger("LocalModel", "INFO", f"Локальная модель ответила ({len(result)} символов)")
+                return result
+            else:
+                err = f"⚠️ Ошибка Ollama (статус {response.status_code})"
+                BasicUtils.logger("LocalModel", "ERROR", err)
+                return err
+        except requests.exceptions.ConnectionError:
+            err = "❌ Ollama не запущена. Проверьте, что Ollama serve работает на localhost:11434"
+            BasicUtils.logger("LocalModel", "ERROR", err)
+            return err
+        except Exception as e:
+            err = f"❌ Ошибка локальной модели: {str(e)}"
+            BasicUtils.logger("LocalModel", "ERROR", err)
+            return err
+
+    def generate(self, prompt: Union[str, List[str]], system_prompt: Optional[str] = None) -> Union[str, List[str]]:
+        """
+        Генерирует ответ для одного или нескольких запросов.
+        :param prompt: строка или список строк
+        :param system_prompt: системный промпт (добавляется к запросу)
+        :return: ответ или список ответов
+        """
         is_list = isinstance(prompt, list)
         prompts = prompt if is_list else [prompt]
         answers = []
 
         BasicUtils.logger("LocalModel", "INFO", f"Запрос локальной модели (запросов: {len(prompts)})")
         for p in prompts:
-            time.sleep(1.2)
-            answers.append(
-                f"📦 [Локальный режим] Запрос принят: «{p[:60]}...».\n"
-                f"💡 Сейчас это заглушка. Для работы оффлайн подключите Ollama: "
-                f"ollama run llama3.2 и замените этот код на запрос к localhost:11434."
-            )
+            full_prompt = p
+            if system_prompt:
+                full_prompt = f"{system_prompt}\n\n{p}"
+            answers.append(self._send_offline_request(full_prompt))
 
         BasicUtils.logger("LocalModel", "INFO", "Локальная модель: ответы сформированы")
         return answers if is_list else answers[0]

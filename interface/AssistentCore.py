@@ -12,7 +12,7 @@ import threading
 from BasicUtils import BasicUtils, DataBaseEditor, global_signals
 import VoiceInput.WhisperRecognition as Whisper
 from TTSSilero import SileroTTS
-from ai_services import NetworkChecker, LocalModel, AccessibilityRecommender
+from ai_services import NetworkChecker, LocalModel, AccessibilityRecommender, RecommendationFormatter
 from IntentHandler import IntentHandler, IntentWorker
 from dotenv import load_dotenv
 from SystemControl import ControlSystem
@@ -41,7 +41,13 @@ class AssistentCore():
         self.accessibility_advisor = AccessibilityRecommender()
         # Подключаем сигнал рекомендателя к сигналу интерфейса для обновления профиля
         # accessibility_advisor передаёт (methods, text), recommendation_ready принимает то же
-        self.accessibility_advisor.recommendation_obtained.connect(lambda methods, text: ui_signals.recommendation_ready.emit(methods, text))
+        # Форматируем текст рекомендации перед отправкой в интерфейс
+        self.accessibility_advisor.recommendation_obtained.connect(
+            lambda methods, text: ui_signals.recommendation_ready.emit(
+                methods, 
+                RecommendationFormatter.format_for_profile(methods, text)
+            )
+        )
 
         # Автозапуск при каждом сохранении профиля
         ui_signals.profile_updated.connect(lambda: self.accessibility_advisor.request_recommendation(0))
@@ -251,9 +257,9 @@ class AssistentCore():
         BasicUtils.logger("CORE", "INFO", f"Пользователь: {message}")
         raw_history = BasicUtils.load_chat_history()
         formatted_history = BasicUtils.format_chat_history(raw_history)
-        
-        
-        use_online = BasicUtils.get_settings_config_value("use_online_model") and BasicUtils.has_internet()
+
+        # Проверяем настройку use_online_rec и наличие интернета
+        use_online = BasicUtils.get_settings_config_value("use_online_rec") and BasicUtils.has_internet()
         if use_online:
             BasicUtils.logger("CORE", "INFO", "Использование облачного ИИ для обработки запроса")
             if BasicUtils.get_settings_config_value("allow_online_model_user_info"):
