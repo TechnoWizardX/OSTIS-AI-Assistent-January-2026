@@ -651,7 +651,7 @@ class Message(QWidget):
         self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["message_frame"])
         self.main_frame.setMinimumWidth(100)
         self.main_frame.setMaximumWidth(500)
-        self.main_frame.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        self.main_frame.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
 
         frame_layout = QVBoxLayout(self.main_frame)
         frame_layout.setContentsMargins(12, 10, 12, 10)
@@ -667,6 +667,7 @@ class Message(QWidget):
         self.text_label = QLabel(text)
         self.text_label.setWordWrap(True)
         self.text_label.setStyleSheet(THEMES[SELECTED_THEME]["message_text"])
+        self.text_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
         frame_layout.addWidget(self.text_label)
 
         # Время
@@ -1266,7 +1267,7 @@ class Settings(ContentPageWidget):
         self.toggle_row_for_gesture.setChecked(self.gesture_toggle_state.load())
         self.use_onlie_model.setChecked(self.use_online_model_state.load())
         self.online_model_allows.setChecked(self.online_model_allows_state.load())
-        
+
         # Камера (по индексу)
         camera_index = settings_config.get("camera_index", 0)
         if 0 <= camera_index < self.camera_dropbox.count():
@@ -1546,7 +1547,7 @@ class RecommendationBadge(QFrame):
         
         # Убираем фиксированную высоту, позволяем растягиваться
         self.setFixedHeight(16777215)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
         
         # Вертикальный лэйаут
         self.lay = QVBoxLayout(self)
