@@ -9,16 +9,24 @@ class WhisperRecognition():
         BasicUtils.logger("Whisper", "INFO", f"Используем модель: {model}")
         self.model = WhisperModel(model, device=device, compute_type=compute_type, download_root=model_download_root)
         self.recognizer = sr.Recognizer()
-        self.recognizer.pause_threshold = 1.2 
+        self.recognizer.energy_threshold = 300 
+        self.recognizer.dynamic_energy_threshold = True # 
+        self.recognizer.pause_threshold = 0.8
         self.stop_func = None # Здесь будет функция для остановки
 
     def _callback(self, recognizer, audio):
         """Функция, которая вызывается автоматически, когда фраза записана"""
         try:
-            # Превращаем аудио в байты для Whisper
             wav_data = io.BytesIO(audio.get_wav_data())
-            segments, _ = self.model.transcribe(wav_data, beam_size=5, language="ru")
-            
+            segments, _ = self.model.transcribe(
+                wav_data, 
+                beam_size=5, 
+                language="ru",
+     
+                no_speech_threshold=0.4,  
+                log_prob_threshold=-1.0,  
+                compression_ratio_threshold=2.4
+            )
             for segment in segments:
                 if segment.text.strip():
                     BasicUtils.logger("Whisper", "INFO", f"Распознано: {segment.text}")    
@@ -34,7 +42,6 @@ class WhisperRecognition():
         with sr.Microphone(sample_rate=16000) as source:
             self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
         
-        # Запускаем фоновый поток. Он сам вызывает _callback, когда слышит речь.
         self.stop_func = self.recognizer.listen_in_background(sr.Microphone(sample_rate=16000), self._callback)
 
     def stop_recognition(self):

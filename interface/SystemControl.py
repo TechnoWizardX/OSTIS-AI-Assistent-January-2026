@@ -352,7 +352,7 @@ class ControlSystem:
     def minimize_all_windows():
         """Сворачивает все окна (показывает рабочий стол)"""
         try:
-            pyautogui.hotkey('win', 'd')
+            pyautogui.hotkey('win', 'm')
             BasicUtils.logger("SystemControl", "INFO", "Все окна свёрнуты")
         except Exception as e:
             BasicUtils.logger("SystemControl", "ERROR", f"Ошибка сворачивания: {e}")
@@ -389,8 +389,8 @@ class ControlSystem:
         """Вспомогательный метод для определения реального пути (с учетом OneDrive)"""
         home = os.path.expanduser("~")
         variants = [
-            os.path.join(home, folder_name),
-            os.path.join(home, "OneDrive", folder_name)
+            os.path.join(home, "OneDrive", folder_name),
+            os.path.join(home, folder_name)
         ]
         
         for path in variants:
@@ -535,3 +535,4 @@ class ControlSystem:
 
 if __name__ == "__main__":
     c = ControlSystem()
+    c.minimize_all_windows()

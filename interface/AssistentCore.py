@@ -24,6 +24,7 @@ INTENT_HANDLER = IntentHandler(online_model="poolside/laguna-xs.2:free", base_ur
 
 class AssistentCore():
     def __init__(self, api_key: str = ""):
+        BasicUtils.logger("AssistentCore", "INFO", "Инициализация Ядра...")
         self.user_interface = UserInterface(api_key=api_key)
         self.settings_config = BasicUtils.load_settings_config()
         
@@ -75,80 +76,78 @@ class AssistentCore():
     def handle_intent(self, intent_data: dict):
         """Обработка распознанного интента от IntentHandler и выполнение соответствующих действий"""
         message = intent_data.get("message", "")
-        action = intent_data.get("action", "answer")
-        function = intent_data.get("function", "")
-        params = intent_data.get("params", {})
-        info = intent_data.get("info", "")
+        tasks = intent_data.get("tasks", [])    
         BasicUtils.logger("CORE | IntentHandler", "INFO", f"Получен интент: {intent_data}")
         
-        if action == "answer":
-            self.send_ai_message(message)
-        elif action == "unknown":
-            self.send_ai_message(message)
-        elif action == "invalid":
-            self.send_ai_message(message)
-        else:
-            self.send_ai_message(message)
+        
+        self.send_ai_message(message)
+        for task in tasks:
+            function = task.get("function", "")
+            params = task.get("params", {})
+            info = task.get("info", "")
             self.actions_mapping(function, params, info)
     def actions_mapping(self, function_name: str, params: dict, info: str):
         """Здесь будет логика сопоставления имен функций к реальным функциям в коде"""
         BasicUtils.logger("CORE | ActionsMapping", "INFO", f"Вызов функции: {function_name} с параметрами: {params} и info: {info}")
-        # Пример:
-        if function_name == "open_site":
-            url = params.get("url", "")
-            if url:
-                ControlSystem.open_site(url)
-        elif function_name == "open_application":
-            app_name = params.get("app_name", "")
-            if app_name:
-                ControlSystem.open_application(app_name)
-        elif function_name == "close_application":
-            app_name = params.get("app_name", "")
-            if app_name:
-                ControlSystem.close_application(app_name)
-        elif function_name == "reload_application":
-            app_name = params.get("app_name", "")
-            if app_name:
-                ControlSystem.reload_application(app_name)
-        elif function_name == "close_current_tab":
-            ControlSystem.close_current_tab()
-        elif function_name == "set_brightness":
-            level = params.get("level", 50)
-            ControlSystem.set_brightness(level)
-        elif function_name == "set_volume":
-            level = params.get("level", 50)
-            ControlSystem.set_volume(level)
-        elif function_name == "os_sleep":
-            ControlSystem.os_sleep()
-        elif function_name == "os_shutdown":
-            delay = params.get("delay", 0)
-            ControlSystem.os_shutdown(delay)
-        elif function_name == "os_restart":
-            delay = params.get("delay", 0)
-            ControlSystem.os_restart(delay)
-        elif function_name == "cancel_shutdown":
-            ControlSystem.cancel_shutdown()
-        elif function_name == "connect_wifi":
-            ssid = params.get("ssid_name", "")
-            ControlSystem.connect_wifi(ssid)
-        elif function_name == "disconnect_wifi":
-            ControlSystem.disconnect_wifi()
-        elif function_name == "set_airplane_mode":
-            state = params.get("state", False)
-            ControlSystem.set_airplane_mode(state)
-        elif function_name == "empty_recycle_bin":
-            ControlSystem.empty_recycle_bin()
-        elif function_name == "insert_text":
-            text = params.get("text", "")
-            target_word = params.get("target_word", None)
-            target_app = params.get("target_app", None)
-            ControlSystem.insert_text(text, target_word, target_app)
+        methods = {
+            # 1. БРАУЗЕР
+            "open_site": lambda: ControlSystem.open_site(params.get("url", "")),
+            "close_current_tab": ControlSystem.close_current_tab,
+
+            # 2. ПРИЛОЖЕНИЯ И ОКНА
+            "open_application": lambda: ControlSystem.open_application(params.get("app_name", "")),
+            "close_application": lambda: ControlSystem.close_application(params.get("app_name", "")),
+            "reload_application": lambda: ControlSystem.reload_application(params.get("app_name", "")),
+            "minimize_all_windows": ControlSystem.minimize_all_windows,
+            "toggle_always_on_top": ControlSystem.toggle_always_on_top,
+            "set_window_state": lambda: ControlSystem.set_window_state(params.get("action", "restore")),
+            "set_window_transparency": lambda: ControlSystem.set_window_transparency(params.get("alpha", 255)),
+            "snap_window": lambda: ControlSystem.snap_window(params.get("side", "left")),
+
+            # 3. ПАРАМЕТРЫ СИСТЕМЫ
+            "set_brightness": lambda: ControlSystem.set_brightness(params.get("level", 50)),
+            "set_volume": lambda: ControlSystem.set_volume(params.get("level", 50)),
+
+            # 4. ПИТАНИЕ ПК
+            "os_sleep": ControlSystem.os_sleep,
+            "os_shutdown": lambda: ControlSystem.os_shutdown(params.get("delay", 60)),
+            "cancel_shutdown": ControlSystem.cancel_shutdown,
+            "os_restart": lambda: ControlSystem.os_restart(params.get("delay", 0)),
+
+            # 5. СЕРВИСНЫЕ
+            "insert_text": lambda: ControlSystem.insert_text(
+                params.get("text", ""),
+                params.get("target_word"),
+                params.get("target_app")
+            ),
+            "empty_recycle_bin": ControlSystem.empty_recycle_bin,
+            "get_system_stats": ControlSystem.get_system_stats,
+            "disconnect_wifi": ControlSystem.disconnect_wifi,
+            "connect_wifi": lambda: ControlSystem.connect_wifi(params.get("ssid_name")),
+            "set_airplane_mode": lambda: ControlSystem.set_airplane_mode(params.get("state", False)),
+            "create_quick_note": lambda: ControlSystem.create_quick_note(
+                params.get("content", ""),
+                params.get("filename", "note.txt")
+            ),
+            "open_directory": lambda: ControlSystem.open_directory(params.get("path_type", "desktop")),
+            "take_screenshot": lambda: ControlSystem.take_screenshot(params.get("name")),
+            "media_control": lambda: ControlSystem.media_control(params.get("action", "play"))
+        }
+        try:
+            if function_name in methods:
+                methods[function_name]()
+            else:
+                BasicUtils.logger("CORE | ActionsMapping", "WARNING", f"Неизвестная функция: {function_name}")
+        except Exception as e:
+            BasicUtils.logger("CORE | ActionsMapping", "ERROR", f"Ошибка при выполнении функции {function_name}: {e}")
+            global_signals.error_signal.emit(f"Не удалось выполнить функцию {function_name}: {e}")
     
     def send_ai_message(self, message: str):
         """Отправляет сообщение от AI в интерфейс с логированием"""
         BasicUtils.logger("CORE | AI Message", "INFO", f"AI: {message}")
         ui_signals.message_sent.emit("IAMOS", message)
         BasicUtils.add_message("IAMOS", message)
+    
     def handle_error(self, error_message: str):
         """Обработка ошибок, полученных из разных частей системы, с логированием"""
         self.text_to_speech(error_message)

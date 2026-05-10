@@ -651,12 +651,12 @@ class Message(QWidget):
         self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["message_frame"])
         self.main_frame.setMinimumWidth(100)
         self.main_frame.setMaximumWidth(500)
-        self.main_frame.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
+        self.main_frame.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
 
         frame_layout = QVBoxLayout(self.main_frame)
         frame_layout.setContentsMargins(12, 10, 12, 10)
         frame_layout.setSpacing(5)
-
+        
         # Имя автора
         display = "Вы" if author == "user" else author
         self.author_label = QLabel(display)
@@ -674,10 +674,17 @@ class Message(QWidget):
         time_str = time or datetime.now().strftime("%H:%M")
         self.time_label = QLabel(time_str)
         self.time_label.setStyleSheet(THEMES[SELECTED_THEME]["message_time"])
-        time_layout = QHBoxLayout()
-        time_layout.addStretch()
-        time_layout.addWidget(self.time_label)
-        frame_layout.addLayout(time_layout)
+        bottom_lay = QHBoxLayout()
+        self.copy_btn = QPushButton()
+        self.copy_btn.setIcon(QIcon(icon_path("copy.png")))
+        self.copy_btn.setIconSize(QSize(20, 20))
+        self.copy_btn.setStyleSheet(THEMES[SELECTED_THEME]["icon_button"])
+        self.copy_btn.setFixedSize(30, 30)
+        self.copy_btn.clicked.connect(self.copy_text)
+        bottom_lay.addWidget(self.copy_btn)
+        bottom_lay.addStretch()
+        bottom_lay.addWidget(self.time_label)
+        frame_layout.addLayout(bottom_lay)
 
         # Кнопка озвучки (динамик)
         self.voice_btn = QPushButton()
@@ -729,9 +736,14 @@ class Message(QWidget):
         self.author_label.setStyleSheet(theme["message_author"])
         self.text_label.setStyleSheet(theme["message_text"])
         self.time_label.setStyleSheet(theme["message_time"])
+        self.copy_btn.setStyleSheet(theme["send_button"])
         if hasattr(self, 'voice_btn'):
             base_style = theme.get("speaker_button", "")
             self.voice_btn.setStyleSheet(base_style + "QPushButton:checked { background-color: #4CAF50; }")    
+    def copy_text(self):
+        """Копирует текст сообщения в буфер обмена."""
+        clipboard = QApplication.clipboard()
+        clipboard.setText(self.text_content)
 
 class DialogBox(QWidget):
     """Чат (здесь отображаются сообщения)"""

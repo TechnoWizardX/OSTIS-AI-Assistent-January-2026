@@ -43,10 +43,14 @@ class IntentHandler:
         ### СТРУКТУРА ВЫХОДА (ТОЛЬКО JSON):
         {
         "message": "Текст твоего ответа пользователю",
-        "action": "Тип действия (open, close, set, on, off, restart, other, answer, unknown, invalid)",
-        "function": "Имя функции из списка ниже (или пустая строка)",
-        "params": { "имя_параметра": "значение" },
-        "info": "Доп. информация для логирования или пустая строка"
+        "tasks": [
+            {
+                "action": "open" | "close" | "reload" | "set" | "insert" | "empty" | "get" | "disconnect" | "connect",
+                "function": "название функции из списка доступных",
+                "params": {ключ: значение, ...} # Параметры для функции (может быть пустым)
+            },
+            ...
+        ],
         }
 
         ### ДОСТУПНЫЕ ФУНКЦИИ И ИХ ТКС (Триггерный контекст):
@@ -59,6 +63,11 @@ class IntentHandler:
         - open_application(app_name: str) | ТКС: Запустить программу.
         - close_application(app_name: str) | ТКС: Закрыть программу.
         - reload_application(app_name: str) | ТКС: Перезагрузить программу.
+        - minimize_all_windows() | ТКС: Свернуть все окна.
+        - toggle_always_on_top() | ТКС: Включить/выключить режим "Всегда сверху" для активного приложения.
+        - set_window_state(action: str | "maximize" | "minimize" | "restore" | "close") | ТКС: Изменить состояние окна (развернуть во весь экран, свернуть, восстановить, закрыть) активного приложения.
+        - set_window_transparency(alpha: int) | ТКС: Установить прозрачность окна активного приложения (0-255).
+        - snap_window(side: str | "left" | "right") | ТКС: Прикрепить окно активного приложения к указанной стороне экрана. По умолчанию влево
 
         3. ПАРАМЕТРЫ СИСТЕМЫ:
         - set_brightness(level: int) | ТКС: Установить яркость (0-100).
@@ -77,20 +86,30 @@ class IntentHandler:
         - disconnect_wifi() | ТКС: Разорвать соединение с Wi-Fi.
         - connect_wifi(ssid_name: str) | ТКС: Подключиться к Wi-Fi.
         - set_airplane_mode(state: bool) | ТКС: Включить режим 'В самолете'.
+        - create_quick_note(content: str, filename: str) | ТКС: Создать быструю заметку на рабочем столе
+        - open_directory(path_type: "downloads" | "documents" | "desktop" | "pictures") | ТКС: Открыть системную папку.
+        - take_screenshot(name: str = None) | ТКС: Сделать скриншот экрана и сохранить его в Снимках экрана
+        - media_control(action: str | "play" | "pause" | "next" | "previous") | ТКС: Управление медиаплеером (воспроизведение, пауза, следующая/предыдущая песня).
 
         ### ПРАВИЛА ОБРАБОТКИ ОШИБОК:
         - Если действие понятно, но функции нет -> action: "invalid", function: "".
         - Если запрос вообще не понятен -> action: "unknown", function: "".
         - Если это просто беседа -> action: "answer", function: "".
 
-        ### ПРИМЕЧАНИЕ(1): Если в твоей базе знаний нету прямого определения, отвечай строго: 'Я точно не знаю что это, но могу поискать в интернете' и установи action: 'open', function: 'open_site', params: {'url': 'google.com/search?q=...'}.
+        ### ПРИМЕЧАНИЕ: Если в твоей базе знаний нету прямого определения, или нету нужных данных в запросе, отвечай строго: 
+        # 'Я точно не знаю что это, но могу поискать в интернете' и установи action: 'open', function: 'open_site', params: {'url': 'google.com/search?q=...'}.
+        ### НО: если пользователь просит открыть приложение, пытайся сначала сопоставить с теми, которые присылаются в промте, если нету - переводи с учетом того, что пользователь скорее всего указал название, которое произносится также как на английском .
         Пример(К примечанию): Пользователь спрашивает: "Что такое спотифай", но ты не знаешь что это. Твой ответ:
         {
         "message": "Я точно не знаю что это, но могу поискать в интернете",
-        "action": "open",
-        "function": "open_site",
-        "params": {"url": "google.com/search?q=спотифай"},
-        "info": ""
+        "tasks": [
+            {
+            "action": "open",
+            "function": "open_site",
+            "params": {"url": "google.com/search?q=спотифай"},
+            "info": ""
+            }
+        ]
         }
         """
         
@@ -110,7 +129,7 @@ class IntentHandler:
             f"Имя: {name}, Рождение: {birthday}, Пол: {gender}\n"
             f"Текущее окружение: {current_app}\n\n"
             f"Доступные приложения(системные названия): {available_apps}\n\n"
-            f"ПОСЛЕДНИЕ СООБЩЕНИЯ:{chat_history}"
+            f"ПОСЛЕДНИЕ СООБЩЕНИЯ (ИСПОЛЬЗОВАТЬ ТОЛЬКО ДЯЛ КОНТЕКСТА, ВСЕ ТВОИ ФУНКЦИИ ПЕРЕЧИСЛЕНЫ В ПРОМТЕ):{chat_history}"
         )
     
     def send_request(self, user_text: str, user_data: str = "", use_online: bool = False) -> dict:
@@ -173,7 +192,9 @@ class IntentHandler:
             return json.loads(response.choices[0].message.content)
         except Exception as e:
             BasicUtils.logger("IntentHandler", "ERROR", f"Online API error: {e}")
-            return None
+            BasicUtils.logger("IntentHandler", "ERROR", "Проверьте API ключ и доступ к интернету")
+            BasicUtils.logger("IntentHandler", "INFO", "Запускаю оффлайн модель")
+            return self._send_offline_request(prompt, self.offline_model)
     
     def parse_ai_json(raw_response) -> dict:
         """
