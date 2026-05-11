@@ -374,7 +374,8 @@ class AccessibilityRecommender(QObject):
         
         dys = self._get_dysfunctions(user_id)
         if not dys:
-            BasicUtils.logger("AccessibilityRecommender", "INFO", "Нарушения не указаны в профиле. Анализ пропущен.")
+            BasicUtils.logger("AccessibilityRecommender", "INFO", "Нарушения не указаны в профиле. Отправка пустой рекомендации (все методы доступны).")
+            self.recommendation_obtained.emit([], "Рекомендация не сформирована — нарушения не указаны. Все методы ввода доступны.")
             return
 
         # Если не принудительное обновление — пробуем взять из кэша

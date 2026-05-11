@@ -339,6 +339,7 @@ class UserInterface(QMainWindow):
     def _load_and_apply_saved_methods(self):
         """Загружает сохранённые методы из конфига и скрывает ненужные кнопки."""
         saved_methods = BasicUtils.get_settings_config_value("recommended_methods")
+        # Если методы не сохранены или пустые — показываем все кнопки
         if not saved_methods:
             BasicUtils.logger("UserInterface", "INFO", "Нет сохранённых методов — показываем все кнопки")
             return
@@ -454,7 +455,7 @@ class UserInterface(QMainWindow):
     def _on_recommendation_ready(self, methods: list, text: str):
         """
         Обработка рекомендации: запускает анимацию бегущей линии по периметру кнопки.
-        Кнопки методов, которые НЕ вошли в рекомендацию, скрываются.
+        Если методы пустые — показываются все кнопки (рекомендации нет).
         :param methods: список рекомендуемых методов (voice, gesture, text, tts)
         :param text: текст рекомендации для отображения в профиле
         """
@@ -466,6 +467,12 @@ class UserInterface(QMainWindow):
         # Останавливаем все текущие анимации
         for method in self._glow_effects:
             self._glow_effects[method].stop()
+
+        # Если методы пустые — показываем все кнопки (рекомендации нет)
+        if not methods:
+            for method, btn in self._method_to_button.items():
+                btn.setVisible(True)
+            return
 
         # Показываем/скрываем кнопки в зависимости от рекомендации
         for method, btn in self._method_to_button.items():
@@ -2008,12 +2015,16 @@ class Profile(ContentPageWidget):
         self.head_data_label_lay.setContentsMargins(0, 0, 0, 0)
         self.head_data_label_lay.setSpacing(0)
         # sn_fn_patr - surname, firstname, patronymic - фамилия имя отчество
-        self._surname = DATABASE_EDITOR.get_data("Users", "surname", 0)[0][0]
-        self._firstname = DATABASE_EDITOR.get_data("Users", "firstname", 0)[0][0]
-        self._patronymic = DATABASE_EDITOR.get_data("Users", "patronymic", 0)[0][0]
-        self._sn_fn_patr = f"{self._surname} {self._firstname} {self._patronymic}"
-        self._birthday = DATABASE_EDITOR.get_data("Users", "birthday", 0)[0][0]
-        self._gender = DATABASE_EDITOR.get_data("Users", "gender", 0)[0][0]
+        def _safe_get(table, column):
+            result = DATABASE_EDITOR.get_data(table, column, 0)
+            return result[0][0] if result and result[0] and result[0][0] else None
+
+        self._surname = _safe_get("Users", "surname")
+        self._firstname = _safe_get("Users", "firstname")
+        self._patronymic = _safe_get("Users", "patronymic")
+        self._sn_fn_patr = f"{self._surname} {self._firstname} {self._patronymic}" if any([self._surname, self._firstname, self._patronymic]) else None
+        self._birthday = _safe_get("Users", "birthday")
+        self._gender = _safe_get("Users", "gender")
 
         # СТРОГО указываем, в каком порядке вводятся данные: Ф И О, и обозначаем колонки
         self.sn_fn_patr =  ProfileOption("ФИО", self._sn_fn_patr if self._sn_fn_patr else 'Не указано', True,
@@ -2028,11 +2039,11 @@ class Profile(ContentPageWidget):
         
         self.head_data_lay.addLayout(self.head_data_label_lay)
         self.head_data_lay.addStretch(10)
-        
+
 
         self.main_frame_lay.addLayout(self.head_data_lay)
-        
-        self._dysfunctions = DATABASE_EDITOR.get_data("Users", "dysfunctions", 0)[0][0]
+
+        self._dysfunctions = _safe_get("Users", "dysfunctions")
 
         self.dysfunctions = DysfunctionsProfileOption(
             value=self._dysfunctions if self._dysfunctions else "Не указано",
@@ -2043,7 +2054,7 @@ class Profile(ContentPageWidget):
 
         self.main_frame_lay.addWidget(self.dysfunctions)
 
-        self._adaptive = DATABASE_EDITOR.get_data("Users", "adaptation_status", 0)[0][0] 
+        self._adaptive = _safe_get("Users", "adaptation_status")
         self.adaptive = ProfileOption("Степень адаптации системы", f"{self._adaptive if self._adaptive else 'Отсутствует'}", False)
         self.main_frame_lay.addWidget(self.adaptive, Qt.AlignmentFlag.AlignLeft)
         
