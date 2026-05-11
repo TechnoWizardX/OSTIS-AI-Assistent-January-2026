@@ -32,7 +32,7 @@ class AssistentCore():
         self.network_checker.connection_changed.connect(self._on_network_status)
         self.network_checker.start()
 
-        # Локальная модель используется только как заглушка
+        # Локальная модель 
         self.local_model = LocalModel()
         self.active_model = self.local_model
         self.current_worker = None
@@ -43,15 +43,15 @@ class AssistentCore():
         # accessibility_advisor передаёт (methods, text), recommendation_ready принимает то же
         # Форматируем текст рекомендации перед отправкой в интерфейс
         self.accessibility_advisor.recommendation_obtained.connect(
-            lambda methods, text: ui_signals.recommendation_ready.emit(
-                methods, 
-                RecommendationFormatter.format_for_profile(methods, text)
-            )
+            self._on_recommendation_obtained
         )
 
         # Автозапуск при каждом сохранении профиля
         ui_signals.profile_updated.connect(lambda: self.accessibility_advisor.request_recommendation(0))
         
+        # Флаг: были ли отредактированы нарушения перед получением рекомендации
+        self._dysfunctions_edited = False
+
         self.recognition_model = self.settings_config.get("recognition_model", "auto")
 
         self.whisper_model = WHISPER_MODEL
@@ -71,6 +71,7 @@ class AssistentCore():
         ui_signals.clear_history_requested.connect(self.clear_chat_history)
         global_signals.error_signal.connect(self.handle_error)
         ui_signals.openrouter_api_key_changed.connect(lambda key: self.intent_handler.update_api_key(key))
+        ui_signals.dysfunctions_saved.connect(self._on_dysfunctions_saved)
    
     def _on_network_status(self, online: bool):
         """Обработка статуса сети (для информации)."""
@@ -78,6 +79,31 @@ class AssistentCore():
             BasicUtils.logger("AssistentCore", "WARNING", "Интернет отсутствует")
         else:
             BasicUtils.logger("AssistentCore", "INFO", "Интернет подключён")
+
+    def _on_dysfunctions_saved(self):
+        """Обработка сигнала о сохранении нарушений."""
+        self._dysfunctions_edited = True
+        BasicUtils.logger("AssistentCore", "INFO", "Нарушения отредактированы, следующая рекомендация будет озвучена")
+
+    def _on_recommendation_obtained(self, methods: list, text: str):
+        """
+        Обработка полученной рекомендации.
+        Отправляет рекомендацию в интерфейс и озвучивает её, если нарушения были отредактированы.
+        """
+        # Форматируем и отправляем рекомендацию в интерфейс
+        formatted_text = RecommendationFormatter.format_for_profile(methods, text)
+        ui_signals.recommendation_ready.emit(methods, formatted_text)
+
+        # Проверяем настройку "Озвучивать рекомендацию всегда" и флаг редактирования нарушений
+        tts_recommendation_always = BasicUtils.get_settings_config_value("tts_recommendation_always")
+        if tts_recommendation_always and self._dysfunctions_edited:
+            BasicUtils.logger("AssistentCore | Recommendation", "INFO", "Озвучивание рекомендации (нарушения отредактированы)")
+            self.text_to_speech(formatted_text)
+        else:
+            BasicUtils.logger("AssistentCore | Recommendation", "INFO", "Озвучивание рекомендации отключено")
+        
+        # Сбрасываем флаг после обработки рекомендации
+        self._dysfunctions_edited = False
 
     def handle_intent(self, intent_data: dict):
         """Обработка распознанного интента от IntentHandler и выполнение соответствующих действий"""

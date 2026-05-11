@@ -47,9 +47,10 @@ class Signals(QObject):
     speaker_stop_request = pyqtSignal()    # остановка воспроизведения
     speaker_finished = pyqtSignal()        # конец воспроизведения без вмешательства
     history_cleared = pyqtSignal()          # для обновления чатов после очистки
-    clear_history_requested = pyqtSignal()  # запрос на очистку истории (отправляется в ядро)ui_signals = Signals()
+    clear_history_requested = pyqtSignal()  # запрос на очистку истории (отправляется в ядро)
     recommendation_ready = pyqtSignal(list, str)  # (список методов, текст для пользователя)
     openrouter_api_key_changed = pyqtSignal(str)  # Сигнал для изменения API ключа OpenRouter
+    dysfunctions_saved = pyqtSignal()  # Сигнал о сохранении нарушений
 ui_signals = Signals()
 
 
@@ -1107,11 +1108,41 @@ class Settings(ContentPageWidget):
         self.grid_lay = QGridLayout(self.main_frame)
         self.grid_lay.setContentsMargins(10, 10, 10, 10)
 
+        # ================================================
+        # Блок переключателей (сверху)
+        # Переключатель для голосового ввода
+        self.toggle_row_for_voice = ToggleSwitchRow("Отправлять текст из голосового ввода сразу в чат:")
+        self.grid_lay.addWidget(self.toggle_row_for_voice, 0, 0)
+
+        # Переключатель для жестового ввода
+        self.toggle_row_for_gesture = ToggleSwitchRow("Отправлять текст из жестового ввода сразу в чат:")
+        self.grid_lay.addWidget(self.toggle_row_for_gesture, 1, 0)
+
+        # Переключатель облачного ИИ
+        self.use_onlie_model = ToggleSwitchRow("Использовать облачный ИИ (требуется API ключ)")
+        self.grid_lay.addWidget(self.use_onlie_model, 2, 0)
+
+        # Переключатель доступа к персональным данным
+        self.online_model_allows = ToggleSwitchRow("Разрешить облачному ИИ доступ к персональным данным")
+        self.grid_lay.addWidget(self.online_model_allows, 3, 0)
+
+        # Переключатель озвучивания рекомендации
+        self.tts_recommendation_toggle = ToggleSwitchRow("Озвучивать рекомендацию при её получении")
+        self.grid_lay.addWidget(self.tts_recommendation_toggle, 4, 0)
+
+        # Создаём объекты для сохранения состояний переключателей
+        self.voice_toggle_state = ToggleSwitchState("voice_send_directly")
+        self.gesture_toggle_state = ToggleSwitchState("gesture_send_directly")
+        self.use_online_model_state = ToggleSwitchState("use_online_model")
+        self.online_model_allows_state = ToggleSwitchState("allow_online_model_user_info")
+        self.tts_recommendation_state = ToggleSwitchState("tts_recommendation_always")
+
+        # ================================================
         # фрейм для выбора камеры
         self.camera_frame = QFrame()
         self.camera_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.camera_frame.setFixedHeight(40)
-        self.grid_lay.addWidget(self.camera_frame, 0, 0)
+        self.grid_lay.addWidget(self.camera_frame, 5, 0)
         # лайаут фрейма камер
         self.camera_frame_lay = QHBoxLayout(self.camera_frame)
         self.camera_frame_lay.setContentsMargins(10, 5, 5, 10)
@@ -1139,7 +1170,7 @@ class Settings(ContentPageWidget):
         self.microphone_frame = QFrame()
         self.microphone_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.microphone_frame.setFixedHeight(40)
-        self.grid_lay.addWidget(self.microphone_frame, 1, 0)
+        self.grid_lay.addWidget(self.microphone_frame, 6, 0)
         # лайаут фрейма микрофона
         self.microphone_frame_lay = QHBoxLayout(self.microphone_frame)
         self.microphone_frame_lay.setContentsMargins(10, 5, 5, 10)
@@ -1167,7 +1198,7 @@ class Settings(ContentPageWidget):
         self.speaker_frame = QFrame()
         self.speaker_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.speaker_frame.setFixedHeight(40)
-        self.grid_lay.addWidget(self.speaker_frame, 3, 0)
+        self.grid_lay.addWidget(self.speaker_frame, 7, 0)
         # лайаут фрейма микрофона
         self.speaker_frame_lay = QHBoxLayout(self.speaker_frame)
         self.speaker_frame_lay.setContentsMargins(10, 5, 5, 10)
@@ -1185,18 +1216,6 @@ class Settings(ContentPageWidget):
         self.speaker_frame_lay.addWidget(self.speaker_dropbox, 1)
 
         
-
-        # Переключатель для голосового ввода
-        self.toggle_row_for_voice = ToggleSwitchRow("Отправлять текст из голосового ввода сразу в чат:")
-        self.grid_lay.addWidget(self.toggle_row_for_voice, 4, 0)
-
-        # Перключатель для жествого ввода
-        self.toggle_row_for_gesture = ToggleSwitchRow("Отправлять текст из жестового ввода сразу в чат:")
-        self.grid_lay.addWidget(self.toggle_row_for_gesture, 5, 0)
-
-        # Создаём объекты для сохранения состояний переключателей
-        self.voice_toggle_state = ToggleSwitchState("voice_send_directly")
-        self.gesture_toggle_state = ToggleSwitchState("gesture_send_directly")
 
         # ================================================
         # Область тем
@@ -1221,17 +1240,17 @@ class Settings(ContentPageWidget):
             self.theme_frame_lay.addWidget(btn, row, col)
             self._theme_buttons.append(btn)
 
-        self.grid_lay.addWidget(self.theme_frame, 6, 0)
+        self.grid_lay.addWidget(self.theme_frame, 8, 0)
         # ================================================
         # API ключ
         self.api_frame = QFrame()
         self.api_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.api_frame_lay = QHBoxLayout(self.api_frame)
-        
+
         self.api_label = QLabel("API Ключ")
         self.api_label.setStyleSheet(self.settings_text_qss)
         self.api_frame_lay.addWidget(self.api_label)
-        
+
         self.api_key_input = QLineEdit()
         self.api_key_input.setText(api_key)
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
@@ -1274,17 +1293,8 @@ class Settings(ContentPageWidget):
         self.save_key_btn = QPushButton("Сохранить")
         self.save_key_btn.clicked.connect(self._save_api_key)
         self.api_frame_lay.addWidget(self.save_key_btn)
-        
-        self.grid_lay.addWidget(self.api_frame, 7, 0)
 
-        self.use_onlie_model = ToggleSwitchRow("Использовать облачный ИИ (требуется API ключ)")
-        self.grid_lay.addWidget(self.use_onlie_model, 8, 0)
-
-        self.online_model_allows = ToggleSwitchRow("Разрешить облачному ИИ доступ к персональным данным")
-        self.grid_lay.addWidget(self.online_model_allows, 9, 0)
-
-        self.use_online_model_state = ToggleSwitchState("use_online_model")
-        self.online_model_allows_state = ToggleSwitchState("allow_online_model_user_info")
+        self.grid_lay.addWidget(self.api_frame, 9, 0)
 
         self.grid_lay.setRowStretch(10, 1)
         # Загружаем настройки из файла
@@ -1298,7 +1308,8 @@ class Settings(ContentPageWidget):
         self.toggle_row_for_voice.toggled.connect(self.voice_toggle_state.save)
         self.toggle_row_for_gesture.toggled.connect(self.gesture_toggle_state.save)
         self.use_onlie_model.toggled.connect(self.use_online_model_state.save)
-        self.online_model_allows.toggled.connect(self.online_model_allows_state.save)   
+        self.online_model_allows.toggled.connect(self.online_model_allows_state.save)
+        self.tts_recommendation_toggle.toggled.connect(self.tts_recommendation_state.save)   
     
     def _toggle_api_key_visibility(self):
         if self.show_api_key.isChecked():
@@ -1323,6 +1334,7 @@ class Settings(ContentPageWidget):
         self.toggle_row_for_gesture.setChecked(self.gesture_toggle_state.load())
         self.use_onlie_model.setChecked(self.use_online_model_state.load())
         self.online_model_allows.setChecked(self.online_model_allows_state.load())
+        self.tts_recommendation_toggle.setChecked(self.tts_recommendation_state.load())
 
         # Камера (по индексу)
         camera_index = settings_config.get("camera_index", 0)
@@ -1393,6 +1405,7 @@ class Settings(ContentPageWidget):
         self.toggle_row_for_gesture._apply_theme(theme)
         self.use_onlie_model._apply_theme(theme)
         self.online_model_allows._apply_theme(theme)
+        self.tts_recommendation_toggle._apply_theme(theme)
         for btn in self._theme_buttons:
             btn.setStyleSheet(theme["theme_button"])
         # Применяем тему к кнопкам API-ключа (без границ и фона)
@@ -1431,9 +1444,13 @@ class Settings(ContentPageWidget):
         """Возвращает состояние переключателя разрешающего доступ облачному ИИ к персональным данным (True/False)"""
         return self.online_model_allows.isChecked()
 
-    def is_online_model_used(self):        
+    def is_online_model_used(self):
         """Возвращает состояние переключателя использования облачного ИИ (True/False)"""
         return self.use_onlie_model.isChecked()
+
+    def is_tts_recommendation_checked(self):
+        """Возвращает состояние переключателя 'Озвучивать рекомендацию всегда' (True/False)"""
+        return self.tts_recommendation_toggle.isChecked()
 
     def get_current_speaker(self):
         return self.speaker_dropbox.currentText()
@@ -1652,6 +1669,7 @@ class RecommendationBadge(QFrame):
 
 class DysfunctionsProfileOption(QFrame):
     value_changed = pyqtSignal(str)
+    dysfunctions_saved = pyqtSignal()  # Сигнал о сохранении нарушений
 
     # Общий стиль кнопок-иконок (карандаш, галочка, шеврон)
     _BTN_STYLE = """
@@ -1880,6 +1898,7 @@ class DysfunctionsProfileOption(QFrame):
         DATABASE_EDITOR.update_data(self.table_name, {self.column: new_value}, self.row_id)
         ui_signals.profile_updated.emit()
         self.value_changed.emit(new_value)
+        self.dysfunctions_saved.emit()  # Сигнал о сохранении нарушений
         self._update_text_height()
 
     def _cancel_editing(self):
@@ -2042,6 +2061,9 @@ class Profile(ContentPageWidget):
 
         # Подключаем сигнал обновления (принимает только текст, игнорируя методы)
         ui_signals.recommendation_ready.connect(self._on_recommendation_ready)
+        
+        # Подключаем сигнал сохранения нарушений к глобальному сигналу
+        self.dysfunctions.dysfunctions_saved.connect(lambda: ui_signals.dysfunctions_saved.emit())
 
         # Автоматический запрос рекомендации при запуске (через 300 мс)
         QTimer.singleShot(300, lambda: ui_signals.profile_updated.emit())

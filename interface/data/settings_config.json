@@ -31,6 +31,7 @@
     "tts_voice": "aidar",
     "tts_model": "silero",
     "tts_speed": 1,
+    "tts_recommendation_always": true,
     "available_recognition_models": [
         "faster-whisper"
     ],
@@ -38,7 +39,6 @@
     "recommended_methods": [
         "voice",
         "gesture",
-        "text",
         "tts"
     ]
 }
