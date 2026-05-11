@@ -323,6 +323,9 @@ class UserInterface(QMainWindow):
             # Подключаемся на клик кнопки — останавливаем анимацию
             btn.clicked.connect(lambda checked, m=method: self._on_button_clicked(m))
 
+        # Загружаем сохранённые методы из конфига и скрываем ненужные кнопки
+        self._load_and_apply_saved_methods()
+
     def _on_button_clicked(self, method: str):
         """
         Обработка клика на кнопку — останавливает анимацию.
@@ -331,6 +334,23 @@ class UserInterface(QMainWindow):
         """
         if method in self._glow_effects:
             self._glow_effects[method].stop()
+
+    def _load_and_apply_saved_methods(self):
+        """Загружает сохранённые методы из конфига и скрывает ненужные кнопки."""
+        saved_methods = BasicUtils.get_settings_config_value("recommended_methods")
+        if not saved_methods:
+            BasicUtils.logger("UserInterface", "INFO", "Нет сохранённых методов — показываем все кнопки")
+            return
+
+        self._recommended_methods = saved_methods
+        BasicUtils.logger("UserInterface", "INFO", f"Загружено {len(saved_methods)} сохранённых методов: {saved_methods}")
+
+        # Скрываем кнопки, которых нет в сохранённых методах
+        for method, btn in self._method_to_button.items():
+            if method in saved_methods:
+                btn.setVisible(True)
+            else:
+                btn.setVisible(False)
 
     def _on_settings_changed(self, changes: dict):
         """Реагируем на изменение настроек (в т.ч. темы)."""
@@ -433,15 +453,39 @@ class UserInterface(QMainWindow):
     def _on_recommendation_ready(self, methods: list, text: str):
         """
         Обработка рекомендации: запускает анимацию бегущей линии по периметру кнопки.
+        Кнопки методов, которые НЕ вошли в рекомендацию, скрываются.
         :param methods: список рекомендуемых методов (voice, gesture, text, tts)
         :param text: текст рекомендации для отображения в профиле
         """
-        # Сохраняем рекомендуемые методы
+        # Сохраняем рекомендуемые методы в конфиг
+        BasicUtils.set_settings_config_value("recommended_methods", methods)
+        # Сохраняем рекомендуемые методы локально
         self._recommended_methods = methods
 
         # Останавливаем все текущие анимации
         for method in self._glow_effects:
             self._glow_effects[method].stop()
+
+        # Показываем/скрываем кнопки в зависимости от рекомендации
+        for method, btn in self._method_to_button.items():
+            if method in methods:
+                btn.setVisible(True)
+            else:
+                btn.setVisible(False)
+                # Если сейчас открыта скрытая страница — переключаемся на первую рекомендуемую
+                page_to_method = {
+                    self.voice_input_page: "voice",
+                    self.gestures_input_page: "gesture",
+                    self.text_input_page: "text",
+                }
+                current_page = self.content_panel.currentWidget()
+                current_method = page_to_method.get(current_page)
+                if current_method and current_method not in methods:
+                    # Переключаемся на первый доступный рекомендуемый метод
+                    for rec_method in methods:
+                        if rec_method in self._method_to_button:
+                            self._method_to_button[rec_method].click()
+                            break
 
         # Запускаем анимацию для рекомендуемых методов
         for method in methods:
@@ -1609,6 +1653,13 @@ class RecommendationBadge(QFrame):
 class DysfunctionsProfileOption(QFrame):
     value_changed = pyqtSignal(str)
 
+    # Общий стиль кнопок-иконок (карандаш, галочка, шеврон)
+    _BTN_STYLE = """
+        QPushButton { background-color: transparent; border-radius: 15px; }
+        QPushButton:hover { background-color: transparent; }
+        QPushButton:pressed { background-color: transparent; }
+    """
+
     def __init__(
         self,
         value: str,
@@ -1625,201 +1676,232 @@ class DysfunctionsProfileOption(QFrame):
         self._current_value = value or ""
         self._full_text = self._current_value
         self._is_expanded = False
+        self._is_editing = False
 
-        # Высоты
-        self._min_text_height = 30
-        self._preferred_max_height = 600
-        self._collapsed_height = 42
+        # Минимальная высота текстового поля в свёрнутом состоянии
+        self._collapsed_height = 30
 
         self.setStyleSheet(THEMES[SELECTED_THEME]["profile_option_frame"])
-        self.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.MinimumExpanding
-        )
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.main_lay = QVBoxLayout(self)
         self.main_lay.setContentsMargins(10, 8, 10, 8)
-        self.main_lay.setSpacing(8)
+        self.main_lay.setSpacing(6)
 
-        # ЗАГОЛОВОК 
+        # ── ЗАГОЛОВОК ──────────────────────────────────────────────
         self.header_lay = QHBoxLayout()
         self.header_lay.setContentsMargins(0, 0, 0, 0)
-        self.header_lay.setSpacing(8)
+        self.header_lay.setSpacing(6)
 
         self.name_label = QLabel("Нарушения")
         self.name_label.setStyleSheet(THEMES[SELECTED_THEME]["profile_text"])
         self.header_lay.addWidget(self.name_label)
         self.header_lay.addStretch(1)
 
-        # Шеврон
+        # Шеврон (свернуть / развернуть)
         self.btn_chevron = QPushButton()
         self.btn_chevron.setIcon(QIcon(icon_path("chevron-down.png")))
         self.btn_chevron.setIconSize(QSize(18, 18))
         self.btn_chevron.setFixedSize(25, 25)
+        self.btn_chevron.setStyleSheet(self._BTN_STYLE)
         self.btn_chevron.clicked.connect(self._toggle_expand)
 
-        # Редактирование
+        # Карандаш
         self.btn_edit = QPushButton()
         self.btn_edit.setIcon(QIcon(icon_path("pencil.png")))
         self.btn_edit.setIconSize(QSize(20, 20))
         self.btn_edit.setFixedSize(25, 25)
-        self.btn_edit.setStyleSheet("""
-            QPushButton { background-color: transparent; border-radius: 15px; }
-            QPushButton:hover { background-color: transparent; }
-            QPushButton:pressed { background-color: transparent; }
-        """)
+        self.btn_edit.setStyleSheet(self._BTN_STYLE)
         self.btn_edit.clicked.connect(self._start_editing)
 
+        # Галочка (сохранить)
         self.btn_save = QPushButton()
         self.btn_save.setIcon(QIcon(icon_path("accept.png")))
         self.btn_save.setIconSize(QSize(20, 20))
         self.btn_save.setFixedSize(25, 25)
         self.btn_save.setVisible(False)
-        self.btn_save.setStyleSheet(self.btn_edit.styleSheet())
+        self.btn_save.setStyleSheet(self._BTN_STYLE)
         self.btn_save.clicked.connect(self._finish_editing)
+
+        # Отмена (крестик) — появляется только при редактировании
+        self.btn_cancel = QPushButton()
+        cancel_icon = QIcon(icon_path("cancel.png")) if os.path.exists(icon_path("cancel.png")) else QIcon()
+        self.btn_cancel.setIcon(cancel_icon)
+        self.btn_cancel.setText("✕")
+        self.btn_cancel.setIconSize(QSize(16, 16))
+        self.btn_cancel.setFixedSize(25, 25)
+        self.btn_cancel.setVisible(False)
+        self.btn_cancel.setStyleSheet(self._BTN_STYLE + "QPushButton { font-size: 12px; color: #e57373; }")
+        self.btn_cancel.clicked.connect(self._cancel_editing)
 
         self.header_lay.addWidget(self.btn_chevron)
         self.header_lay.addWidget(self.btn_edit)
         self.header_lay.addWidget(self.btn_save)
+        self.header_lay.addWidget(self.btn_cancel)
         self.main_lay.addLayout(self.header_lay)
 
-        # Линия
+        # ── РАЗДЕЛИТЕЛЬ ────────────────────────────────────────────
         self.line = QFrame()
         self.line.setFrameShape(QFrame.Shape.HLine)
         self.line.setFrameShadow(QFrame.Shadow.Sunken)
         self.line.setStyleSheet(THEMES[SELECTED_THEME]["profile_line"])
         self.main_lay.addWidget(self.line)
 
-        # TEXT EDIT 
+        # ── ТЕКСТОВОЕ ПОЛЕ ─────────────────────────────────────────
         self.text_edit = QTextEdit()
-        
-        # Устанавливаем начальный текст в зависимости от состояния
-        if self._full_text:
-            if self._is_expanded:
-                initial_text = self._full_text.strip()
-            else:
-                initial_text = self._get_truncated_text()
-        else:
-            initial_text = "Не указано"
-            
-        self.text_edit.setPlainText(initial_text)
+        self.text_edit.setPlainText(self._get_display_text())
         self.text_edit.setReadOnly(True)
         self.text_edit.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
-
-        self.text_edit.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding
-        )
-        self.text_edit.setMinimumHeight(self._min_text_height)
-        self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.text_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.text_edit.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.text_edit.setStyleSheet(self._text_edit_style(THEMES[SELECTED_THEME]))
-
         self.main_lay.addWidget(self.text_edit)
 
+        # Обновлять высоту при любом изменении контента
         self.text_edit.document().contentsChanged.connect(self._schedule_height_update)
-        
-        # Инициализируем правильную высоту
+
+        # Первичная установка высоты после рендера
         QTimer.singleShot(0, self._update_text_height)
 
-    # СТИЛЬ 
+    # ── СТИЛЬ ──────────────────────────────────────────────────────
     def _text_edit_style(self, theme: dict) -> str:
         base = """
             QTextEdit {
                 background-color: transparent;
                 border: none;
                 border-radius: 8px;
-                padding: 6px;
-                font-size: 18px;
+                padding: 4px 6px;
+                font-size: 14px;
                 font-family: "Roboto";
             }
-            QTextEdit:focus { border: none; }
+            QTextEdit:focus { border: none; outline: none; }
         """
-        profile_color_rule = f"QTextEdit {{ {theme['profile_text']} }}"
-        return base + profile_color_rule + theme["scrollbar"]
+        color_rule = f"QTextEdit {{ {theme['profile_text']} }}"
+        return base + color_rule + theme.get("scrollbar", "")
 
-    # РАЗВЕРНУТЬ / СВЕРНУТЬ 
+    # ── ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ─────────────────────────────────────
+    def _get_display_text(self) -> str:
+        """Текст для отображения с учётом текущего состояния."""
+        if self._is_expanded or self._is_editing:
+            return self._full_text if self._full_text else "Не указано"
+        return self._get_truncated_text()
+
+    def _get_truncated_text(self) -> str:
+        """Первая строка текста, обрезанная по ширине виджета через QFontMetrics."""
+        if not self._full_text or not self._full_text.strip():
+            return "Не указано"
+
+        text = self._full_text.strip()
+        first_line = text.split('\n')[0]
+        has_more = '\n' in text or len(text) > len(first_line)
+
+        # Обрезка через QFontMetrics с учётом реальной ширины
+        fm = self.text_edit.fontMetrics()
+        available_width = max(self.text_edit.viewport().width() - 20, 100)
+        elided = fm.elidedText(first_line, Qt.TextElideMode.ElideRight, available_width)
+
+        # Добавляем «…» если есть ещё строки, а elidedText не добавил
+        if has_more and not elided.endswith("…") and not elided.endswith("..."):
+            elided = fm.elidedText(first_line + "…", Qt.TextElideMode.ElideRight, available_width)
+
+        return elided
+
+    def _compute_document_height(self) -> int:
+        """Вычисляет высоту, необходимую для отображения текущего документа."""
+        doc = self.text_edit.document()
+        viewport_width = self.text_edit.viewport().width()
+        if viewport_width > 0:
+            doc.setTextWidth(viewport_width)
+        # +12 — небольшой запас на padding
+        return int(doc.size().height()) + 12
+
+    # ── РАЗВЕРНУТЬ / СВЕРНУТЬ ──────────────────────────────────────
     def _toggle_expand(self):
         self._is_expanded = not self._is_expanded
 
         if self._is_expanded:
             self.btn_chevron.setIcon(QIcon(icon_path("chevron-up.png")))
-            # Показываем полный текст
             self.text_edit.setPlainText(self._full_text if self._full_text else "Не указано")
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         else:
             self.btn_chevron.setIcon(QIcon(icon_path("chevron-down.png")))
-            # Показываем только 1 строку + ...
-            truncated = self._get_truncated_text()
-            self.text_edit.setPlainText(truncated)
+            self.text_edit.setPlainText(self._get_truncated_text())
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self._update_text_height()
 
-    def _get_truncated_text(self) -> str:
-        """Возвращает текст, обрезанный до одной строки с многоточием."""
-        if not self._full_text:
-            return "Не указано"
-
-        text = self._full_text.strip()
-        if not text:
-            return "Не указано"
-
-        # Берём первую строку или обрезаем по ширине
-        first_line = text.split('\n')[0]
-
-        # Примерная обрезка (можно улучшить через QFontMetrics)
-        max_chars = 60
-        if len(first_line) > max_chars:
-            return first_line[:max_chars].rstrip() + "..."
-        elif '\n' in text or len(text) > max_chars:
-            return first_line + "..."
-        return first_line
-
-    # РЕДАКТИРОВАНИЕ 
+    # ── РЕДАКТИРОВАНИЕ ─────────────────────────────────────────────
     def _start_editing(self):
-        # При редактировании всегда показываем полный текст
-        current_text = self.text_edit.toPlainText()
-        if current_text.strip() in ("Не указано", self._get_truncated_text()):
-            self.text_edit.setPlainText(self._full_text if self._full_text else "")
-        
-        self.text_edit.setReadOnly(False)
-        self.text_edit.setFocus()
-        
-        # Прячем кнопку редактирования, показываем кнопку сохранения
-        self.btn_edit.setVisible(False)
-        self.btn_save.setVisible(True)
-        
-        # Если виджет был свёрнут, временно разворачиваем для редактирования
+        self._is_editing = True
+        self._edit_backup = self._full_text  # сохраняем для отмены
+
+        # Разворачиваем, если свёрнуто
         if not self._is_expanded:
             self._is_expanded = True
             self.btn_chevron.setIcon(QIcon(icon_path("chevron-up.png")))
-        
+
+        self.text_edit.setPlainText(self._full_text if self._full_text else "")
+        self.text_edit.setReadOnly(False)
+        self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.text_edit.setFocus()
+
+        # Курсор в конец
+        cursor = self.text_edit.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.text_edit.setTextCursor(cursor)
+
+        self.btn_edit.setVisible(False)
+        self.btn_save.setVisible(True)
+        self.btn_cancel.setVisible(True)
+
         self._update_text_height()
 
     def _finish_editing(self):
         new_value = self.text_edit.toPlainText().strip()
+        self._is_editing = False
 
-        shown_value = new_value if new_value else "Не указано"
-        value_for_db = new_value
-
-        self._full_text = new_value if new_value else ""
-        self._current_value = shown_value
-
-        # После сохранения возвращаем правильное состояние
-        if self._is_expanded:
-            self.text_edit.setPlainText(shown_value)
-        else:
-            self.text_edit.setPlainText(self._get_truncated_text())
+        self._full_text = new_value
+        self._current_value = new_value if new_value else "Не указано"
 
         self.text_edit.setReadOnly(True)
         self.btn_edit.setVisible(True)
         self.btn_save.setVisible(False)
+        self.btn_cancel.setVisible(False)
 
-        DATABASE_EDITOR.update_data(self.table_name, {self.column: value_for_db}, self.row_id)
+        # Показываем правильный текст
+        if self._is_expanded:
+            self.text_edit.setPlainText(self._full_text if self._full_text else "Не указано")
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        else:
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            self.text_edit.setPlainText(self._get_truncated_text())
+
+        DATABASE_EDITOR.update_data(self.table_name, {self.column: new_value}, self.row_id)
         ui_signals.profile_updated.emit()
-        self.value_changed.emit(value_for_db)
+        self.value_changed.emit(new_value)
         self._update_text_height()
 
-    # ВЫСОТА 
+    def _cancel_editing(self):
+        """Отменяет редактирование, восстанавливая предыдущий текст."""
+        self._is_editing = False
+        self._full_text = self._edit_backup
+
+        self.text_edit.setReadOnly(True)
+        self.btn_edit.setVisible(True)
+        self.btn_save.setVisible(False)
+        self.btn_cancel.setVisible(False)
+
+        if self._is_expanded:
+            self.text_edit.setPlainText(self._full_text if self._full_text else "Не указано")
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        else:
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            self.text_edit.setPlainText(self._get_truncated_text())
+
+        self._update_text_height()
+
+    # ── УПРАВЛЕНИЕ ВЫСОТОЙ ─────────────────────────────────────────
     def _schedule_height_update(self):
         QTimer.singleShot(0, self._update_text_height)
 
@@ -1827,42 +1909,39 @@ class DysfunctionsProfileOption(QFrame):
         if not self.text_edit:
             return
 
-        doc = self.text_edit.document()
-        doc.setTextWidth(self.text_edit.viewport().width())
-        document_height = int(doc.size().height()) + 16
-
-        if self._is_expanded:
-            # РАСТЯГИВАЕМ НА ВСЮ ДОСТУПНУЮ ВЫСОТУ
-            available = self._calculate_available_height()
-            target = max(self._min_text_height, available)  # Используем ВСЁ доступное место
+        if self._is_expanded or self._is_editing:
+            # Высота по содержимому документа (не по родителю!)
+            doc_h = self._compute_document_height()
+            target = max(self._collapsed_height, doc_h)
             self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         else:
-            target = self._collapsed_height
+            # Свёрнуто — одна строка
+            fm = self.text_edit.fontMetrics()
+            target = fm.height() + 16  # высота одной строки + padding
             self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
-        self.text_edit.setMinimumHeight(self._min_text_height)
-        self.text_edit.setMaximumHeight(target)  # Убираем ограничение на максимум
-        
-        # Обновляем геометрию
+        self.text_edit.setMinimumHeight(target)
+        self.text_edit.setMaximumHeight(target)
+
+        self.updateGeometry()
         if self.parentWidget():
             self.parentWidget().updateGeometry()
-        self.updateGeometry()
-
-    def _calculate_available_height(self) -> int:
-        parent = self.parentWidget()
-        if parent is None:
-            win = self.window()
-            return int(win.height() * 0.9) if win else 500  # 90% от окна
-
-        # Возвращаем всю доступную высоту родителя
-        return parent.height() - 50  # 50px на отступы
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        # При изменении ширины текст может переноситься иначе — пересчитываем
         self._schedule_height_update()
 
+    # ── ПУБЛИЧНЫЕ МЕТОДЫ ───────────────────────────────────────────
     def get_value(self) -> str:
         return self._current_value
+
+    def set_value(self, value: str):
+        """Программно обновляет значение без записи в БД."""
+        self._full_text = value or ""
+        self._current_value = self._full_text if self._full_text else "Не указано"
+        self.text_edit.setPlainText(self._get_display_text())
+        self._update_text_height()
 
     def _apply_theme(self, theme: dict):
         self.setStyleSheet(theme["profile_option_frame"])
