@@ -258,8 +258,7 @@ class AssistentCore():
         raw_history = BasicUtils.load_chat_history()
         formatted_history = BasicUtils.format_chat_history(raw_history)
 
-        # Проверяем настройку use_online_rec и наличие интернета
-        use_online = BasicUtils.get_settings_config_value("use_online_rec") and BasicUtils.has_internet()
+        use_online = BasicUtils.get_settings_config_value("use_online_model") and BasicUtils.has_internet()
         if use_online:
             BasicUtils.logger("CORE", "INFO", "Использование облачного ИИ для обработки запроса")
             if BasicUtils.get_settings_config_value("allow_online_model_user_info"):

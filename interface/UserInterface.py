@@ -784,7 +784,7 @@ class DialogBox(QWidget):
     def _scroll_to_bottom(self):
         # Используем таймер, чтобы дать Qt время пересчитать размеры виджетов
         from PyQt6.QtCore import QTimer
-        QTimer.singleShot(50, self._actual_scroll)
+        QTimer.singleShot(500, self._actual_scroll)
 
     def _actual_scroll(self):
         scroll_bar = self.scroll_area.verticalScrollBar()

@@ -364,13 +364,13 @@ class AccessibilityRecommender(QObject):
         """
         BasicUtils.logger("AccessibilityRecommender", "INFO", f"=== Запрос рекомендации: user_id={user_id}, force_refresh={force_refresh} ===")
         
-        # Проверяем настройку use_online_rec и наличие интернета
-        use_online_rec = BasicUtils.get_settings_config_value("use_online_rec")
+        # Проверяем настройку use_online_model и наличие интернета
+        use_online_model = BasicUtils.get_settings_config_value("use_online_model")
         has_internet = BasicUtils.has_internet()
-        use_online = use_online_rec and has_internet
+        use_online = use_online_model and has_internet
         
-        if use_online_rec and not has_internet:
-            BasicUtils.logger("AccessibilityRecommender", "WARNING", "use_online_rec=true, но интернета нет — используем локальную модель")
+        if use_online_model and not has_internet:
+            BasicUtils.logger("AccessibilityRecommender", "WARNING", "use_online_model=true, но интернета нет — используем локальную модель")
         
         dys = self._get_dysfunctions(user_id)
         if not dys:
