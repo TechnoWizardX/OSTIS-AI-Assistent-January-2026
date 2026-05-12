@@ -67,7 +67,7 @@ class RunningLineOverlay(QWidget):
         self.phase = 0
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
-        
+
         # Тень для линии
         self.glow_effect = QGraphicsDropShadowEffect(self)
         self.glow_effect.setBlurRadius(20)
@@ -75,54 +75,54 @@ class RunningLineOverlay(QWidget):
         self.glow_effect.setXOffset(0)
         self.glow_effect.setYOffset(0)
         self.setGraphicsEffect(self.glow_effect)
-    
+
     def paintEvent(self, event):
         """Рисует бегущую линию по периметру с скруглёнными углами."""
         from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath
         import math
-        
+
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
+
         # Размеры кнопки
         w = self.width()
         h = self.height()
         margin = 2  # отступ для границы
         corner_radius = 12  # радиус скругления как у кнопки
-        
+
         # Рисуем полный контур кнопки (скруглённый прямоугольник)
         path = QPainterPath()
         path.addRoundedRect(margin, margin, w - 2*margin, h - 2*margin, corner_radius, corner_radius)
-        
+
         # Получаем длину контура
         perimeter = path.length()
-        
+
         # Позиция бегущей линии
         line_length = perimeter * 0.35  # длина линии 35% от периметра
         start_pos = (self.phase % 4) * perimeter / 4
-        
+
         # Рисуем линию вдоль контура с градиентом прозрачности
         num_segments = int(line_length)
         for i in range(num_segments):
             pos = (start_pos + i) % perimeter
             prev_pos = (start_pos + i - 1) % perimeter if i > 0 else pos
-            
+
             # Градиент прозрачности: яркий центр, тусклые края
             dist_from_start = i / line_length
             # Используем синусоиду для плавного градиента
             alpha = int(255 * math.sin(dist_from_start * math.pi))
-            
+
             point = path.pointAtPercent(pos / perimeter)
             prev_point = path.pointAtPercent(prev_pos / perimeter)
-            
+
             # Рисуем сегмент линии
             pen = QPen(QColor(0, 255, 0, alpha), 3)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(pen)
-            
+
             if i > 0:
                 painter.drawLine(prev_point, point)
-        
+
         painter.end()
         
 class RecommendationGlowEffect:
@@ -130,7 +130,7 @@ class RecommendationGlowEffect:
     Класс для управления анимированной 'бегущей' подсветкой по периметру кнопки.
     Создает overlay-виджет с бегущей линией и тенью поверх кнопки.
     """
-    
+
     def __init__(self, button: QPushButton):
         self.button = button
         self.overlay = None
@@ -378,7 +378,7 @@ class UserInterface(QMainWindow):
         ts._apply_theme(self._theme)
         ts2 = self.settings_page.toggle_row_for_gesture.toggle_switch
         ts2._apply_theme(self._theme)
-        
+
         # Пересоздаем overlay для эффектов свечения (обновляем позицию)
         for method in self._method_to_button:
             if method in self._glow_effects and self._glow_effects[method].overlay:
@@ -732,8 +732,9 @@ class Message(QWidget):
         # Кнопка озвучки (динамик)
         self.voice_btn = QPushButton()
         self.voice_btn.setFixedSize(40, 40)
-        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME].get("speaker_button", "") + 
-                                     "QPushButton:checked { background-color: #4CAF50; }")  # зелёный цвет
+        accent_color = _COLOR_MAP[SELECTED_THEME].get("accent", "#4CAF50")
+        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME].get("speaker_button", "") +
+                                     f"QPushButton:checked {{ background-color: {accent_color}; }}")
         self.voice_btn.setIcon(QIcon(icon_path("speaker.png")))
         self.voice_btn.setIconSize(QSize(25, 25))
         
@@ -782,7 +783,8 @@ class Message(QWidget):
         self.copy_btn.setStyleSheet(theme["send_button"])
         if hasattr(self, 'voice_btn'):
             base_style = theme.get("speaker_button", "")
-            self.voice_btn.setStyleSheet(base_style + "QPushButton:checked { background-color: #4CAF50; }")    
+            accent_color = _COLOR_MAP[SELECTED_THEME].get("accent", "#4CAF50")
+            self.voice_btn.setStyleSheet(base_style + f"QPushButton:checked {{ background-color: {accent_color}; }}")    
     def copy_text(self):
         """Копирует текст сообщения в буфер обмена."""
         clipboard = QApplication.clipboard()
@@ -1085,6 +1087,46 @@ class ToggleSwitchState:
 
 
 # ===========================================================
+# РАЗДЕЛИТЕЛЬ СЕКЦИЙ НАСТРОЕК
+# ===========================================================
+class SettingsSectionLabel(QWidget):
+    """Минималистичный заголовок-разделитель для группировки настроек.
+    Рисует тонкую цветную полосу слева и текст метки."""
+
+    def __init__(self, text: str, parent=None):
+        super().__init__(parent)
+        self._text = text
+        self.setFixedHeight(28)
+
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 4, 0, 0)
+        lay.setSpacing(8)
+
+        # Тонкий вертикальный акцент-прямоугольник
+        self._accent = QFrame()
+        self._accent.setFixedSize(3, 16)
+        self._accent.setStyleSheet(THEMES[SELECTED_THEME]["settings_section_label_accent"])
+        lay.addWidget(self._accent, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        # Текстовая метка
+        self._label = QLabel(text)
+        self._label.setStyleSheet(THEMES[SELECTED_THEME]["settings_section_label"])
+        lay.addWidget(self._label, 1)
+
+        # Горизонтальная разделительная линия
+        self._line = QFrame()
+        self._line.setFrameShape(QFrame.Shape.HLine)
+        self._line.setFixedHeight(1)
+        self._line.setStyleSheet(THEMES[SELECTED_THEME]["settings_section_label_line"])
+        lay.addWidget(self._line, 6)
+
+    def _apply_theme(self, theme: dict):
+        self._accent.setStyleSheet(theme["settings_section_label_accent"])
+        self._label.setStyleSheet(theme["settings_section_label"])
+        self._line.setStyleSheet(theme["settings_section_label_line"])
+
+
+# ===========================================================
 # НАСТРОЙКИ
 # ===========================================================
 class Settings(ContentPageWidget):
@@ -1098,35 +1140,51 @@ class Settings(ContentPageWidget):
         self.side_panel_btn.setIcon(QIcon(icon_path("settings.png")))
         self.main_lay = QVBoxLayout(self)
         self.main_lay.setContentsMargins(0, 0, 0, 0)
+        self.main_lay.setSpacing(0)
+
+        # Скролл-область для настроек
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setStyleSheet(THEMES[SELECTED_THEME]["scrollbar"])
+        self.main_lay.addWidget(self.scroll_area)
 
         self.main_frame = QFrame()
         self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["dialog_frame"])
         # сетка-панель настроек
-        self.main_lay.addWidget(self.main_frame)
+        self.scroll_area.setWidget(self.main_frame)
         self.grid_lay = QGridLayout(self.main_frame)
         self.grid_lay.setContentsMargins(10, 10, 10, 10)
 
         # ================================================
         # Блок переключателей (сверху)
+        self._section_input = SettingsSectionLabel("Ввод")
+        self.grid_lay.addWidget(self._section_input, 0, 0)
+
         # Переключатель для голосового ввода
         self.toggle_row_for_voice = ToggleSwitchRow("Отправлять текст из голосового ввода сразу в чат:")
-        self.grid_lay.addWidget(self.toggle_row_for_voice, 0, 0)
+        self.grid_lay.addWidget(self.toggle_row_for_voice, 1, 0)
 
         # Переключатель для жестового ввода
         self.toggle_row_for_gesture = ToggleSwitchRow("Отправлять текст из жестового ввода сразу в чат:")
-        self.grid_lay.addWidget(self.toggle_row_for_gesture, 1, 0)
+        self.grid_lay.addWidget(self.toggle_row_for_gesture, 2, 0)
+
+        self._section_ai = SettingsSectionLabel("Облачный ИИ")
+        self.grid_lay.addWidget(self._section_ai, 3, 0)
 
         # Переключатель облачного ИИ
         self.use_onlie_model = ToggleSwitchRow("Использовать облачный ИИ (требуется API ключ)")
-        self.grid_lay.addWidget(self.use_onlie_model, 2, 0)
+        self.grid_lay.addWidget(self.use_onlie_model, 4, 0)
 
         # Переключатель доступа к персональным данным
         self.online_model_allows = ToggleSwitchRow("Разрешить облачному ИИ доступ к персональным данным")
-        self.grid_lay.addWidget(self.online_model_allows, 3, 0)
+        self.grid_lay.addWidget(self.online_model_allows, 5, 0)
 
         # Переключатель озвучивания рекомендации
         self.tts_recommendation_toggle = ToggleSwitchRow("Озвучивать рекомендацию при её получении")
-        self.grid_lay.addWidget(self.tts_recommendation_toggle, 4, 0)
+        self.grid_lay.addWidget(self.tts_recommendation_toggle, 6, 0)
 
         # Создаём объекты для сохранения состояний переключателей
         self.voice_toggle_state = ToggleSwitchState("voice_send_directly")
@@ -1136,11 +1194,14 @@ class Settings(ContentPageWidget):
         self.tts_recommendation_state = ToggleSwitchState("tts_recommendation_always")
 
         # ================================================
+        self._section_devices = SettingsSectionLabel("Устройства")
+        self.grid_lay.addWidget(self._section_devices, 7, 0)
+
         # фрейм для выбора камеры
         self.camera_frame = QFrame()
         self.camera_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.camera_frame.setFixedHeight(40)
-        self.grid_lay.addWidget(self.camera_frame, 5, 0)
+        self.grid_lay.addWidget(self.camera_frame, 8, 0)
         # лайаут фрейма камер
         self.camera_frame_lay = QHBoxLayout(self.camera_frame)
         self.camera_frame_lay.setContentsMargins(10, 5, 5, 10)
@@ -1168,7 +1229,7 @@ class Settings(ContentPageWidget):
         self.microphone_frame = QFrame()
         self.microphone_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.microphone_frame.setFixedHeight(40)
-        self.grid_lay.addWidget(self.microphone_frame, 6, 0)
+        self.grid_lay.addWidget(self.microphone_frame, 9, 0)
         # лайаут фрейма микрофона
         self.microphone_frame_lay = QHBoxLayout(self.microphone_frame)
         self.microphone_frame_lay.setContentsMargins(10, 5, 5, 10)
@@ -1196,7 +1257,7 @@ class Settings(ContentPageWidget):
         self.speaker_frame = QFrame()
         self.speaker_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.speaker_frame.setFixedHeight(40)
-        self.grid_lay.addWidget(self.speaker_frame, 7, 0)
+        self.grid_lay.addWidget(self.speaker_frame, 10, 0)
         # лайаут фрейма микрофона
         self.speaker_frame_lay = QHBoxLayout(self.speaker_frame)
         self.speaker_frame_lay.setContentsMargins(10, 5, 5, 10)
@@ -1217,6 +1278,9 @@ class Settings(ContentPageWidget):
 
         # ================================================
         # Область тем
+        self._section_themes = SettingsSectionLabel("Оформление")
+        self.grid_lay.addWidget(self._section_themes, 11, 0)
+
         self.theme_frame = QFrame()
         self.theme_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.theme_frame_lay = QGridLayout(self.theme_frame)
@@ -1238,9 +1302,12 @@ class Settings(ContentPageWidget):
             self.theme_frame_lay.addWidget(btn, row, col)
             self._theme_buttons.append(btn)
 
-        self.grid_lay.addWidget(self.theme_frame, 8, 0)
+        self.grid_lay.addWidget(self.theme_frame, 12, 0)
         # ================================================
         # API ключ
+        self._section_api = SettingsSectionLabel("API")
+        self.grid_lay.addWidget(self._section_api, 13, 0)
+
         self.api_frame = QFrame()
         self.api_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.api_frame_lay = QHBoxLayout(self.api_frame)
@@ -1292,9 +1359,9 @@ class Settings(ContentPageWidget):
         self.save_key_btn.clicked.connect(self._save_api_key)
         self.api_frame_lay.addWidget(self.save_key_btn)
 
-        self.grid_lay.addWidget(self.api_frame, 9, 0)
+        self.grid_lay.addWidget(self.api_frame, 14, 0)
 
-        self.grid_lay.setRowStretch(10, 1)
+        self.grid_lay.setRowStretch(15, 1)
         # Загружаем настройки из файла
         self._load_settings()
 
@@ -1382,6 +1449,7 @@ class Settings(ContentPageWidget):
         colors = _COLOR_MAP.get(theme_name, _COLOR_MAP["light"])
         
         self.main_frame.setStyleSheet(theme["dialog_frame"])
+        self.scroll_area.setStyleSheet(theme["scrollbar"])
         for frame in [self.camera_frame, self.microphone_frame, self.speaker_frame, self.theme_frame, self.api_frame]:
             frame.setStyleSheet(theme["settings_frame"])
         for label in [self.camera_label, self.microphone_label, self.speaker_label, self.api_label]:
@@ -1404,6 +1472,9 @@ class Settings(ContentPageWidget):
         self.use_onlie_model._apply_theme(theme)
         self.online_model_allows._apply_theme(theme)
         self.tts_recommendation_toggle._apply_theme(theme)
+        for section in [self._section_input, self._section_ai, self._section_devices,
+                        self._section_themes, self._section_api]:
+            section._apply_theme(theme)
         for btn in self._theme_buttons:
             btn.setStyleSheet(theme["theme_button"])
         # Применяем тему к кнопкам API-ключа (без границ и фона)
