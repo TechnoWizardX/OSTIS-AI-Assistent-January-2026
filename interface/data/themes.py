@@ -47,6 +47,7 @@ LIGHT_COLORS = {
     "btn_stop_pressed": "#c62828",
     "voice_checked_bg": "#4CAF50",
     "voice_checked_border": "#388E3C",
+    "accent": "#4CAF50",
 }
 
 DARK_COLORS = {
@@ -89,6 +90,7 @@ DARK_COLORS = {
     "btn_stop_pressed": "#c62828",
     "voice_checked_bg": "#4CAF50",
     "voice_checked_border": "#388E3C",
+    "accent": "#4CAF50",
 }
 
 # Twilight — мягкие фиолетовые/тёплые тона, золотой акцент
@@ -132,6 +134,7 @@ TWILIGHT = {
     "btn_stop_pressed": "#A04433",
     "voice_checked_bg": "#D4A843",
     "voice_checked_border": "#B8922E",
+    "accent": "#D4A843",
 }
 
 # VS Code Dark+ — синий/фиолетовый акцент, бирюзовая кнопка старт
@@ -175,6 +178,7 @@ VS_CODE_DARK = {
     "btn_stop_pressed": "#D03030",
     "voice_checked_bg": "#007ACC",
     "voice_checked_border": "#005A9E",
+    "accent": "#007ACC",
 }
 
 # Nord — холодная арктическая палитра
@@ -218,6 +222,7 @@ NORD = {
     "btn_stop_pressed": "#A85059",
     "voice_checked_bg": "#88C0D0",
     "voice_checked_border": "#5E81AC",
+    "accent": "#88C0D0",
 }
 
 # Gruvbox Dark — тёплая ретро-палитра (зелёный/оранжевый/жёлтый)
@@ -261,6 +266,7 @@ GRUVBOX_DARK = {
     "btn_stop_pressed": "#E03320",
     "voice_checked_bg": "#B8BB26",
     "voice_checked_border": "#98971A",
+    "accent": "#B8BB26",
 }
 
 _COLOR_MAP = {
@@ -309,6 +315,21 @@ _QSS = {
     """,
 
     "settings_frame": "background-color: {bg_frame}; border-radius: 12px;",
+
+    "settings_section_label": """
+        QLabel {{
+            color: {text_secondary};
+            background: transparent;
+            border: none;
+            font-size: 9px;
+            font-weight: normal;
+            letter-spacing: 0.5px;
+        }}
+    """,
+
+    "settings_section_label_accent": "background-color: {accent};",
+
+    "settings_section_label_line": "background-color: {border};",
 
     "settings_text": "color: {text_primary}; font-size: 14px; font-family: \"Roboto\";",
 

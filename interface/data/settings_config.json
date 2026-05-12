@@ -27,7 +27,7 @@
         "aidar": "Айдар",
         "kseniya": "Ксения"
     },
-    "tts_voice": "aidar",
+    "tts_voice": "xenia",
     "tts_model": "silero",
     "tts_speed": 1,
     "tts_recommendation_always": false,
