@@ -1626,8 +1626,8 @@ class RecommendationBadge(QFrame):
         self.text_qss = THEMES[SELECTED_THEME]["profile_text"]
         
         # Убираем фиксированную высоту, позволяем растягиваться
-        self.setFixedHeight(16777215)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
+        
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         
         # Вертикальный лэйаут
         self.lay = QVBoxLayout(self)
@@ -1637,7 +1637,7 @@ class RecommendationBadge(QFrame):
         # Заголовок сверху
         self.title_label = QLabel(title)
         self.title_label.setStyleSheet(self.text_qss + "font-weight: bold;")
-        self.title_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.title_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         self.lay.addWidget(self.title_label)
         
         # Горизонтальная разделительная линия
