@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser, QMessageBox
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer
-from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap
+from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap, QTextOption
 import sys
 import os
 from BasicUtils import BasicUtils, DataBaseEditor
@@ -47,9 +47,10 @@ class Signals(QObject):
     speaker_stop_request = pyqtSignal()    # остановка воспроизведения
     speaker_finished = pyqtSignal()        # конец воспроизведения без вмешательства
     history_cleared = pyqtSignal()          # для обновления чатов после очистки
-    clear_history_requested = pyqtSignal()  # запрос на очистку истории (отправляется в ядро)ui_signals = Signals()
+    clear_history_requested = pyqtSignal()  # запрос на очистку истории (отправляется в ядро)
     recommendation_ready = pyqtSignal(list, str)  # (список методов, текст для пользователя)
     openrouter_api_key_changed = pyqtSignal(str)  # Сигнал для изменения API ключа OpenRouter
+    dysfunctions_saved = pyqtSignal()  # Сигнал о сохранении нарушений
 ui_signals = Signals()
 
 
@@ -323,6 +324,9 @@ class UserInterface(QMainWindow):
             # Подключаемся на клик кнопки — останавливаем анимацию
             btn.clicked.connect(lambda checked, m=method: self._on_button_clicked(m))
 
+        # Загружаем сохранённые методы из конфига и скрываем ненужные кнопки
+        self._load_and_apply_saved_methods()
+
     def _on_button_clicked(self, method: str):
         """
         Обработка клика на кнопку — останавливает анимацию.
@@ -331,6 +335,24 @@ class UserInterface(QMainWindow):
         """
         if method in self._glow_effects:
             self._glow_effects[method].stop()
+
+    def _load_and_apply_saved_methods(self):
+        """Загружает сохранённые методы из конфига и скрывает ненужные кнопки."""
+        saved_methods = BasicUtils.get_settings_config_value("recommended_methods")
+        # Если методы не сохранены или пустые — показываем все кнопки
+        if not saved_methods:
+            BasicUtils.logger("UserInterface", "INFO", "Нет сохранённых методов — показываем все кнопки")
+            return
+
+        self._recommended_methods = saved_methods
+        BasicUtils.logger("UserInterface", "INFO", f"Загружено {len(saved_methods)} сохранённых методов: {saved_methods}")
+
+        # Скрываем кнопки, которых нет в сохранённых методах
+        for method, btn in self._method_to_button.items():
+            if method in saved_methods:
+                btn.setVisible(True)
+            else:
+                btn.setVisible(False)
 
     def _on_settings_changed(self, changes: dict):
         """Реагируем на изменение настроек (в т.ч. темы)."""
@@ -433,15 +455,45 @@ class UserInterface(QMainWindow):
     def _on_recommendation_ready(self, methods: list, text: str):
         """
         Обработка рекомендации: запускает анимацию бегущей линии по периметру кнопки.
+        Если методы пустые — показываются все кнопки (рекомендации нет).
         :param methods: список рекомендуемых методов (voice, gesture, text, tts)
         :param text: текст рекомендации для отображения в профиле
         """
-        # Сохраняем рекомендуемые методы
+        # Сохраняем рекомендуемые методы в конфиг
+        BasicUtils.set_settings_config_value("recommended_methods", methods)
+        # Сохраняем рекомендуемые методы локально
         self._recommended_methods = methods
 
         # Останавливаем все текущие анимации
         for method in self._glow_effects:
             self._glow_effects[method].stop()
+
+        # Если методы пустые — показываем все кнопки (рекомендации нет)
+        if not methods:
+            for method, btn in self._method_to_button.items():
+                btn.setVisible(True)
+            return
+
+        # Показываем/скрываем кнопки в зависимости от рекомендации
+        for method, btn in self._method_to_button.items():
+            if method in methods:
+                btn.setVisible(True)
+            else:
+                btn.setVisible(False)
+                # Если сейчас открыта скрытая страница — переключаемся на первую рекомендуемую
+                page_to_method = {
+                    self.voice_input_page: "voice",
+                    self.gestures_input_page: "gesture",
+                    self.text_input_page: "text",
+                }
+                current_page = self.content_panel.currentWidget()
+                current_method = page_to_method.get(current_page)
+                if current_method and current_method not in methods:
+                    # Переключаемся на первый доступный рекомендуемый метод
+                    for rec_method in methods:
+                        if rec_method in self._method_to_button:
+                            self._method_to_button[rec_method].click()
+                            break
 
         # Запускаем анимацию для рекомендуемых методов
         for method in methods:
@@ -1063,11 +1115,41 @@ class Settings(ContentPageWidget):
         self.grid_lay = QGridLayout(self.main_frame)
         self.grid_lay.setContentsMargins(10, 10, 10, 10)
 
+        # ================================================
+        # Блок переключателей (сверху)
+        # Переключатель для голосового ввода
+        self.toggle_row_for_voice = ToggleSwitchRow("Отправлять текст из голосового ввода сразу в чат:")
+        self.grid_lay.addWidget(self.toggle_row_for_voice, 0, 0)
+
+        # Переключатель для жестового ввода
+        self.toggle_row_for_gesture = ToggleSwitchRow("Отправлять текст из жестового ввода сразу в чат:")
+        self.grid_lay.addWidget(self.toggle_row_for_gesture, 1, 0)
+
+        # Переключатель облачного ИИ
+        self.use_onlie_model = ToggleSwitchRow("Использовать облачный ИИ (требуется API ключ)")
+        self.grid_lay.addWidget(self.use_onlie_model, 2, 0)
+
+        # Переключатель доступа к персональным данным
+        self.online_model_allows = ToggleSwitchRow("Разрешить облачному ИИ доступ к персональным данным")
+        self.grid_lay.addWidget(self.online_model_allows, 3, 0)
+
+        # Переключатель озвучивания рекомендации
+        self.tts_recommendation_toggle = ToggleSwitchRow("Озвучивать рекомендацию при её получении")
+        self.grid_lay.addWidget(self.tts_recommendation_toggle, 4, 0)
+
+        # Создаём объекты для сохранения состояний переключателей
+        self.voice_toggle_state = ToggleSwitchState("voice_send_directly")
+        self.gesture_toggle_state = ToggleSwitchState("gesture_send_directly")
+        self.use_online_model_state = ToggleSwitchState("use_online_model")
+        self.online_model_allows_state = ToggleSwitchState("allow_online_model_user_info")
+        self.tts_recommendation_state = ToggleSwitchState("tts_recommendation_always")
+
+        # ================================================
         # фрейм для выбора камеры
         self.camera_frame = QFrame()
         self.camera_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.camera_frame.setFixedHeight(40)
-        self.grid_lay.addWidget(self.camera_frame, 0, 0)
+        self.grid_lay.addWidget(self.camera_frame, 5, 0)
         # лайаут фрейма камер
         self.camera_frame_lay = QHBoxLayout(self.camera_frame)
         self.camera_frame_lay.setContentsMargins(10, 5, 5, 10)
@@ -1095,7 +1177,7 @@ class Settings(ContentPageWidget):
         self.microphone_frame = QFrame()
         self.microphone_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.microphone_frame.setFixedHeight(40)
-        self.grid_lay.addWidget(self.microphone_frame, 1, 0)
+        self.grid_lay.addWidget(self.microphone_frame, 6, 0)
         # лайаут фрейма микрофона
         self.microphone_frame_lay = QHBoxLayout(self.microphone_frame)
         self.microphone_frame_lay.setContentsMargins(10, 5, 5, 10)
@@ -1123,7 +1205,7 @@ class Settings(ContentPageWidget):
         self.speaker_frame = QFrame()
         self.speaker_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.speaker_frame.setFixedHeight(40)
-        self.grid_lay.addWidget(self.speaker_frame, 3, 0)
+        self.grid_lay.addWidget(self.speaker_frame, 7, 0)
         # лайаут фрейма микрофона
         self.speaker_frame_lay = QHBoxLayout(self.speaker_frame)
         self.speaker_frame_lay.setContentsMargins(10, 5, 5, 10)
@@ -1141,18 +1223,6 @@ class Settings(ContentPageWidget):
         self.speaker_frame_lay.addWidget(self.speaker_dropbox, 1)
 
         
-
-        # Переключатель для голосового ввода
-        self.toggle_row_for_voice = ToggleSwitchRow("Отправлять текст из голосового ввода сразу в чат:")
-        self.grid_lay.addWidget(self.toggle_row_for_voice, 4, 0)
-
-        # Перключатель для жествого ввода
-        self.toggle_row_for_gesture = ToggleSwitchRow("Отправлять текст из жестового ввода сразу в чат:")
-        self.grid_lay.addWidget(self.toggle_row_for_gesture, 5, 0)
-
-        # Создаём объекты для сохранения состояний переключателей
-        self.voice_toggle_state = ToggleSwitchState("voice_send_directly")
-        self.gesture_toggle_state = ToggleSwitchState("gesture_send_directly")
 
         # ================================================
         # Область тем
@@ -1177,17 +1247,17 @@ class Settings(ContentPageWidget):
             self.theme_frame_lay.addWidget(btn, row, col)
             self._theme_buttons.append(btn)
 
-        self.grid_lay.addWidget(self.theme_frame, 6, 0)
+        self.grid_lay.addWidget(self.theme_frame, 8, 0)
         # ================================================
         # API ключ
         self.api_frame = QFrame()
         self.api_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
         self.api_frame_lay = QHBoxLayout(self.api_frame)
-        
+
         self.api_label = QLabel("API Ключ")
         self.api_label.setStyleSheet(self.settings_text_qss)
         self.api_frame_lay.addWidget(self.api_label)
-        
+
         self.api_key_input = QLineEdit()
         self.api_key_input.setText(api_key)
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
@@ -1230,17 +1300,8 @@ class Settings(ContentPageWidget):
         self.save_key_btn = QPushButton("Сохранить")
         self.save_key_btn.clicked.connect(self._save_api_key)
         self.api_frame_lay.addWidget(self.save_key_btn)
-        
-        self.grid_lay.addWidget(self.api_frame, 7, 0)
 
-        self.use_onlie_model = ToggleSwitchRow("Использовать облачный ИИ (требуется API ключ)")
-        self.grid_lay.addWidget(self.use_onlie_model, 8, 0)
-
-        self.online_model_allows = ToggleSwitchRow("Разрешить облачному ИИ доступ к персональным данным")
-        self.grid_lay.addWidget(self.online_model_allows, 9, 0)
-
-        self.use_online_model_state = ToggleSwitchState("use_online_model")
-        self.online_model_allows_state = ToggleSwitchState("allow_online_model_user_info")
+        self.grid_lay.addWidget(self.api_frame, 9, 0)
 
         self.grid_lay.setRowStretch(10, 1)
         # Загружаем настройки из файла
@@ -1254,7 +1315,8 @@ class Settings(ContentPageWidget):
         self.toggle_row_for_voice.toggled.connect(self.voice_toggle_state.save)
         self.toggle_row_for_gesture.toggled.connect(self.gesture_toggle_state.save)
         self.use_onlie_model.toggled.connect(self.use_online_model_state.save)
-        self.online_model_allows.toggled.connect(self.online_model_allows_state.save)   
+        self.online_model_allows.toggled.connect(self.online_model_allows_state.save)
+        self.tts_recommendation_toggle.toggled.connect(self.tts_recommendation_state.save)   
     
     def _toggle_api_key_visibility(self):
         if self.show_api_key.isChecked():
@@ -1279,6 +1341,7 @@ class Settings(ContentPageWidget):
         self.toggle_row_for_gesture.setChecked(self.gesture_toggle_state.load())
         self.use_onlie_model.setChecked(self.use_online_model_state.load())
         self.online_model_allows.setChecked(self.online_model_allows_state.load())
+        self.tts_recommendation_toggle.setChecked(self.tts_recommendation_state.load())
 
         # Камера (по индексу)
         camera_index = settings_config.get("camera_index", 0)
@@ -1349,6 +1412,7 @@ class Settings(ContentPageWidget):
         self.toggle_row_for_gesture._apply_theme(theme)
         self.use_onlie_model._apply_theme(theme)
         self.online_model_allows._apply_theme(theme)
+        self.tts_recommendation_toggle._apply_theme(theme)
         for btn in self._theme_buttons:
             btn.setStyleSheet(theme["theme_button"])
         # Применяем тему к кнопкам API-ключа (без границ и фона)
@@ -1387,9 +1451,13 @@ class Settings(ContentPageWidget):
         """Возвращает состояние переключателя разрешающего доступ облачному ИИ к персональным данным (True/False)"""
         return self.online_model_allows.isChecked()
 
-    def is_online_model_used(self):        
+    def is_online_model_used(self):
         """Возвращает состояние переключателя использования облачного ИИ (True/False)"""
         return self.use_onlie_model.isChecked()
+
+    def is_tts_recommendation_checked(self):
+        """Возвращает состояние переключателя 'Озвучивать рекомендацию всегда' (True/False)"""
+        return self.tts_recommendation_toggle.isChecked()
 
     def get_current_speaker(self):
         return self.speaker_dropbox.currentText()
@@ -1606,6 +1674,306 @@ class RecommendationBadge(QFrame):
         self.recommendation_label.setStyleSheet(theme["profile_text"])
         self.line.setStyleSheet(theme["profile_line"])
 
+class DysfunctionsProfileOption(QFrame):
+    value_changed = pyqtSignal(str)
+    dysfunctions_saved = pyqtSignal()  # Сигнал о сохранении нарушений
+
+    # Общий стиль кнопок-иконок (карандаш, галочка, шеврон)
+    _BTN_STYLE = """
+        QPushButton { background-color: transparent; border-radius: 15px; }
+        QPushButton:hover { background-color: transparent; }
+        QPushButton:pressed { background-color: transparent; }
+    """
+
+    def __init__(
+        self,
+        value: str,
+        table_name: str = "Users",
+        column: str = "dysfunctions",
+        row_id: int = 0,
+        parent=None
+    ):
+        super().__init__(parent)
+
+        self.table_name = table_name
+        self.column = column
+        self.row_id = row_id
+        self._current_value = value or ""
+        self._full_text = self._current_value
+        self._is_expanded = False
+        self._is_editing = False
+
+        # Минимальная высота текстового поля в свёрнутом состоянии
+        self._collapsed_height = 30
+
+        self.setStyleSheet(THEMES[SELECTED_THEME]["profile_option_frame"])
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.main_lay = QVBoxLayout(self)
+        self.main_lay.setContentsMargins(10, 8, 10, 8)
+        self.main_lay.setSpacing(6)
+
+        # ── ЗАГОЛОВОК ──────────────────────────────────────────────
+        self.header_lay = QHBoxLayout()
+        self.header_lay.setContentsMargins(0, 0, 0, 0)
+        self.header_lay.setSpacing(6)
+
+        self.name_label = QLabel("Нарушения")
+        self.name_label.setStyleSheet(THEMES[SELECTED_THEME]["profile_text"])
+        self.header_lay.addWidget(self.name_label)
+        self.header_lay.addStretch(1)
+
+        # Шеврон (свернуть / развернуть)
+        self.btn_chevron = QPushButton()
+        self.btn_chevron.setIcon(QIcon(icon_path("chevron-down.png")))
+        self.btn_chevron.setIconSize(QSize(18, 18))
+        self.btn_chevron.setFixedSize(25, 25)
+        self.btn_chevron.setStyleSheet(self._BTN_STYLE)
+        self.btn_chevron.clicked.connect(self._toggle_expand)
+
+        # Карандаш
+        self.btn_edit = QPushButton()
+        self.btn_edit.setIcon(QIcon(icon_path("pencil.png")))
+        self.btn_edit.setIconSize(QSize(20, 20))
+        self.btn_edit.setFixedSize(25, 25)
+        self.btn_edit.setStyleSheet(self._BTN_STYLE)
+        self.btn_edit.clicked.connect(self._start_editing)
+
+        # Галочка (сохранить)
+        self.btn_save = QPushButton()
+        self.btn_save.setIcon(QIcon(icon_path("accept.png")))
+        self.btn_save.setIconSize(QSize(20, 20))
+        self.btn_save.setFixedSize(25, 25)
+        self.btn_save.setVisible(False)
+        self.btn_save.setStyleSheet(self._BTN_STYLE)
+        self.btn_save.clicked.connect(self._finish_editing)
+
+        # Отмена (крестик) — появляется только при редактировании
+        self.btn_cancel = QPushButton()
+        cancel_icon = QIcon(icon_path("cancel.png")) if os.path.exists(icon_path("cancel.png")) else QIcon()
+        self.btn_cancel.setIcon(cancel_icon)
+        self.btn_cancel.setText("✕")
+        self.btn_cancel.setIconSize(QSize(16, 16))
+        self.btn_cancel.setFixedSize(25, 25)
+        self.btn_cancel.setVisible(False)
+        self.btn_cancel.setStyleSheet(self._BTN_STYLE + "QPushButton { font-size: 12px; color: #e57373; }")
+        self.btn_cancel.clicked.connect(self._cancel_editing)
+
+        self.header_lay.addWidget(self.btn_chevron)
+        self.header_lay.addWidget(self.btn_edit)
+        self.header_lay.addWidget(self.btn_save)
+        self.header_lay.addWidget(self.btn_cancel)
+        self.main_lay.addLayout(self.header_lay)
+
+        # ── РАЗДЕЛИТЕЛЬ ────────────────────────────────────────────
+        self.line = QFrame()
+        self.line.setFrameShape(QFrame.Shape.HLine)
+        self.line.setFrameShadow(QFrame.Shadow.Sunken)
+        self.line.setStyleSheet(THEMES[SELECTED_THEME]["profile_line"])
+        self.main_lay.addWidget(self.line)
+
+        # ── ТЕКСТОВОЕ ПОЛЕ ─────────────────────────────────────────
+        self.text_edit = QTextEdit()
+        self.text_edit.setPlainText(self._get_display_text())
+        self.text_edit.setReadOnly(True)
+        self.text_edit.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+        self.text_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.text_edit.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.text_edit.setStyleSheet(self._text_edit_style(THEMES[SELECTED_THEME]))
+        self.main_lay.addWidget(self.text_edit)
+
+        # Обновлять высоту при любом изменении контента
+        self.text_edit.document().contentsChanged.connect(self._schedule_height_update)
+
+        # Первичная установка высоты после рендера
+        QTimer.singleShot(0, self._update_text_height)
+
+    # ── СТИЛЬ ──────────────────────────────────────────────────────
+    def _text_edit_style(self, theme: dict) -> str:
+        base = """
+            QTextEdit {
+                background-color: transparent;
+                border: none;
+                border-radius: 8px;
+                padding: 4px 6px;
+                font-size: 14px;
+                font-family: "Roboto";
+            }
+            QTextEdit:focus { border: none; outline: none; }
+        """
+        color_rule = f"QTextEdit {{ {theme['profile_text']} }}"
+        return base + color_rule + theme.get("scrollbar", "")
+
+    # ── ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ─────────────────────────────────────
+    def _get_display_text(self) -> str:
+        """Текст для отображения с учётом текущего состояния."""
+        if self._is_expanded or self._is_editing:
+            return self._full_text if self._full_text else "Не указано"
+        return self._get_truncated_text()
+
+    def _get_truncated_text(self) -> str:
+        """Первая строка текста, обрезанная по ширине виджета через QFontMetrics."""
+        if not self._full_text or not self._full_text.strip():
+            return "Не указано"
+
+        text = self._full_text.strip()
+        first_line = text.split('\n')[0]
+        has_more = '\n' in text or len(text) > len(first_line)
+
+        # Обрезка через QFontMetrics с учётом реальной ширины
+        fm = self.text_edit.fontMetrics()
+        available_width = max(self.text_edit.viewport().width() - 20, 100)
+        elided = fm.elidedText(first_line, Qt.TextElideMode.ElideRight, available_width)
+
+        # Добавляем «…» если есть ещё строки, а elidedText не добавил
+        if has_more and not elided.endswith("…") and not elided.endswith("..."):
+            elided = fm.elidedText(first_line + "…", Qt.TextElideMode.ElideRight, available_width)
+
+        return elided
+
+    def _compute_document_height(self) -> int:
+        """Вычисляет высоту, необходимую для отображения текущего документа."""
+        doc = self.text_edit.document()
+        viewport_width = self.text_edit.viewport().width()
+        if viewport_width > 0:
+            doc.setTextWidth(viewport_width)
+        # +12 — небольшой запас на padding
+        return int(doc.size().height()) + 12
+
+    # ── РАЗВЕРНУТЬ / СВЕРНУТЬ ──────────────────────────────────────
+    def _toggle_expand(self):
+        self._is_expanded = not self._is_expanded
+
+        if self._is_expanded:
+            self.btn_chevron.setIcon(QIcon(icon_path("chevron-up.png")))
+            self.text_edit.setPlainText(self._full_text if self._full_text else "Не указано")
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        else:
+            self.btn_chevron.setIcon(QIcon(icon_path("chevron-down.png")))
+            self.text_edit.setPlainText(self._get_truncated_text())
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        self._update_text_height()
+
+    # ── РЕДАКТИРОВАНИЕ ─────────────────────────────────────────────
+    def _start_editing(self):
+        self._is_editing = True
+        self._edit_backup = self._full_text  # сохраняем для отмены
+
+        # Разворачиваем, если свёрнуто
+        if not self._is_expanded:
+            self._is_expanded = True
+            self.btn_chevron.setIcon(QIcon(icon_path("chevron-up.png")))
+
+        self.text_edit.setPlainText(self._full_text if self._full_text else "")
+        self.text_edit.setReadOnly(False)
+        self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.text_edit.setFocus()
+
+        # Курсор в конец
+        cursor = self.text_edit.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.text_edit.setTextCursor(cursor)
+
+        self.btn_edit.setVisible(False)
+        self.btn_save.setVisible(True)
+        self.btn_cancel.setVisible(True)
+
+        self._update_text_height()
+
+    def _finish_editing(self):
+        new_value = self.text_edit.toPlainText().strip()
+        self._is_editing = False
+
+        self._full_text = new_value
+        self._current_value = new_value if new_value else "Не указано"
+
+        self.text_edit.setReadOnly(True)
+        self.btn_edit.setVisible(True)
+        self.btn_save.setVisible(False)
+        self.btn_cancel.setVisible(False)
+
+        # Показываем правильный текст
+        if self._is_expanded:
+            self.text_edit.setPlainText(self._full_text if self._full_text else "Не указано")
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        else:
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            self.text_edit.setPlainText(self._get_truncated_text())
+
+        DATABASE_EDITOR.update_data(self.table_name, {self.column: new_value}, self.row_id)
+        ui_signals.profile_updated.emit()
+        self.value_changed.emit(new_value)
+        self.dysfunctions_saved.emit()  # Сигнал о сохранении нарушений
+        self._update_text_height()
+
+    def _cancel_editing(self):
+        """Отменяет редактирование, восстанавливая предыдущий текст."""
+        self._is_editing = False
+        self._full_text = self._edit_backup
+
+        self.text_edit.setReadOnly(True)
+        self.btn_edit.setVisible(True)
+        self.btn_save.setVisible(False)
+        self.btn_cancel.setVisible(False)
+
+        if self._is_expanded:
+            self.text_edit.setPlainText(self._full_text if self._full_text else "Не указано")
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        else:
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            self.text_edit.setPlainText(self._get_truncated_text())
+
+        self._update_text_height()
+
+    # ── УПРАВЛЕНИЕ ВЫСОТОЙ ─────────────────────────────────────────
+    def _schedule_height_update(self):
+        QTimer.singleShot(0, self._update_text_height)
+
+    def _update_text_height(self):
+        if not self.text_edit:
+            return
+
+        if self._is_expanded or self._is_editing:
+            # Высота по содержимому документа (не по родителю!)
+            doc_h = self._compute_document_height()
+            target = max(self._collapsed_height, doc_h)
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        else:
+            # Свёрнуто — одна строка
+            fm = self.text_edit.fontMetrics()
+            target = fm.height() + 16  # высота одной строки + padding
+            self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        self.text_edit.setMinimumHeight(target)
+        self.text_edit.setMaximumHeight(target)
+
+        self.updateGeometry()
+        if self.parentWidget():
+            self.parentWidget().updateGeometry()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # При изменении ширины текст может переноситься иначе — пересчитываем
+        self._schedule_height_update()
+
+    # ── ПУБЛИЧНЫЕ МЕТОДЫ ───────────────────────────────────────────
+    def get_value(self) -> str:
+        return self._current_value
+
+    def set_value(self, value: str):
+        """Программно обновляет значение без записи в БД."""
+        self._full_text = value or ""
+        self._current_value = self._full_text if self._full_text else "Не указано"
+        self.text_edit.setPlainText(self._get_display_text())
+        self._update_text_height()
+
+    def _apply_theme(self, theme: dict):
+        self.setStyleSheet(theme["profile_option_frame"])
+        self.name_label.setStyleSheet(theme["profile_text"])
+        self.line.setStyleSheet(theme["profile_line"])
+        self.text_edit.setStyleSheet(self._text_edit_style(theme))
 
 class Profile(ContentPageWidget):
     def __init__(self):
@@ -1647,12 +2015,16 @@ class Profile(ContentPageWidget):
         self.head_data_label_lay.setContentsMargins(0, 0, 0, 0)
         self.head_data_label_lay.setSpacing(0)
         # sn_fn_patr - surname, firstname, patronymic - фамилия имя отчество
-        self._surname = DATABASE_EDITOR.get_data("Users", "surname", 0)[0][0]
-        self._firstname = DATABASE_EDITOR.get_data("Users", "firstname", 0)[0][0]
-        self._patronymic = DATABASE_EDITOR.get_data("Users", "patronymic", 0)[0][0]
-        self._sn_fn_patr = f"{self._surname} {self._firstname} {self._patronymic}"
-        self._birthday = DATABASE_EDITOR.get_data("Users", "birthday", 0)[0][0]
-        self._gender = DATABASE_EDITOR.get_data("Users", "gender", 0)[0][0]
+        def _safe_get(table, column):
+            result = DATABASE_EDITOR.get_data(table, column, 0)
+            return result[0][0] if result and result[0] and result[0][0] else None
+
+        self._surname = _safe_get("Users", "surname")
+        self._firstname = _safe_get("Users", "firstname")
+        self._patronymic = _safe_get("Users", "patronymic")
+        self._sn_fn_patr = f"{self._surname} {self._firstname} {self._patronymic}" if any([self._surname, self._firstname, self._patronymic]) else None
+        self._birthday = _safe_get("Users", "birthday")
+        self._gender = _safe_get("Users", "gender")
 
         # СТРОГО указываем, в каком порядке вводятся данные: Ф И О, и обозначаем колонки
         self.sn_fn_patr =  ProfileOption("ФИО", self._sn_fn_patr if self._sn_fn_patr else 'Не указано', True,
@@ -1667,16 +2039,22 @@ class Profile(ContentPageWidget):
         
         self.head_data_lay.addLayout(self.head_data_label_lay)
         self.head_data_lay.addStretch(10)
-        
+
 
         self.main_frame_lay.addLayout(self.head_data_lay)
 
-        
-        self._dysfunctions = DATABASE_EDITOR.get_data("Users", "dysfunctions", 0)[0][0]
-        self.dysfunctions = ProfileOption("Нарушения", f"{self._dysfunctions if self._dysfunctions else 'Не указано'}", True, "Users",["dysfunctions"])
-        self.main_frame_lay.addWidget(self.dysfunctions, Qt.AlignmentFlag.AlignLeft)
+        self._dysfunctions = _safe_get("Users", "dysfunctions")
 
-        self._adaptive = DATABASE_EDITOR.get_data("Users", "adaptation_status", 0)[0][0] 
+        self.dysfunctions = DysfunctionsProfileOption(
+            value=self._dysfunctions if self._dysfunctions else "Не указано",
+            table_name="Users",
+            column="dysfunctions",
+            row_id=0
+        )
+
+        self.main_frame_lay.addWidget(self.dysfunctions)
+
+        self._adaptive = _safe_get("Users", "adaptation_status")
         self.adaptive = ProfileOption("Степень адаптации системы", f"{self._adaptive if self._adaptive else 'Отсутствует'}", False)
         self.main_frame_lay.addWidget(self.adaptive, Qt.AlignmentFlag.AlignLeft)
         
@@ -1694,6 +2072,9 @@ class Profile(ContentPageWidget):
 
         # Подключаем сигнал обновления (принимает только текст, игнорируя методы)
         ui_signals.recommendation_ready.connect(self._on_recommendation_ready)
+        
+        # Подключаем сигнал сохранения нарушений к глобальному сигналу
+        self.dysfunctions.dysfunctions_saved.connect(lambda: ui_signals.dysfunctions_saved.emit())
 
         # Автоматический запрос рекомендации при запуске (через 300 мс)
         QTimer.singleShot(300, lambda: ui_signals.profile_updated.emit())

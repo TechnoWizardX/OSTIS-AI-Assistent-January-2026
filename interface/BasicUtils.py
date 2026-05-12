@@ -153,16 +153,26 @@ class DataBaseEditor():
         self._open_connection()
         self._set_cursor()
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS Users
-                             (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                            firstname TEXT, 
-                            surname TEXT, 
+                             (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            firstname TEXT,
+                            surname TEXT,
                             patronymic TEXT,
                             gender TEXT,
                             birthday TEXT,
                             dysfunctions TEXT,
                             adaptation_status TEXT)""")
+        self._ensure_default_user()
         self._commit()
         self._close_connection()
+
+    def _ensure_default_user(self):
+        """Создаёт запись пользователя с id=0, если она не существует."""
+        self.cursor.execute("SELECT id FROM Users WHERE id = ?", (0,))
+        if not self.cursor.fetchone():
+            self.cursor.execute(
+                "INSERT INTO Users (id, firstname, surname, patronymic, gender, birthday, dysfunctions, adaptation_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (0, "", "", "", "", "", "", "")
+            )
     def _open_connection(self):
         self.connection = sqlite3.connect(DATABASE_FILE)
     def _close_connection(self):
