@@ -8,7 +8,7 @@ from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainte
 import sys
 import os
 from BasicUtils import BasicUtils, DataBaseEditor
-from data.themes import THEMES, _COLOR_MAP
+from interface.data.themes_old import THEMES, _COLOR_MAP
 from datetime import datetime
 
 # Базовый путь для иконок
@@ -514,13 +514,9 @@ class ChatSendBox(QWidget):
     def __init__(self):
         super().__init__()
 
-        # Для защиты от дублирования голосового ввода
         self._last_send_time = None
-        self._last_voice_text = ""
         self._voice_processing = False
 
-        # Для защиты от дублирования жестового ввода
-        self._last_gesture_text = ""
         self._gesture_processing = False
 
         self.chats_send_box_lay = QVBoxLayout(self)
@@ -557,7 +553,6 @@ class ChatSendBox(QWidget):
        
 
         # Для защиты от дублирования
-        self._last_gesture_text = ""
         self._gesture_processing = False
         
     def addVoiceButton(self):
@@ -590,12 +585,9 @@ class ChatSendBox(QWidget):
     def handle_voice_text(self, text: str):
         """Обрабатывает распознанный текст (вызывается в главном потоке)"""
         # Защита от дублирования: игнорируем повторяющийся текст
-        if text == self._last_voice_text or self._voice_processing or not text.strip():
+        if self._voice_processing or not text.strip():
             return
         BasicUtils.logger("ChatSendBox", "INFO", f"Распознан голосовой текст: {text}")
-        self._voice_processing = True
-        self._last_voice_text = text
-
         # Проверяем состояние переключателя из настроек
         send_directly = False
         main_window = self.window()
@@ -617,7 +609,6 @@ class ChatSendBox(QWidget):
             cursor = self.chat_send_input.textCursor()
             cursor.movePosition(cursor.MoveOperation.End)
             self.chat_send_input.setTextCursor(cursor)
-        self._last_voice_text = text
         self._voice_processing = False
 
 
