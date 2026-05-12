@@ -3,12 +3,13 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox, QButtonGroup, QTextEdit, QLineEdit,
     QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser, QMessageBox
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer
-from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap, QTextOption
+from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
+from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap, QTextOption, QPen
 import sys
 import os
+import math
 from BasicUtils import BasicUtils, DataBaseEditor
-from data.themes import THEMES, _COLOR_MAP
+from data.themes_old import THEMES, _COLOR_MAP
 from datetime import datetime
 
 # Базовый путь для иконок
@@ -60,27 +61,35 @@ ui_signals = Signals()
 class RunningLineOverlay(QWidget):
     """
     Overlay-виджет для отрисовки бегущей линии по периметру кнопки.
+    Цвет линии адаптируется к текущей теме интерфейса.
     """
-    def __init__(self, parent, button):
+    def __init__(self, parent, button, theme_name: str = "dark"):
         super().__init__(parent)
         self.button = button
         self.phase = 0
+        self.theme_name = theme_name
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
 
-        # Тень для линии
+        # Получаем параметры свечения из темы
+        colors = _COLOR_MAP.get(theme_name, _COLOR_MAP["dark"])
+        
+        # Цвет и радиус свечения из темы
+        glow_color_hex = colors.get("glow_color", "#00FF00")
+        glow_blur = colors.get("glow_blur", 30)
+        
+        self.line_color = QColor(glow_color_hex)
+
+        # Тень для линии — яркий эффект с параметрами из темы
         self.glow_effect = QGraphicsDropShadowEffect(self)
-        self.glow_effect.setBlurRadius(20)
-        self.glow_effect.setColor(QColor(76, 175, 80, 255))
+        self.glow_effect.setBlurRadius(glow_blur)
+        self.glow_effect.setColor(QColor(self.line_color.red(), self.line_color.green(), self.line_color.blue(), 200))
         self.glow_effect.setXOffset(0)
         self.glow_effect.setYOffset(0)
         self.setGraphicsEffect(self.glow_effect)
 
     def paintEvent(self, event):
         """Рисует бегущую линию по периметру с скруглёнными углами."""
-        from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath
-        import math
-
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -115,8 +124,8 @@ class RunningLineOverlay(QWidget):
             point = path.pointAtPercent(pos / perimeter)
             prev_point = path.pointAtPercent(prev_pos / perimeter)
 
-            # Рисуем сегмент линии
-            pen = QPen(QColor(0, 255, 0, alpha), 3)
+            # Рисуем сегмент линии с цветом из темы
+            pen = QPen(QColor(self.line_color.red(), self.line_color.green(), self.line_color.blue(), alpha), 3)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(pen)
 
@@ -131,54 +140,67 @@ class RecommendationGlowEffect:
     Создает overlay-виджет с бегущей линией и тенью поверх кнопки.
     """
 
-    def __init__(self, button: QPushButton):
+    def __init__(self, button: QPushButton, theme_name: str = "dark"):
         self.button = button
+        self.theme_name = theme_name
         self.overlay = None
         self.animation_timer = QTimer()
         self.animation_timer.timeout.connect(self._update_position)
         self.phase = 0
         self.is_active = False
-        
+
     def start(self):
         """Запускает анимацию бегущей линии."""
         if self.is_active:
             return
         self.is_active = True
-        
+
         # Создаем overlay-виджет если ещё не создан
         if not self.overlay:
             self._create_overlay()
-        
+
         self.overlay.show()
         self.animation_timer.start(16)  # ~60 FPS для плавности
-    
+
     def stop(self):
         """Останавливает анимацию и скрывает overlay."""
         self.is_active = False
         self.animation_timer.stop()
         if self.overlay:
             self.overlay.hide()
-    
+
+    def update_theme(self, theme_name: str):
+        """Обновляет тему и пересоздает overlay с новым цветом."""
+        self.theme_name = theme_name
+        if self.overlay:
+            # Скрываем старый overlay
+            self.overlay.hide()
+            # Пересоздаем overlay с новой темой
+            self._create_overlay()
+            # Если анимация была активна, показываем новый overlay
+            if self.is_active:
+                self.overlay.show()
+
     def _create_overlay(self):
         """Создает overlay-виджет для отрисовки бегущей линии."""
-        self.overlay = RunningLineOverlay(self.button.parent(), self.button)
+        self.overlay = RunningLineOverlay(self.button.parent(), self.button, self.theme_name)
         self.overlay.setGeometry(self.button.geometry())
         self.overlay.raise_()
-    
+
     def _update_position(self):
         """Обновляет позицию бегущей линии."""
         if not self.is_active or not self.overlay:
             return
-        
+
         self.phase += 0.03  # Медленнее для плавности
-        
+
         # Синхронизируем overlay с позицией и размером кнопки
         self.overlay.setGeometry(self.button.geometry())
         self.overlay.raise_()
-        
+
         # Обновляем фазу для отрисовки
         self.overlay.phase = self.phase
-        self.overlay.update()  # Вызываем перерисовку        
+        self.overlay.update()  # Вызываем перерисовку
 
 
 # ===========================================================
@@ -318,9 +340,9 @@ class UserInterface(QMainWindow):
             "gesture": self.gestures_input_page.side_panel_btn,
             "text": self.text_input_page.side_panel_btn,
         }
-        # Сохраняем оригинальные стили кнопок
+        # Сохраняем оригинальные стили кнопок и передаём текущую тему
         for method, btn in self._method_to_button.items():
-            self._glow_effects[method] = RecommendationGlowEffect(btn)
+            self._glow_effects[method] = RecommendationGlowEffect(btn, SELECTED_THEME)
             # Подключаемся на клик кнопки — останавливаем анимацию
             btn.clicked.connect(lambda checked, m=method: self._on_button_clicked(m))
 
@@ -379,12 +401,10 @@ class UserInterface(QMainWindow):
         ts2 = self.settings_page.toggle_row_for_gesture.toggle_switch
         ts2._apply_theme(self._theme)
 
-        # Пересоздаем overlay для эффектов свечения (обновляем позицию)
+        # Обновляем тему для эффектов свечения
         for method in self._method_to_button:
-            if method in self._glow_effects and self._glow_effects[method].overlay:
-                # Обновляем позицию overlay
-                btn = self._method_to_button[method]
-                self._glow_effects[method].overlay.setGeometry(btn.geometry())
+            if method in self._glow_effects:
+                self._glow_effects[method].update_theme(theme_name)
 
     def change_theme(self, theme_name: str):
         """Публичный метод для смены темы извне."""
@@ -837,7 +857,6 @@ class DialogBox(QWidget):
 
     def _scroll_to_bottom(self):
         # Используем таймер, чтобы дать Qt время пересчитать размеры виджетов
-        from PyQt6.QtCore import QTimer
         QTimer.singleShot(500, self._actual_scroll)
 
     def _actual_scroll(self):
@@ -990,9 +1009,6 @@ class ToggleSwitch(QWidget):
         self.update()
 
     def paintEvent(self, event):
-        from PyQt6.QtCore import QRectF
-        from PyQt6.QtGui import QPainter, QPainterPath
-
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 

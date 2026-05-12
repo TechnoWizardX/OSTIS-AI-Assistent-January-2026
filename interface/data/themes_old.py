@@ -48,6 +48,9 @@ LIGHT_COLORS = {
     "voice_checked_bg": "#4CAF50",
     "voice_checked_border": "#388E3C",
     "accent": "#4CAF50",
+    # Параметры для бегущей линии (яркий насыщенный цвет)
+    "glow_color": "#00FF00",
+    "glow_blur": 30,
 }
 
 DARK_COLORS = {
@@ -91,6 +94,9 @@ DARK_COLORS = {
     "voice_checked_bg": "#4CAF50",
     "voice_checked_border": "#388E3C",
     "accent": "#4CAF50",
+    # Параметры для бегущей линии (яркий насыщенный цвет)
+    "glow_color": "#00FF00",
+    "glow_blur": 30,
 }
 
 # Twilight — мягкие фиолетовые/тёплые тона, золотой акцент
@@ -135,6 +141,9 @@ TWILIGHT = {
     "voice_checked_bg": "#D4A843",
     "voice_checked_border": "#B8922E",
     "accent": "#D4A843",
+    # Параметры для бегущей линии (яркий насыщенный цвет в стиле темы)
+    "glow_color": "#FFD700",
+    "glow_blur": 30,
 }
 
 # VS Code Dark+ — синий/фиолетовый акцент, бирюзовая кнопка старт
@@ -179,6 +188,9 @@ VS_CODE_DARK = {
     "voice_checked_bg": "#007ACC",
     "voice_checked_border": "#005A9E",
     "accent": "#007ACC",
+    # Параметры для бегущей линии (яркий насыщенный синий цвет)
+    "glow_color": "#00BFFF",
+    "glow_blur": 30,
 }
 
 # Nord — холодная арктическая палитра
@@ -223,6 +235,9 @@ NORD = {
     "voice_checked_bg": "#88C0D0",
     "voice_checked_border": "#5E81AC",
     "accent": "#88C0D0",
+    # Параметры для бегущей линии (яркий насыщенный голубой цвет)
+    "glow_color": "#88C0D0",
+    "glow_blur": 30,
 }
 
 # Gruvbox Dark — тёплая ретро-палитра (зелёный/оранжевый/жёлтый)
@@ -267,6 +282,9 @@ GRUVBOX_DARK = {
     "voice_checked_bg": "#B8BB26",
     "voice_checked_border": "#98971A",
     "accent": "#B8BB26",
+    # Параметры для бегущей линии (яркий насыщенный жёлто-зелёный цвет)
+    "glow_color": "#B8BB26",
+    "glow_blur": 30,
 }
 
 _COLOR_MAP = {
