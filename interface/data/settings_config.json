@@ -4,8 +4,8 @@
         "password": ""
     },
     "use_online_model": true,
-    "allow_online_model_user_info": false,
-    "theme": "twilight",
+    "allow_online_model_user_info": true,
+    "theme": "dark",
     "last_message_send": null,
     "recording_enabled": false,
     "camera_index": 0,
@@ -36,7 +36,6 @@
     ],
     "speaker_index": 0,
     "recommended_methods": [
-        "voice",
         "gesture",
         "text",
         "tts"

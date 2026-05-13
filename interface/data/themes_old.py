@@ -339,7 +339,7 @@ _QSS = {
             color: {text_secondary};
             background: transparent;
             border: none;
-            font-size: 9px;
+            font-size: 10px;
             font-weight: normal;
             letter-spacing: 0.5px;
         }}

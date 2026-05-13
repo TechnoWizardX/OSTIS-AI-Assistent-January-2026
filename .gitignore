@@ -25,6 +25,7 @@ interface/data/database.db
 env/
 venv/
 .qwen
+.memory
 .voice-model
 interface/data/chat_history.json
 
