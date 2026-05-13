@@ -9,7 +9,7 @@ import sys
 import os
 import math
 from BasicUtils import BasicUtils, DataBaseEditor
-from data.themes_old import THEMES, _COLOR_MAP
+from data.themes import THEMES, _COLOR_MAP
 from datetime import datetime
 
 # Базовый путь для иконок
@@ -75,7 +75,7 @@ class RunningLineOverlay(QWidget):
         colors = _COLOR_MAP.get(theme_name, _COLOR_MAP["dark"])
         
         # Цвет и радиус свечения из темы
-        glow_color_hex = colors.get("glow_color", "#00FF00")
+        glow_color_hex = colors.get("glow", "#00FF00")
         glow_blur = colors.get("glow_blur", 30)
         
         self.line_color = QColor(glow_color_hex)
@@ -558,7 +558,7 @@ class ChatSendBox(QWidget):
         
         
         self.send_btn = QPushButton("Отправить")
-        self.send_btn.setStyleSheet(THEMES[SELECTED_THEME]["send_button"])
+        self.send_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_1"])
         self.send_btn.setFixedSize(130, 45)
         self.send_btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self.send_btn.setIcon(QIcon(icon_path("send.png")))
@@ -577,7 +577,7 @@ class ChatSendBox(QWidget):
         
     def addVoiceButton(self):
             self.voice_btn = QPushButton()
-            self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME]["voice_button"])
+            self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_checkable"])
             self.voice_btn.setIcon(QIcon(icon_path("microphone.png")))
             self.voice_btn.setIconSize(QSize(25, 25))
             self.voice_btn.setCheckable(True)
@@ -694,8 +694,8 @@ class ChatSendBox(QWidget):
         self.main_frame.setStyleSheet(theme["chat_send_box_frame"])
         self.chat_send_input.setStyleSheet(theme["chat_send_input"] + theme["scrollbar"])
         if hasattr(self, 'voice_btn'):
-            self.voice_btn.setStyleSheet(theme["voice_button"])
-        self.send_btn.setStyleSheet(theme["send_button"])
+            self.voice_btn.setStyleSheet(theme["btn_checkable"])
+        self.send_btn.setStyleSheet(theme["btn_1"])
 
 
 class Message(QWidget):
@@ -741,7 +741,7 @@ class Message(QWidget):
         self.copy_btn = QPushButton()
         self.copy_btn.setIcon(QIcon(icon_path("copy.png")))
         self.copy_btn.setIconSize(QSize(20, 20))
-        self.copy_btn.setStyleSheet(THEMES[SELECTED_THEME]["icon_button"])
+        self.copy_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_1"])
         self.copy_btn.setFixedSize(30, 30)
         self.copy_btn.clicked.connect(self.copy_text)
         bottom_lay.addWidget(self.copy_btn)
@@ -753,7 +753,7 @@ class Message(QWidget):
         self.voice_btn = QPushButton()
         self.voice_btn.setFixedSize(40, 40)
         accent_color = _COLOR_MAP[SELECTED_THEME].get("accent", "#4CAF50")
-        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME].get("speaker_button", "") +
+        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME].get("btn_checkable", "") +
                                      f"QPushButton:checked {{ background-color: {accent_color}; }}")
         self.voice_btn.setIcon(QIcon(icon_path("speaker.png")))
         self.voice_btn.setIconSize(QSize(25, 25))
@@ -800,9 +800,9 @@ class Message(QWidget):
         self.author_label.setStyleSheet(theme["message_author"])
         self.text_label.setStyleSheet(theme["message_text"])
         self.time_label.setStyleSheet(theme["message_time"])
-        self.copy_btn.setStyleSheet(theme["send_button"])
+        self.copy_btn.setStyleSheet(theme["btn_1"])
         if hasattr(self, 'voice_btn'):
-            base_style = theme.get("speaker_button", "")
+            base_style = theme.get("btn_checkable", "")
             accent_color = _COLOR_MAP[SELECTED_THEME].get("accent", "#4CAF50")
             self.voice_btn.setStyleSheet(base_style + f"QPushButton:checked {{ background-color: {accent_color}; }}")    
     def copy_text(self):
@@ -891,7 +891,7 @@ class ContentPageWidget(QWidget):
         super().__init__()
 
         self.side_panel_btn = QPushButton()
-        self.side_panel_btn.setStyleSheet(THEMES[SELECTED_THEME]["side_panel_button"])
+        self.side_panel_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_2"])
         self.settings_text_qss = THEMES[SELECTED_THEME]["settings_text"]
         self.dropbox_qss = THEMES[SELECTED_THEME]["settings_combobox"]
         self.side_panel_btn.setMinimumSize(160, 60)
@@ -927,7 +927,7 @@ class ContentPageWidget(QWidget):
 
     def _apply_theme(self, theme: dict):
         """Обновляет стили кнопки боковой панели."""
-        self.side_panel_btn.setStyleSheet(theme["side_panel_button"])
+        self.side_panel_btn.setStyleSheet(theme["btn_2"])
         self.settings_text_qss = theme["settings_text"]
         self.dropbox_qss = theme["settings_combobox"]
 
@@ -1121,7 +1121,7 @@ class SettingsSectionLabel(QWidget):
         # Тонкий вертикальный акцент-прямоугольник
         self._accent = QFrame()
         self._accent.setFixedSize(3, 16)
-        self._accent.setStyleSheet(THEMES[SELECTED_THEME]["settings_section_label_accent"])
+        self._accent.setStyleSheet(THEMES[SELECTED_THEME]["accent"])
         lay.addWidget(self._accent, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # Текстовая метка
@@ -1133,13 +1133,13 @@ class SettingsSectionLabel(QWidget):
         self._line = QFrame()
         self._line.setFrameShape(QFrame.Shape.HLine)
         self._line.setFixedHeight(1)
-        self._line.setStyleSheet(THEMES[SELECTED_THEME]["settings_section_label_line"])
+        self._line.setStyleSheet(THEMES[SELECTED_THEME]["border"])
         lay.addWidget(self._line, 6)
 
     def _apply_theme(self, theme: dict):
-        self._accent.setStyleSheet(theme["settings_section_label_accent"])
+        self._accent.setStyleSheet(theme["accent"])
         self._label.setStyleSheet(theme["settings_section_label"])
-        self._line.setStyleSheet(theme["settings_section_label_line"])
+        self._line.setStyleSheet(theme["border"])
 
 
 # ===========================================================
@@ -1314,7 +1314,7 @@ class Settings(ContentPageWidget):
             row, col = divmod(i, 3)
             btn = QPushButton(label)
             btn.clicked.connect(lambda checked, k=theme_key: self._on_theme_changed(k))
-            btn.setStyleSheet(THEMES[SELECTED_THEME]["theme_button"])
+            btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_theme"])
             self.theme_frame_lay.addWidget(btn, row, col)
             self._theme_buttons.append(btn)
 
@@ -1336,16 +1336,7 @@ class Settings(ContentPageWidget):
         self.api_key_input.setText(api_key)
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_input.setPlaceholderText("Введите sk-or-v1-...")
-        self.api_key_input.setStyleSheet(f"""
-            QLineEdit {{
-                background-color: transparent;
-                border: none;
-                border-radius: 4px;
-                font-size: 14px;
-                color: {_COLOR_MAP[SELECTED_THEME]["text_primary"]};
-                padding: 4px 8px;
-            }}
-        """)
+        self.api_key_input.setStyleSheet(THEMES[SELECTED_THEME]["settings_input"])
         self.api_frame_lay.addWidget(self.api_key_input)
         
         self.show_api_key = QPushButton()
@@ -1354,24 +1345,12 @@ class Settings(ContentPageWidget):
         self.show_api_key.setIcon(QIcon(icon_path("hide.png")))
         self.show_api_key.setIconSize(QSize(20, 20))
         self.show_api_key.clicked.connect(self._toggle_api_key_visibility)
-        self.show_api_key.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                border: none;
-                border-radius: 12px;
-            }}
-            QPushButton:hover {{
-                background-color: transparent;
-                border: none;
-            }}
-            QPushButton:pressed {{
-                background-color: transparent;
-                border: none;
-            }}
-        """)
+        self.show_api_key.setStyleSheet(THEMES[SELECTED_THEME]["btn_transparent"])
+
         self.api_frame_lay.addWidget(self.show_api_key)
 
         self.save_key_btn = QPushButton("Сохранить")
+        self.save_key_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_1"])
         self.save_key_btn.clicked.connect(self._save_api_key)
         self.api_frame_lay.addWidget(self.save_key_btn)
 
@@ -1473,16 +1452,7 @@ class Settings(ContentPageWidget):
         for combo in [self.camera_dropbox, self.microphone_dropbox, self.speaker_dropbox]:
             combo.setStyleSheet(self.dropbox_qss)
         # Поле API-ключа с прозрачным фоном
-        self.api_key_input.setStyleSheet(f"""
-            QLineEdit {{
-                background-color: transparent;
-                border: none;
-                border-radius: 4px;
-                font-size: 14px;
-                color: {colors["text_primary"]};
-                padding: 4px 8px;
-            }}
-        """)
+        self.api_key_input.setStyleSheet(THEMES[SELECTED_THEME]["settings_input"])
         self.toggle_row_for_voice._apply_theme(theme)
         self.toggle_row_for_gesture._apply_theme(theme)
         self.use_onlie_model._apply_theme(theme)
@@ -1492,24 +1462,10 @@ class Settings(ContentPageWidget):
                         self._section_themes, self._section_api]:
             section._apply_theme(theme)
         for btn in self._theme_buttons:
-            btn.setStyleSheet(theme["theme_button"])
+            btn.setStyleSheet(theme["btn_theme"])
         # Применяем тему к кнопкам API-ключа (без границ и фона)
-        self.show_api_key.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                border: none;
-                border-radius: 12px;
-            }}
-            QPushButton:hover {{
-                background-color: transparent;
-                border: none;
-            }}
-            QPushButton:pressed {{
-                background-color: transparent;
-                border: none;
-            }}
-        """)
-        self.save_key_btn.setStyleSheet(theme["theme_button"])
+        self.show_api_key.setStyleSheet(THEMES[SELECTED_THEME]["btn_transparent"])
+        self.save_key_btn.setStyleSheet(theme["btn_1"])
    
     def get_current_camera(self):
         return self.camera_dropbox.currentText()
@@ -2284,12 +2240,12 @@ class GesturesInput(ContentPageWidget):
         self.camera_btn_lay.setSpacing(10)
 
         self.start_btn = QPushButton("Старт")
-        self.start_btn.setStyleSheet(THEMES[SELECTED_THEME]["camera_start_button"])
+        self.start_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_3"])
         self.start_btn.clicked.connect(self.start_camera)
-        self.camera_btn_lay.addWidget(self.start_btn)
+        self.camera_btn_lay.addWidget(self.start_btn)   
 
         self.stop_btn = QPushButton("Стоп")
-        self.stop_btn.setStyleSheet(THEMES[SELECTED_THEME]["camera_stop_button"])
+        self.stop_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_4"])
         self.stop_btn.clicked.connect(self.stop_camera)
         self.stop_btn.setEnabled(False)
         self.camera_btn_lay.addWidget(self.stop_btn)
@@ -2376,9 +2332,9 @@ class GesturesInput(ContentPageWidget):
         self.send_box._apply_theme(theme)
         self.camera_frame.setStyleSheet(theme["gestures_camera_frame"])
         self.camera_preview_label.setStyleSheet(theme["camera_preview_label"])
-        self.start_btn.setStyleSheet(theme["camera_start_button"])
-        self.stop_btn.setStyleSheet(theme["camera_stop_button"])
-
+        self.start_btn.setStyleSheet(theme["btn_3"])
+        self.stop_btn.setStyleSheet(theme["btn_4"])
+    
 # ===========================================================
 # ДИКТОР
 # ===========================================================
