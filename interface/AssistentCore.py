@@ -185,6 +185,7 @@ class AssistentCore():
     
     def handle_error(self, error_message: str):
         """Обработка ошибок, полученных из разных частей системы, с логированием"""
+        ui_signals.typing_finished.emit()
         self.text_to_speech(error_message)
 
     def clear_chat_history(self):
@@ -322,9 +323,11 @@ class AssistentCore():
         self.ai_thread.finished.connect(self.handle_ai_result)
         self.ai_thread.error.connect(self.handle_error)
         self.ai_thread.start()
+        ui_signals.typing_started.emit()
 
     def handle_ai_result(self, result):
         """Метод-обработчик успешного ответа"""
+        ui_signals.typing_finished.emit()
         self.handle_intent(result)
 
     
