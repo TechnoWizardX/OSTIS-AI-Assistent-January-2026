@@ -26,6 +26,7 @@ env/
 venv/
 .qwen
 .memory
+/memory
 .voice-model
 interface/data/chat_history.json
 

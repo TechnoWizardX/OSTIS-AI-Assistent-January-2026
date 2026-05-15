@@ -17,6 +17,12 @@
   btn_transparent  — прозрачная кнопка без фона и рамки (для иконок)
   btn_checkable    — переключаемая кнопка (голосовой/динамик) с :checked
   btn_theme        — кнопка выбора темы (фон bg_2)
+
+Мини-инструкция по добавлению новый элементов:
+1. Проверить, подходит ли существующий шаблон
+2. Если шаблон подходит, использовать его и при необходимости добавить новый цвет в палитру
+3. Если шаблон не подходит, создать новый шаблон с универсальным именем (btn_5, btn_6 и т.д.) и использовать его в коде.
+4. Если нужен просто цвет - добавить в подблок и назвать по смыслу (accent_4, danger_4, bg_5 и т.д.) и использовать напрямую в коде.
 """
 
 
@@ -57,7 +63,9 @@ LIGHT_COLORS = {
     # Прочее
     "selection_bg": "#D9D9D9",
     "selection_text": "#000000",
-    "divider": "#000000",
+    "divider": "#5A5A5A",
+    "glow" : "#00FF00",
+    "glow_blur" : 30,
     # Акцент (зелёный)
     "accent_1": "#4CAF50",
     "accent_2": "#45a049",
@@ -97,6 +105,8 @@ DARK_COLORS = {
     "selection_bg": "#505050",
     "selection_text": "#E0E0E0",
     "divider": "#777777",
+    "glow" : "#00FF00",
+    "glow_blur" : 30,
     "accent_1": "#4CAF50",
     "accent_2": "#45a049",
     "accent_3": "#388E3C",
@@ -135,6 +145,8 @@ TWILIGHT = {
     "selection_bg": "#4A4A60",
     "selection_text": "#E8E6E3",
     "divider": "#7A7870",
+    "glow" : "#FFD700",
+    "glow_blur" : 30,
     "accent_1": "#C17817",
     "accent_2": "#D4901A",
     "accent_3": "#A86A10",
@@ -173,6 +185,8 @@ VS_CODE_DARK = {
     "selection_bg": "#264F78",
     "selection_text": "#FFFFFF",
     "divider": "#808080",
+    "glow" : "#4EC9B0",
+    "glow_blur" : 30,
     "accent_1": "#4EC9B0",
     "accent_2": "#5DD4BB",
     "accent_3": "#3BA89A",
@@ -211,12 +225,15 @@ NORD = {
     "selection_bg": "#4C566A",
     "selection_text": "#ECEFF4",
     "divider": "#6B7E96",
+    "glow" : "#88C0D0",
+    "glow_blur" : 30,
     "accent_1": "#A3BE8C",
     "accent_2": "#B5C99E",
     "accent_3": "#8DA878",
     "danger_1": "#BF616A",
     "danger_2": "#CC7079",
     "danger_3": "#A85059",
+    
 }
 
 # Gruvbox Dark — тёплая ретро-палитра
@@ -249,6 +266,8 @@ GRUVBOX_DARK = {
     "selection_bg": "#665C54",
     "selection_text": "#EBDBB2",
     "divider": "#928374",
+    "glow" : "#B8BB26",
+    "glow_blur" : 30,
     "accent_1": "#B8BB26",
     "accent_2": "#C6C838",
     "accent_3": "#A0A21E",
@@ -284,6 +303,12 @@ _QSS = {
     "profile_option_frame": "background-color: {bg_4}; border-radius: 12px;",
 
     "profile_photo_frame": "background-color: {bg_4}; border-radius: 12px;",
+
+    # ── Простые цвета ───────────────────────────────────────────────
+    "accent" : "background-color: {accent_1}; border-radius: 12px;",
+    "border": "background-color: {border_1};",
+    "glow": "background-color: {glow}; border-radius: 12px;",
+    "glow_blur" : "{glow_blur}",
 
     "input_page": """
         QWidget {{
@@ -529,7 +554,7 @@ _QSS = {
         QPushButton {{
             background-color: transparent;
             border: none;
-            border-radius: 12px;
+            border-radius: 8px;
             color: {text_1};
         }}
         QPushButton:hover {{
@@ -583,6 +608,17 @@ _QSS = {
         QPushButton:pressed {{
             background-color: {bg_pressed};
             border: 3px solid {border_3};
+        }}
+    """,
+
+    "settings_section_label": """
+        QLabel {{
+            color: {text_2};
+            background: transparent;
+            border: none;
+            font-size: 9px;
+            font-weight: normal;
+            letter-spacing: 0.5px;
         }}
     """,
 
