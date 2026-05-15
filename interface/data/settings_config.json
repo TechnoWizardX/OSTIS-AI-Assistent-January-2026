@@ -35,11 +35,6 @@
         "faster-whisper"
     ],
     "speaker_index": 0,
-    "recommended_methods": [
-        "voice",
-        "gesture",
-        "text",
-        "tts"
-    ],
+    "recommended_methods": [],
     "auto_tts": false
 }
