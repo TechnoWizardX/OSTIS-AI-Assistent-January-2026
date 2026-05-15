@@ -1621,7 +1621,7 @@ class Settings(ContentPageWidget):
         for combo in [self.camera_dropbox, self.microphone_dropbox, self.speaker_dropbox]:
             combo.setStyleSheet(self.dropbox_qss)
         # Поле API-ключа с прозрачным фоном
-        self.api_key_input.setStyleSheet(THEMES[SELECTED_THEME]["settings_input"])
+        self.api_key_input.setStyleSheet(theme["settings_input"])
         self.toggle_row_for_voice._apply_theme(theme)
         self.toggle_row_for_gesture._apply_theme(theme)
         self.use_onlie_model._apply_theme(theme)
@@ -1635,6 +1635,7 @@ class Settings(ContentPageWidget):
         # Применяем тему к кнопкам API-ключа (без границ и фона)
         self.show_api_key.setStyleSheet(THEMES[SELECTED_THEME]["btn_transparent"])
         self.save_key_btn.setStyleSheet(theme["btn_1"])
+        self.auto_voice_toggle._apply_theme(theme)
    
     def get_current_camera(self):
         return self.camera_dropbox.currentText()
