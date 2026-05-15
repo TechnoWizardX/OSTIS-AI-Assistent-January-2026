@@ -179,6 +179,9 @@ class AssistentCore():
         BasicUtils.logger("CORE | AI Message", "INFO", f"AI: {message}")
         ui_signals.message_sent.emit("IAMOS", message)
         BasicUtils.add_message("IAMOS", message)
+        if BasicUtils.get_settings_config_value("auto_tts"):
+            BasicUtils.logger("CORE | AI Message", "INFO", "Автоматическая озвучка включена, отправляем сообщение в TTS")
+            self.text_to_speech(message)
     
     def handle_error(self, error_message: str):
         """Обработка ошибок, полученных из разных частей системы, с логированием"""

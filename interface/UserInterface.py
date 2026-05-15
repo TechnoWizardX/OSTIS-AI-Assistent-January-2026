@@ -1359,6 +1359,12 @@ class Settings(ContentPageWidget):
 
         self.grid_lay.addWidget(self.api_frame, 14, 0)
 
+        self.other_section = SettingsSectionLabel("Прочее")
+        self.grid_lay.addWidget(self.other_section, 15, 0)
+        self.auto_voice_toggle = ToggleSwitchRow("Автоматически озвучивать ответы ИИ")
+        self.auto_voice_state = ToggleSwitchState("auto_tts")
+        self.grid_lay.addWidget(self.auto_voice_toggle, 16, 0)
+
         self.grid_lay.setRowStretch(15, 1)
         # Загружаем настройки из файла
         self._load_settings()
@@ -1373,6 +1379,7 @@ class Settings(ContentPageWidget):
         self.use_onlie_model.toggled.connect(self.use_online_model_state.save)
         self.online_model_allows.toggled.connect(self.online_model_allows_state.save)
         self.tts_recommendation_toggle.toggled.connect(self.tts_recommendation_state.save)   
+        self.auto_voice_toggle.toggled.connect(self.auto_voice_state.save)
     
     def _toggle_api_key_visibility(self):
         if self.show_api_key.isChecked():
@@ -1398,7 +1405,7 @@ class Settings(ContentPageWidget):
         self.use_onlie_model.setChecked(self.use_online_model_state.load())
         self.online_model_allows.setChecked(self.online_model_allows_state.load())
         self.tts_recommendation_toggle.setChecked(self.tts_recommendation_state.load())
-
+        self.auto_voice_toggle.setChecked(self.auto_voice_state.load())
         # Камера (по индексу)
         camera_index = settings_config.get("camera_index", 0)
         if 0 <= camera_index < self.camera_dropbox.count():
@@ -1416,7 +1423,7 @@ class Settings(ContentPageWidget):
         # Тема
         theme = settings_config.get("theme", "light")
         self._on_theme_changed(theme)
-   
+
     def _on_camera_changed(self, text):
         """Сохраняет выбранную камеру."""
         index = self.camera_dropbox.currentIndex()
@@ -1991,6 +1998,7 @@ class DysfunctionsProfileOption(QFrame):
             self.parentWidget().updateGeometry()
 
     def resizeEvent(self, event):
+        
         super().resizeEvent(event)
         # При изменении ширины текст может переноситься иначе — пересчитываем
         self._schedule_height_update()
