@@ -52,7 +52,137 @@ class Signals(QObject):
     recommendation_ready = pyqtSignal(list, str)  # (список методов, текст для пользователя)
     openrouter_api_key_changed = pyqtSignal(str)  # Сигнал для изменения API ключа OpenRouter
     dysfunctions_saved = pyqtSignal()  # Сигнал о сохранении нарушений
+    typing_started  = pyqtSignal()    # нейросеть начала думать
+    typing_finished = pyqtSignal()    # нейросеть ответила
 ui_signals = Signals()
+
+
+# ==========================================================
+# ИНДИКАТОР ПЕЧАТАНИЯ / ДУМАНИЯ НЕЙРОСЕТИ
+# ==========================================================
+
+class TypingDotsWidget(QWidget):
+    """
+    Анимированные три точки, имитирующие эффект печатания/думания.
+    Точки поочерёдно пульсируют по яркости и подпрыгивают вверх-вниз (~60 FPS).
+    """
+    def __init__(self, dot_color: str = "#4CAF50", parent=None):
+        super().__init__(parent)
+        self._dot_color = QColor(dot_color)
+        self._dot_count = 3
+        self._phase = 0.0
+        self._dot_radius = 6
+        self._dot_spacing = 20
+        self._min_alpha = 60
+        self._max_alpha = 255
+        self._jump_amplitude = 8  # амплитуда подпрыгивания в пикселях
+
+        total_w = self._dot_count * self._dot_spacing
+        total_h = self._dot_radius * 2 + 6 + self._jump_amplitude * 2
+        self.setFixedSize(total_w, total_h)
+
+        self._timer = QTimer(self)
+        self._timer.setInterval(16)
+        self._timer.timeout.connect(self._tick)
+
+    def start(self):
+        self._phase = 0.0
+        self._timer.start()
+
+    def stop(self):
+        self._timer.stop()
+        self.update()
+
+    def set_color(self, hex_color: str):
+        self._dot_color = QColor(hex_color)
+        self.update()
+
+    def apply_theme(self, theme: dict):
+        """
+        Применяет тему интерфейса — устанавливает цвет точек из темы.
+        :param theme: словарь темы с ключом 'typing_dots'
+        """
+        dots_config = theme.get("typing_dots", {})
+        dot_color = dots_config.get("color", "#4CAF50")
+        self.set_color(dot_color)
+
+    def _tick(self):
+        self._phase = (self._phase + 0.06) % self._dot_count
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        cx = self._dot_radius
+        base_cy = self.height() // 2
+        for i in range(self._dot_count):
+            dist = abs((self._phase - i + self._dot_count) % self._dot_count)
+            dist = min(dist, self._dot_count - dist)
+            brightness = math.cos(dist * math.pi / (self._dot_count - 0.5))
+            brightness = max(0.0, brightness)
+            alpha = int(self._min_alpha + (self._max_alpha - self._min_alpha) * brightness)
+            color = QColor(self._dot_color.red(), self._dot_color.green(),
+                           self._dot_color.blue(), alpha)
+            
+            # Вычисляем смещение по Y для эффекта подпрыгивания
+            jump_offset = math.sin((self._phase - i) * math.pi) * self._jump_amplitude * brightness
+            cy = base_cy + jump_offset
+            
+            painter.setBrush(color)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(
+                QRectF(cx - self._dot_radius, cy - self._dot_radius,
+                       self._dot_radius * 2, self._dot_radius * 2)
+            )
+            cx += self._dot_spacing
+        painter.end()
+
+
+class TypingIndicator(QWidget):
+    """
+    Пузырь «думания» нейросети с анимированными точками.
+    Стилизован аналогично Message — органично встраивается в DialogBox.
+    """
+    def __init__(self, author_name: str = "IAMOS", frame_style: str = "",
+                 label_style: str = "", parent=None):
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+
+        outer_lay = QHBoxLayout(self)
+        outer_lay.setContentsMargins(10, 5, 10, 5)
+        outer_lay.setSpacing(5)
+
+        self.main_frame = QFrame()
+        self.main_frame.setStyleSheet(frame_style)
+        self.main_frame.setMinimumWidth(100)
+        self.main_frame.setMaximumWidth(300)
+        self.main_frame.setSizePolicy(QSizePolicy.Policy.MinimumExpanding,
+                                      QSizePolicy.Policy.MinimumExpanding)
+
+        frame_lay = QVBoxLayout(self.main_frame)
+        frame_lay.setContentsMargins(12, 10, 12, 10)
+        frame_lay.setSpacing(6)
+
+        self.author_label = QLabel(author_name)
+        self.author_label.setStyleSheet(label_style)
+        frame_lay.addWidget(self.author_label)
+
+        self.dots = TypingDotsWidget()
+        frame_lay.addWidget(self.dots, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        outer_lay.addWidget(self.main_frame)
+        outer_lay.addStretch()
+
+    def start(self):
+        self.dots.start()
+
+    def stop(self):
+        self.dots.stop()
+
+    def _apply_theme(self, theme: dict):
+        self.main_frame.setStyleSheet(theme.get("message_frame", ""))
+        self.author_label.setStyleSheet(theme.get("message_author", ""))
+        self.dots.apply_theme(theme)
 
 
 #==========================================================
@@ -383,8 +513,10 @@ class UserInterface(QMainWindow):
 
     def _apply_theme(self, theme_name: str):
         """Применяет тему ко всему приложению."""
+        global SELECTED_THEME
         self._theme_name = theme_name
         self._theme = THEMES[theme_name]
+        SELECTED_THEME = theme_name  # Обновляем глобальную переменную
         BasicUtils.set_settings_config_value("theme", theme_name)
 
         # Главное окно
@@ -708,11 +840,10 @@ class Message(QWidget):
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(10, 5, 10, 5)
         main_layout.setSpacing(5)
-        selected_theme = BasicUtils.get_settings_config_value("theme") or "light"
-        self._theme = THEMES[selected_theme]
+
         # Пузырёк сообщения (ширина подстраивается под текст)
         self.main_frame = QFrame()
-        self.main_frame.setStyleSheet(self._theme["message_frame"])
+        self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["message_frame"])
         self.main_frame.setMinimumWidth(100)
         self.main_frame.setMaximumWidth(500)
         self.main_frame.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
@@ -724,25 +855,25 @@ class Message(QWidget):
         # Имя автора
         display = "Вы" if author == "user" else author
         self.author_label = QLabel(display)
-        self.author_label.setStyleSheet(self._theme["message_author"])
+        self.author_label.setStyleSheet(THEMES[SELECTED_THEME]["message_author"])
         frame_layout.addWidget(self.author_label)
 
         # Текст
         self.text_label = QLabel(text)
         self.text_label.setWordWrap(True)
-        self.text_label.setStyleSheet(self._theme["message_text"])
+        self.text_label.setStyleSheet(THEMES[SELECTED_THEME]["message_text"])
         self.text_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
         frame_layout.addWidget(self.text_label)
 
         # Время
         time_str = time or datetime.now().strftime("%H:%M")
         self.time_label = QLabel(time_str)
-        self.time_label.setStyleSheet(self._theme["message_time"])
+        self.time_label.setStyleSheet(THEMES[SELECTED_THEME]["message_time"])
         bottom_lay = QHBoxLayout()
         self.copy_btn = QPushButton()
         self.copy_btn.setIcon(QIcon(icon_path("copy.png")))
         self.copy_btn.setIconSize(QSize(20, 20))
-        self.copy_btn.setStyleSheet(self._theme["btn_1"])
+        self.copy_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_1"])
         self.copy_btn.setFixedSize(30, 30)
         self.copy_btn.clicked.connect(self.copy_text)
         bottom_lay.addWidget(self.copy_btn)
@@ -753,8 +884,8 @@ class Message(QWidget):
         # Кнопка озвучки (динамик)
         self.voice_btn = QPushButton()
         self.voice_btn.setFixedSize(40, 40)
-        accent_color = self._theme.get("accent", "#4CAF50")
-        self.voice_btn.setStyleSheet(self._theme.get("btn_checkable", "") +
+        accent_color = _COLOR_MAP[SELECTED_THEME].get("accent", "#4CAF50")
+        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME].get("btn_checkable", "") +
                                      f"QPushButton:checked {{ background-color: {accent_color}; }}")
         self.voice_btn.setIcon(QIcon(icon_path("speaker.png")))
         self.voice_btn.setIconSize(QSize(25, 25))
@@ -804,10 +935,8 @@ class Message(QWidget):
         self.copy_btn.setStyleSheet(theme["btn_1"])
         if hasattr(self, 'voice_btn'):
             base_style = theme.get("btn_checkable", "")
-            accent_color = theme.get("accent", "#4CAF50")
-            self.voice_btn.setStyleSheet(base_style + f"QPushButton:checked {{ background-color: {accent_color}; }}")   
-        self._theme = theme
-
+            accent_color = _COLOR_MAP[SELECTED_THEME].get("accent", "#4CAF50")
+            self.voice_btn.setStyleSheet(base_style + f"QPushButton:checked {{ background-color: {accent_color}; }}")    
     def copy_text(self):
         """Копирует текст сообщения в буфер обмена."""
         clipboard = QApplication.clipboard()
@@ -824,6 +953,9 @@ class DialogBox(QWidget):
             pass
         ui_signals.message_sent.connect(self.add_message)
         ui_signals.history_cleared.connect(self.reload_history)
+        ui_signals.typing_started.connect(self.show_typing_indicator)
+        ui_signals.typing_finished.connect(self.hide_typing_indicator)
+        self._typing_indicator = None
         self._message_handler = None
         self.dialog_box_lay = QVBoxLayout(self)  
         self.scroll_area = QScrollArea()
@@ -842,6 +974,31 @@ class DialogBox(QWidget):
         self.dialog_box_lay.addWidget(self.scroll_area)
 
         self.load_history()
+
+    def show_typing_indicator(self, author_name: str = "IAMOS"):
+        """Показывает анимированный индикатор думания нейросети."""
+        if self._typing_indicator is not None:
+            return  # уже показан
+        self._typing_indicator = TypingIndicator(
+            author_name=author_name,
+            frame_style=THEMES[SELECTED_THEME].get("message_frame", ""),
+            label_style=THEMES[SELECTED_THEME].get("message_author", ""),
+        )
+        # Применяем тему сразу после создания
+        self._typing_indicator._apply_theme(THEMES[SELECTED_THEME])
+        count = self.main_frame_lay.count()
+        self.main_frame_lay.insertWidget(count - 1, self._typing_indicator)
+        self._typing_indicator.start()
+        self._scroll_to_bottom()
+
+    def hide_typing_indicator(self):
+        """Скрывает и удаляет индикатор думания."""
+        if self._typing_indicator is None:
+            return
+        self._typing_indicator.stop()
+        self.main_frame_lay.removeWidget(self._typing_indicator)
+        self._typing_indicator.deleteLater()
+        self._typing_indicator = None
 
     def add_message(self, author: str, text: str, time: str = None):
         message = Message(author, text, time)
@@ -881,9 +1038,11 @@ class DialogBox(QWidget):
         for i in range(self.main_frame_lay.count()):
             item = self.main_frame_lay.itemAt(i)
             widget = item.widget()
-            
+
             # Проверяем, что это именно виджет сообщения (чтобы не трогать stretch)
             if isinstance(widget, Message):
+                widget._apply_theme(theme)
+            elif isinstance(widget, TypingIndicator):
                 widget._apply_theme(theme)
 #==========================================================
 #Основание для панелей контента
@@ -1455,7 +1614,7 @@ class Settings(ContentPageWidget):
         for combo in [self.camera_dropbox, self.microphone_dropbox, self.speaker_dropbox]:
             combo.setStyleSheet(self.dropbox_qss)
         # Поле API-ключа с прозрачным фоном
-        self.api_key_input.setStyleSheet(theme["settings_input"])
+        self.api_key_input.setStyleSheet(THEMES[SELECTED_THEME]["settings_input"])
         self.toggle_row_for_voice._apply_theme(theme)
         self.toggle_row_for_gesture._apply_theme(theme)
         self.use_onlie_model._apply_theme(theme)
@@ -1467,7 +1626,7 @@ class Settings(ContentPageWidget):
         for btn in self._theme_buttons:
             btn.setStyleSheet(theme["btn_theme"])
         # Применяем тему к кнопкам API-ключа (без границ и фона)
-        self.show_api_key.setStyleSheet(theme["btn_transparent"])
+        self.show_api_key.setStyleSheet(THEMES[SELECTED_THEME]["btn_transparent"])
         self.save_key_btn.setStyleSheet(theme["btn_1"])
    
     def get_current_camera(self):
@@ -2256,6 +2415,17 @@ class GesturesInput(ContentPageWidget):
         self.camera_lay.addLayout(self.camera_btn_lay)
 
         self.chat_lay.addLayout(self.bottom_lay)
+
+    def _apply_theme(self, theme: dict):
+        """Обновляет стили страницы жестового ввода."""
+        super()._apply_theme(theme)
+        self.setStyleSheet(theme["input_page"])
+        self.dialog_box._apply_theme(theme)
+        self.send_box._apply_theme(theme)
+        self.camera_frame.setStyleSheet(theme["gestures_camera_frame"])
+        self.camera_preview_label.setStyleSheet(theme["camera_preview_label"])
+        self.start_btn.setStyleSheet(theme["btn_3"])
+        self.stop_btn.setStyleSheet(theme["btn_4"])
 
     def start_camera(self):
 

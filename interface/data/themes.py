@@ -48,6 +48,8 @@ LIGHT_COLORS = {
     "toggle_off": "#B0B0B0",
     "toggle_on": "#4CAF50",
     "toggle_circle": "#FFFFFF",
+    # Индикатор печати (точки)
+    "typing_dots": "#4CAF50",
     # Текст
     "text_1": "#000000",
     "text_2": "#666666",
@@ -93,6 +95,7 @@ DARK_COLORS = {
     "toggle_off": "#555555",
     "toggle_on": "#4CAF50",
     "toggle_circle": "#E0E0E0",
+    "typing_dots": "#4CAF50",
     "text_1": "#E0E0E0",
     "text_2": "#999999",
     "text_3": "#777777",
@@ -133,6 +136,7 @@ TWILIGHT = {
     "toggle_off": "#505060",
     "toggle_on": "#D4A843",
     "toggle_circle": "#F0F0E0",
+    "typing_dots": "#D4A843",
     "text_1": "#E8E6E3",
     "text_2": "#A09E98",
     "text_3": "#7A7870",
@@ -173,6 +177,7 @@ VS_CODE_DARK = {
     "toggle_off": "#555555",
     "toggle_on": "#007ACC",
     "toggle_circle": "#D4D4D4",
+    "typing_dots": "#007ACC",
     "text_1": "#D4D4D4",
     "text_2": "#9CDCFE",
     "text_3": "#808080",
@@ -213,6 +218,7 @@ NORD = {
     "toggle_off": "#4C566A",
     "toggle_on": "#88C0D0",
     "toggle_circle": "#ECEFF4",
+    "typing_dots": "#88C0D0",
     "text_1": "#ECEFF4",
     "text_2": "#D8DEE9",
     "text_3": "#9BA3B0",
@@ -254,6 +260,7 @@ GRUVBOX_DARK = {
     "toggle_off": "#665C54",
     "toggle_on": "#B8BB26",
     "toggle_circle": "#EBDBB2",
+    "typing_dots": "#B8BB26",
     "text_1": "#EBDBB2",
     "text_2": "#D5C4A1",
     "text_3": "#928374",
@@ -666,6 +673,11 @@ def get_theme(name: str) -> dict:
         "bg_off":  colors["toggle_off"],
         "bg_on":   colors["toggle_on"],
         "circle":  colors["toggle_circle"],
+    }
+
+    # Данные для TypingDotsWidget (отдельный словарь, не QSS)
+    theme["typing_dots"] = {
+        "color": colors["typing_dots"],
     }
 
     # Прямой доступ к цветам (для inline-стилей, напр. api_key_input)
