@@ -71,18 +71,18 @@ class TypingDotsWidget(QWidget):
         self._dot_color = QColor(dot_color)
         self._dot_count = 3
         self._phase = 0.0
-        self._dot_radius = 6
+        self._dot_radius = 5
         self._dot_spacing = 20
-        self._min_alpha = 60
+        self._min_alpha = 120
         self._max_alpha = 255
-        self._jump_amplitude = 8  # амплитуда подпрыгивания в пикселях
+        self._jump_amplitude = 2  # амплитуда подпрыгивания в пикселях
 
         total_w = self._dot_count * self._dot_spacing
         total_h = self._dot_radius * 2 + 6 + self._jump_amplitude * 2
         self.setFixedSize(total_w, total_h)
 
         self._timer = QTimer(self)
-        self._timer.setInterval(16)
+        self._timer.setInterval(24)
         self._timer.timeout.connect(self._tick)
 
     def start(self):

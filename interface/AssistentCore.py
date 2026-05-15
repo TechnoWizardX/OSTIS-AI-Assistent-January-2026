@@ -286,7 +286,7 @@ class AssistentCore():
 
         BasicUtils.logger("CORE", "INFO", f"Пользователь: {message}")
         raw_history = BasicUtils.load_chat_history()
-        formatted_history = BasicUtils.format_chat_history(raw_history)
+        formatted_history = BasicUtils.format_chat_history(raw_history, 10)
 
         use_online = BasicUtils.get_settings_config_value("use_online_model") and BasicUtils.has_internet()
         if use_online:
