@@ -708,10 +708,11 @@ class Message(QWidget):
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(10, 5, 10, 5)
         main_layout.setSpacing(5)
-
+        selected_theme = BasicUtils.get_settings_config_value("theme") or "light"
+        self._theme = THEMES[selected_theme]
         # Пузырёк сообщения (ширина подстраивается под текст)
         self.main_frame = QFrame()
-        self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["message_frame"])
+        self.main_frame.setStyleSheet(self._theme["message_frame"])
         self.main_frame.setMinimumWidth(100)
         self.main_frame.setMaximumWidth(500)
         self.main_frame.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
@@ -723,25 +724,25 @@ class Message(QWidget):
         # Имя автора
         display = "Вы" if author == "user" else author
         self.author_label = QLabel(display)
-        self.author_label.setStyleSheet(THEMES[SELECTED_THEME]["message_author"])
+        self.author_label.setStyleSheet(self._theme["message_author"])
         frame_layout.addWidget(self.author_label)
 
         # Текст
         self.text_label = QLabel(text)
         self.text_label.setWordWrap(True)
-        self.text_label.setStyleSheet(THEMES[SELECTED_THEME]["message_text"])
+        self.text_label.setStyleSheet(self._theme["message_text"])
         self.text_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
         frame_layout.addWidget(self.text_label)
 
         # Время
         time_str = time or datetime.now().strftime("%H:%M")
         self.time_label = QLabel(time_str)
-        self.time_label.setStyleSheet(THEMES[SELECTED_THEME]["message_time"])
+        self.time_label.setStyleSheet(self._theme["message_time"])
         bottom_lay = QHBoxLayout()
         self.copy_btn = QPushButton()
         self.copy_btn.setIcon(QIcon(icon_path("copy.png")))
         self.copy_btn.setIconSize(QSize(20, 20))
-        self.copy_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_1"])
+        self.copy_btn.setStyleSheet(self._theme["btn_1"])
         self.copy_btn.setFixedSize(30, 30)
         self.copy_btn.clicked.connect(self.copy_text)
         bottom_lay.addWidget(self.copy_btn)
@@ -752,8 +753,8 @@ class Message(QWidget):
         # Кнопка озвучки (динамик)
         self.voice_btn = QPushButton()
         self.voice_btn.setFixedSize(40, 40)
-        accent_color = _COLOR_MAP[SELECTED_THEME].get("accent", "#4CAF50")
-        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME].get("btn_checkable", "") +
+        accent_color = self._theme.get("accent", "#4CAF50")
+        self.voice_btn.setStyleSheet(self._theme.get("btn_checkable", "") +
                                      f"QPushButton:checked {{ background-color: {accent_color}; }}")
         self.voice_btn.setIcon(QIcon(icon_path("speaker.png")))
         self.voice_btn.setIconSize(QSize(25, 25))
@@ -803,8 +804,10 @@ class Message(QWidget):
         self.copy_btn.setStyleSheet(theme["btn_1"])
         if hasattr(self, 'voice_btn'):
             base_style = theme.get("btn_checkable", "")
-            accent_color = _COLOR_MAP[SELECTED_THEME].get("accent", "#4CAF50")
-            self.voice_btn.setStyleSheet(base_style + f"QPushButton:checked {{ background-color: {accent_color}; }}")    
+            accent_color = theme.get("accent", "#4CAF50")
+            self.voice_btn.setStyleSheet(base_style + f"QPushButton:checked {{ background-color: {accent_color}; }}")   
+        self._theme = theme
+
     def copy_text(self):
         """Копирует текст сообщения в буфер обмена."""
         clipboard = QApplication.clipboard()
@@ -1452,7 +1455,7 @@ class Settings(ContentPageWidget):
         for combo in [self.camera_dropbox, self.microphone_dropbox, self.speaker_dropbox]:
             combo.setStyleSheet(self.dropbox_qss)
         # Поле API-ключа с прозрачным фоном
-        self.api_key_input.setStyleSheet(THEMES[SELECTED_THEME]["settings_input"])
+        self.api_key_input.setStyleSheet(theme["settings_input"])
         self.toggle_row_for_voice._apply_theme(theme)
         self.toggle_row_for_gesture._apply_theme(theme)
         self.use_onlie_model._apply_theme(theme)
@@ -1464,7 +1467,7 @@ class Settings(ContentPageWidget):
         for btn in self._theme_buttons:
             btn.setStyleSheet(theme["btn_theme"])
         # Применяем тему к кнопкам API-ключа (без границ и фона)
-        self.show_api_key.setStyleSheet(THEMES[SELECTED_THEME]["btn_transparent"])
+        self.show_api_key.setStyleSheet(theme["btn_transparent"])
         self.save_key_btn.setStyleSheet(theme["btn_1"])
    
     def get_current_camera(self):
