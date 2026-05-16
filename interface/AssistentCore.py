@@ -116,11 +116,13 @@ class AssistentCore():
             # Получаем состояние переключателя авто-озвучки
             auto_tts_enabled = BasicUtils.get_settings_config_value("auto_tts")
             # Формируем сообщение о состоянии
-            status_message = "Озвучка ответов ИИ выключена" if not auto_tts_enabled else "Озвучка ответов ИИ включена"
+            status_message = "Пустой ответ от ИИ"
             # Пишем сообщение в чат
             self.send_ai_message(status_message)
             # Озвучиваем состояние
-            self.text_to_speech(status_message)
+            tts_recommendation_always = BasicUtils.get_settings_config_value("tts_recommendation_always")
+            if tts_recommendation_always and self._dysfunctions_edited:
+                self.text_to_speech(status_message)
             BasicUtils.logger("CORE | IntentHandler", "INFO", f"Пустой ответ от ИИ. Состояние auto_tts: {auto_tts_enabled}")
         else:
             self.send_ai_message(message)
