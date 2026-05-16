@@ -2284,7 +2284,7 @@ class Profile(ContentPageWidget):
         self.main_frame.setStyleSheet(theme["dialog_frame"])
         self.photo_frame.setStyleSheet(theme["profile_photo_frame"])
         self.recommendation._apply_theme(theme)
-        for opt in [self.sn_fn_patr, self.birthday, self.gender, self.dysfunctions, self.adaptive, self.fatigue]:
+        for opt in [self.sn_fn_patr, self.birthday, self.gender, self.dysfunctions]:
             opt._apply_theme(theme)
 
 

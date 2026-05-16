@@ -5,7 +5,7 @@
     },
     "use_online_model": false,
     "allow_online_model_user_info": false,
-    "theme": "vs_code",
+    "theme": "gruvbox",
     "last_message_send": null,
     "recording_enabled": false,
     "camera_index": 0,
@@ -35,6 +35,8 @@
         "faster-whisper"
     ],
     "speaker_index": 0,
-    "recommended_methods": [],
+    "recommended_methods": [
+        "text"
+    ],
     "auto_tts": false
 }
