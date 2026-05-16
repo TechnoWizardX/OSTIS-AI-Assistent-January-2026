@@ -221,7 +221,11 @@ class GestureState:
     object_hold_frames: int = 0      # Счётчик удержания жеста объекта
     hold_action: bool = False        # Удержание жеста действия (круг)
     hold_action_progress: float = 0.0  # Прогресс удержания действия
-    exit_hold_frames: int = 0          # Защита от ложного выхода при смене пальцев
+    # Буфер стабилизации жестов
+    finger_state_buffer: List = field(default_factory=list)
+    stable_finger_states: List = field(default_factory=lambda: [False] * 5)
+    circle_buffer: List = field(default_factory=list)
+    stable_circle: bool = False
 
     def reset(self):
         """Полный сброс состояния."""
@@ -295,32 +299,140 @@ class GestureUtils:
         return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
 
     @staticmethod
+    def _vec3(a, b) -> Tuple[float, float, float]:
+        """Вектор из точки a в точку b (3D)."""
+        return (b.x - a.x, b.y - a.y, b.z - a.z)
+
+    @staticmethod
+    def _dot3(u: Tuple, v: Tuple) -> float:
+        return u[0]*v[0] + u[1]*v[1] + u[2]*v[2]
+
+    @staticmethod
+    def _len3(v: Tuple) -> float:
+        return math.sqrt(v[0]**2 + v[1]**2 + v[2]**2)
+
+    @staticmethod
+    def _angle_between(a, vertex, b) -> float:
+        """Угол в вершине vertex между точками a и b (в градусах), используя 3D координаты."""
+        u = GestureUtils._vec3(vertex, a)
+        v = GestureUtils._vec3(vertex, b)
+        lu, lv = GestureUtils._len3(u), GestureUtils._len3(v)
+        if lu < 1e-6 or lv < 1e-6:
+            return 0.0
+        cos_a = max(-1.0, min(1.0, GestureUtils._dot3(u, v) / (lu * lv)))
+        return math.degrees(math.acos(cos_a))
+
+    @staticmethod
+    def _hand_scale(landmarks: list) -> float:
+        """Масштаб руки: расстояние от запястья до основания среднего пальца."""
+        wrist, mid_mcp = landmarks[0], landmarks[9]
+        d = math.hypot(mid_mcp.x - wrist.x, mid_mcp.y - wrist.y)
+        return max(d, 1e-5)
+
+    @staticmethod
+    def _palm_normal(landmarks: list) -> Tuple[float, float, float]:
+        """Нормаль плоскости ладони через три MCP точки (векторное произведение)."""
+        p0 = landmarks[0]   # запястье
+        p5 = landmarks[5]   # MCP указательного
+        p17 = landmarks[17] # MCP мизинца
+        u = (p5.x - p0.x, p5.y - p0.y, p5.z - p0.z)
+        v = (p17.x - p0.x, p17.y - p0.y, p17.z - p0.z)
+        nx = u[1]*v[2] - u[2]*v[1]
+        ny = u[2]*v[0] - u[0]*v[2]
+        nz = u[0]*v[1] - u[1]*v[0]
+        length = math.sqrt(nx**2 + ny**2 + nz**2)
+        if length < 1e-6:
+            return (0.0, -1.0, 0.0)
+        return (nx/length, ny/length, nz/length)
+
+    @staticmethod
     def get_finger_states(landmarks: list) -> list:
-        """Определяет поднятые пальцы: [thumb, index, middle, ring, pinky]."""
-        thumb_tip, thumb_ip, thumb_mcp = landmarks[4], landmarks[3], landmarks[2]
-        index_mcp = landmarks[5]
+        """
+        Определяет поднятые пальцы: [thumb, index, middle, ring, pinky].
 
-        thumb_palm_dist = math.hypot(thumb_tip.x - index_mcp.x, thumb_tip.y - index_mcp.y)
-        thumb_extension = math.hypot(thumb_tip.x - thumb_ip.x, thumb_tip.y - thumb_ip.y)
-        fingers = [thumb_palm_dist > 0.10 and thumb_extension > 0.06]
+        Улучшения по сравнению с исходным:
+        - Большой палец: угол в IP-суставе + проекция на нормаль ладони,
+          что корректно работает при любом наклоне руки.
+        - Остальные пальцы: угол сгибания в PIP-суставе (>140° = выпрямлен)
+          плюс проверка, что кончик выше MCP вдоль нормали ладони.
+          Нормаль ладони делает алгоритм инвариантным к повороту камеры.
+        - Масштаб руки не используется в порогах — они в градусах,
+          поэтому не зависят от расстояния до камеры.
+        """
+        scale = GestureUtils._hand_scale(landmarks)
+        palm_n = GestureUtils._palm_normal(landmarks)  # нормаль, смотрит «от ладони»
 
-        for tip, pip_, dip_, mcp_ in [(8, 6, 7, 5), (12, 10, 11, 9), (16, 14, 15, 13), (20, 18, 19, 17)]:
-            tip_p, pip_p, dip_p, mcp_p = landmarks[tip], landmarks[pip_], landmarks[dip_], landmarks[mcp_]
-            criteria = [
-                tip_p.y < pip_p.y - 0.005,
-                dip_p.y < pip_p.y - 0.002,
-                tip_p.y < mcp_p.y - 0.01,
-            ]
-            fingers.append(sum(criteria) >= 2)
+        # ── БОЛЬШОЙ ПАЛЕЦ ──────────────────────────────────────────────────
+        # Угол в IP-суставе (lm[3]) между MCP(lm[2]) и кончиком(lm[4])
+        thumb_angle = GestureUtils._angle_between(landmarks[2], landmarks[3], landmarks[4])
+        # Вектор от CMC(lm[1]) до кончика(lm[4])
+        tip_vec = GestureUtils._vec3(landmarks[1], landmarks[4])
+        # Проекция кончика на нормаль ладони — если > 0, палец «снаружи» ладони
+        tip_proj = GestureUtils._dot3(tip_vec, palm_n)
+        # Расстояние от кончика большого до MCP указательного (старый критерий, нормированный)
+        thumb_to_index = math.hypot(
+            landmarks[4].x - landmarks[5].x,
+            landmarks[4].y - landmarks[5].y
+        ) / scale
+        thumb_up = (thumb_angle > 140 or thumb_to_index > 0.35) and tip_proj > -0.05
+        fingers = [thumb_up]
+
+        # ── ЧЕТЫРЕ ПАЛЬЦА ──────────────────────────────────────────────────
+        # (tip, dip, pip, mcp) — индексы суставов
+        finger_joints = [
+            (8,  7,  6,  5),   # указательный
+            (12, 11, 10, 9),   # средний
+            (16, 15, 14, 13),  # безымянный
+            (20, 19, 18, 17),  # мизинец
+        ]
+        for tip_i, dip_i, pip_i, mcp_i in finger_joints:
+            tip_lm  = landmarks[tip_i]
+            dip_lm  = landmarks[dip_i]
+            pip_lm  = landmarks[pip_i]
+            mcp_lm  = landmarks[mcp_i]
+
+            # Угол сгибания в PIP-суставе (MCP → PIP → DIP)
+            pip_angle = GestureUtils._angle_between(mcp_lm, pip_lm, dip_lm)
+
+            # Угол сгибания в DIP-суставе (PIP → DIP → TIP)
+            dip_angle = GestureUtils._angle_between(pip_lm, dip_lm, tip_lm)
+
+            # Проекция вектора (MCP→TIP) на нормаль ладони
+            finger_vec = GestureUtils._vec3(mcp_lm, tip_lm)
+            proj = GestureUtils._dot3(finger_vec, palm_n)
+
+            # Выпрямлен: оба сустава почти прямые И кончик «снаружи» ладони
+            is_extended = pip_angle > 155 and dip_angle > 150 and proj > 0.0
+
+            # Дополнительная проверка: кончик выше MCP по Y (страховка при горизонтальном кадре)
+            tip_above_mcp = (tip_lm.y < mcp_lm.y - 0.025)
+
+            fingers.append(is_extended or (pip_angle > 165 and tip_above_mcp))
 
         return fingers
 
     @staticmethod
     def match_gesture(finger_states: list, pattern: list) -> bool:
-        """Проверяет соответствие жеста шаблону."""
+        """
+        Проверяет соответствие жеста шаблону.
+        Для открытой ладони достаточно 4 из 5 пальцев.
+        Для остальных шаблонов требуется точное совпадение всех 5 позиций,
+        но большой палец при вытянутых пальцах не штрафуется
+        (он часто неоднозначен при боковом положении руки).
+        """
         if pattern == [True] * 5:
             return sum(finger_states) >= 4
-        return all(fs == pat for fs, pat in zip(finger_states, pattern))
+
+        # Считаем несовпадения, игнорируя большой, если он False в шаблоне
+        mismatches = 0
+        for i, (fs, pat) in enumerate(zip(finger_states, pattern)):
+            if fs != pat:
+                # Большому пальцу даём +1 допуск, если шаблон его не требует
+                if i == 0 and not pat:
+                    continue
+                mismatches += 1
+
+        return mismatches == 0
 
     @staticmethod
     def smooth_value(current: float, target: float, factor: float = 0.3) -> float:
@@ -359,11 +471,31 @@ class GestureUtils:
 
     @staticmethod
     def is_circle_gesture(landmarks, threshold: float = 0.05) -> bool:
-        """Проверяет жест 'круг' — большой и указательный пальцы сомкнуты."""
+        """
+        Проверяет жест 'круг' (OK-жест):
+        - Кончики большого и указательного сомкнуты (dist < threshold).
+        - Средний, безымянный и мизинец достаточно выпрямлены
+          (угол в PIP > 140°), чтобы исключить кулак и другие жесты.
+        """
         thumb_tip = landmarks[4]
         index_tip = landmarks[8]
         dist = math.hypot(thumb_tip.x - index_tip.x, thumb_tip.y - index_tip.y)
-        return dist < threshold
+        if dist >= threshold:
+            return False
+
+        # Проверяем, что остальные три пальца выпрямлены
+        other_joints = [
+            (landmarks[9],  landmarks[10], landmarks[11]),  # средний: MCP-PIP-DIP
+            (landmarks[13], landmarks[14], landmarks[15]),  # безымянный
+            (landmarks[17], landmarks[18], landmarks[19]),  # мизинец
+        ]
+        extended_count = 0
+        for mcp_lm, pip_lm, dip_lm in other_joints:
+            angle = GestureUtils._angle_between(mcp_lm, pip_lm, dip_lm)
+            if angle > 140:
+                extended_count += 1
+
+        return extended_count >= 2  # хотя бы 2 из 3 пальцев выпрямлены
 
 
 class GestureUI:
@@ -551,9 +683,68 @@ class GestureProcessor:
         # Константы удержания
         self.hold_required_frames = 50  # ~0.7 сек при 30 FPS
 
-    def _is_fist_gesture(self, fs: list) -> bool:
-        """Кулак: указательный опущен, поднято <=1 пальца."""
-        return (not fs[1]) and sum(fs) <= 1
+        # Параметры буфера стабилизации
+        self.STABILITY_BUFFER_SIZE = 5   # кадров для голосования
+        self.STABILITY_THRESHOLD = 0.6   # доля кадров, при которой состояние считается стабильным
+
+    def _stabilize_finger_states(self, raw_states: list) -> list:
+        """
+        Буфер стабилизации пальцев: голосование по последним N кадрам.
+        Каждый палец считается поднятым только если он поднят в >=60% кадров.
+        Это устраняет дёрганье при дрожании руки.
+        """
+        buf = self.state.finger_state_buffer
+        buf.append(raw_states)
+        if len(buf) > self.STABILITY_BUFFER_SIZE:
+            buf.pop(0)
+
+        n = len(buf)
+        stable = []
+        for i in range(5):
+            votes = sum(1 for frame_states in buf if frame_states[i])
+            stable.append(votes / n >= self.STABILITY_THRESHOLD)
+
+        self.state.stable_finger_states = stable
+        return stable
+
+    def _stabilize_circle(self, raw_circle: bool) -> bool:
+        """Буфер стабилизации для жеста круга."""
+        buf = self.state.circle_buffer
+        buf.append(raw_circle)
+        if len(buf) > self.STABILITY_BUFFER_SIZE:
+            buf.pop(0)
+        n = len(buf)
+        votes = sum(1 for v in buf if v)
+        self.state.stable_circle = votes / n >= self.STABILITY_THRESHOLD
+        return self.state.stable_circle
+
+    def _is_fist_gesture(self, fs: list, landmarks: list = None) -> bool:
+        """
+        Кулак: все четыре пальца опущены.
+        Если переданы landmarks — дополнительно проверяем, что углы в PIP
+        каждого пальца < 100° (реально согнуты), что исключает
+        горизонтально вытянутую ладонь, опускающуюся по Y, но не сжатую.
+        """
+        # Базовая проверка: большой не считаем, т.к. в кулаке он сбоку
+        four_down = not fs[1] and not fs[2] and not fs[3] and not fs[4]
+        if not four_down:
+            return False
+
+        if landmarks is None:
+            return True
+
+        # Уточнение: PIP-угол каждого пальца должен быть явно согнутым
+        finger_joints = [
+            (landmarks[5],  landmarks[6],  landmarks[7]),   # указательный MCP-PIP-DIP
+            (landmarks[9],  landmarks[10], landmarks[11]),  # средний
+            (landmarks[13], landmarks[14], landmarks[15]),  # безымянный
+            (landmarks[17], landmarks[18], landmarks[19]),  # мизинец
+        ]
+        bent_count = sum(
+            1 for mcp_lm, pip_lm, dip_lm in finger_joints
+            if GestureUtils._angle_between(mcp_lm, pip_lm, dip_lm) < 120
+        )
+        return bent_count >= 3
 
     def _init_landmarker(self):  
         """Инициализирует HandLandmarker."""
@@ -588,8 +779,10 @@ class GestureProcessor:
                 label = result.handedness[idx][0].category_name
 
             GestureUtils.draw_hand_skeleton(frame, landmarks)
-            finger_states = GestureUtils.get_finger_states(landmarks)
-            hands[label] = HandData(landmarks, label, finger_states)
+            raw_states = GestureUtils.get_finger_states(landmarks)
+            # Стабилизируем состояние пальцев через буфер голосования
+            stable_states = self._stabilize_finger_states(raw_states)
+            hands[label] = HandData(landmarks, label, stable_states)
 
         return hands
 
@@ -723,10 +916,16 @@ class GestureProcessor:
                 gesture_display_name = ""
 
                 if GestureUtils.is_circle_gesture(lm, ACTIONS.get("circle", {}).get("circle_threshold", 0.05)):
-                    action_type = "circle"
-                    hold_frames = ACTIONS.get("circle", {}).get("hold_frames", 50)
-                    gesture_display_name = "Круг"
-                elif self._is_fist_gesture(fs):
+                    if self._stabilize_circle(True):
+                        action_type = "circle"
+                        hold_frames = ACTIONS.get("circle", {}).get("hold_frames", 50)
+                        gesture_display_name = "Круг"
+                    else:
+                        self._stabilize_circle(False)
+                else:
+                    self._stabilize_circle(False)
+
+                if action_type is None and self._is_fist_gesture(fs, lm):
                     action_type = "fist_close"
                     hold_frames = ACTIONS.get("fist_close", {}).get("hold_frames", 40)
                     gesture_display_name = "Кулак"
