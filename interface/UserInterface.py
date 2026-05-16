@@ -2259,16 +2259,6 @@ class Profile(ContentPageWidget):
 
         self.main_frame_lay.addWidget(self.dysfunctions)
 
-        self._adaptive = _safe_get("Users", "adaptation_status")
-        self.adaptive = ProfileOption("Степень адаптации системы", f"{self._adaptive if self._adaptive else 'Отсутствует'}", False)
-        self.main_frame_lay.addWidget(self.adaptive, Qt.AlignmentFlag.AlignLeft)
-        
-        self._fatigue = None
-        
-        self.fatigue = ProfileOption("Усталость", f"{self._fatigue if self._fatigue else 'Отсутствует'}", False)
-        self.main_frame_lay.addWidget(self.fatigue, Qt.AlignmentFlag.AlignLeft)
-
-
         self.main_frame_lay.addStretch(1)
 
         # Создаём рекомендацию с новым виджетом RecommendationBadge
