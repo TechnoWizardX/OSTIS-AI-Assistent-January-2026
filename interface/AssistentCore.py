@@ -108,11 +108,22 @@ class AssistentCore():
     def handle_intent(self, intent_data: dict):
         """Обработка распознанного интента от IntentHandler и выполнение соответствующих действий"""
         message = intent_data.get("message", "")
-        tasks = intent_data.get("tasks", [])    
+        tasks = intent_data.get("tasks", [])
         BasicUtils.logger("CORE | IntentHandler", "INFO", f"Получен интент: {intent_data}")
-        
-        
-        self.send_ai_message(message)
+
+        # Проверяем, пустой ли ответ от ИИ
+        if not message or not message.strip():
+            # Получаем состояние переключателя авто-озвучки
+            auto_tts_enabled = BasicUtils.get_settings_config_value("auto_tts")
+            # Формируем сообщение о состоянии
+            status_message = "Озвучка ответов ИИ выключена" if not auto_tts_enabled else "Озвучка ответов ИИ включена"
+            # Пишем сообщение в чат
+            self.send_ai_message(status_message)
+            # Озвучиваем состояние
+            self.text_to_speech(status_message)
+            BasicUtils.logger("CORE | IntentHandler", "INFO", f"Пустой ответ от ИИ. Состояние auto_tts: {auto_tts_enabled}")
+        else:
+            self.send_ai_message(message)
         for task in tasks:
             function = task.get("function", "")
             params = task.get("params", {})
