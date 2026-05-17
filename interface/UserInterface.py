@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox, QButtonGroup, QTextEdit, QLineEdit,
-    QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser, QMessageBox
+    QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser, QMessageBox, QSplitter
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
 from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap, QTextOption, QPen
@@ -353,9 +353,27 @@ class UserInterface(QMainWindow):
         self.setCentralWidget(self.main_widget)
 
         # Основной лайаут: размещает боковую панель и панель контента горизонтально
+        # Основной лайаут: обёртка с отступами
         self.main_lay = QHBoxLayout(self.main_widget)
         self.main_lay.setContentsMargins(10, 10, 10, 10)
-        self.main_lay.setSpacing(10)
+        self.main_lay.setSpacing(0)
+
+        # Сплиттер для изменения размера боковой панели и контента
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter.setHandleWidth(6)
+        self.main_splitter.setChildrenCollapsible(False)
+        self.main_splitter.setStyleSheet("""
+            QSplitter::handle {
+                background-color: transparent;
+            }
+            QSplitter::handle:hover {
+                background-color: transparent;
+            }
+            QSplitter::handle:pressed {
+                background-color: transparent;
+            }
+        """)
+        
 
 
         self.settings_page = Settings(api_key)
@@ -409,7 +427,7 @@ class UserInterface(QMainWindow):
 
         # Кнопка очистки истории – будет в самом низу
         self.clear_history_btn = QPushButton("Очистить историю")
-        self.clear_history_btn.setFixedSize(160, 40)
+        self.clear_history_btn.setMinimumSize(55, 40)
         self.clear_history_btn.setCheckable(False)
         self.clear_history_btn.setIcon(QIcon(icon_path("delete.png")))
         self.clear_history_btn.setIconSize(QSize(25, 25))
@@ -434,8 +452,12 @@ class UserInterface(QMainWindow):
         self.clear_history_btn.setVisible(False)
         self.side_panel_lay.addWidget(self.clear_history_btn)
 
-        self.main_lay.addWidget(self.side_panel, 2)
-        self.main_lay.addWidget(self.content_panel, 7)
+        self.main_splitter.addWidget(self.side_panel)
+        self.main_splitter.addWidget(self.content_panel)
+        self.main_splitter.setSizes([190, 630])          # начальные пропорции
+        self.main_splitter.setStretchFactor(0, 0)        # боковая — не растягивается
+        self.main_splitter.setStretchFactor(1, 1)        # контент — растягивается
+        self.main_lay.addWidget(self.main_splitter)
         self.content_panel.setCurrentIndex(0)
 
         # Подключаемся на переключение страниц — останавливаем камеру при уходе с жестов
@@ -1056,7 +1078,7 @@ class ContentPageWidget(QWidget):
         self.side_panel_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_2"])
         self.settings_text_qss = THEMES[SELECTED_THEME]["settings_text"]
         self.dropbox_qss = THEMES[SELECTED_THEME]["settings_combobox"]
-        self.side_panel_btn.setMinimumSize(160, 60)
+        self.side_panel_btn.setMinimumSize(55, 60)
 
         # состояние кнопки при нажатии
         self.side_panel_btn.setCheckable(True)
@@ -2305,12 +2327,19 @@ class VoiceInput(ContentPageWidget):
         # Подключаем ЛОКАЛЬНЫЙ сигнал send_box к диалогу
        
 
-        # Показываем кнопку микрофона (скрыта по умолчанию)
-        # Кнопка уже подключена в ChatSendBox к toggle_voice_recording
-        self.send_box.voice_btn.setVisible(True)
-
-        self.text_input_lay.addWidget(self.dialog_box, 2)
-        self.text_input_lay.addWidget(self.send_box, 1)
+        self.chat_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.chat_splitter.setHandleWidth(6)
+        self.chat_splitter.setChildrenCollapsible(False)
+        self.chat_splitter.setStyleSheet("""
+            QSplitter::handle { background-color: transparent; border-radius: 3px; }
+            QSplitter::handle:hover { background-color: transparent; }
+        """)
+        self.chat_splitter.addWidget(self.dialog_box)
+        self.chat_splitter.addWidget(self.send_box)
+        self.chat_splitter.setSizes([400, 200])
+        self.chat_splitter.setStretchFactor(0, 1)
+        self.chat_splitter.setStretchFactor(1, 0)
+        self.text_input_lay.addWidget(self.chat_splitter)
 
     def _apply_theme(self, theme: dict):
         """Обновляет стили страницы голосового ввода."""
@@ -2333,11 +2362,20 @@ class TextInput(ContentPageWidget):
         self.text_input_lay.setContentsMargins(0, 0, 0, 0)
         self.dialog_box = DialogBox()
         self.send_box = ChatSendBox()
-        # Подключаем ЛОКАЛЬНЫЙ сигнал send_box к диалогу
-      
 
-        self.text_input_lay.addWidget(self.dialog_box, 2)
-        self.text_input_lay.addWidget(self.send_box, 1)
+        self.chat_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.chat_splitter.setHandleWidth(6)
+        self.chat_splitter.setChildrenCollapsible(False)
+        self.chat_splitter.setStyleSheet("""
+            QSplitter::handle { background-color: transparent; border-radius: 3px; }
+            QSplitter::handle:hover { background-color: transparent; }
+        """)
+        self.chat_splitter.addWidget(self.dialog_box)
+        self.chat_splitter.addWidget(self.send_box)
+        self.chat_splitter.setSizes([400, 200])
+        self.chat_splitter.setStretchFactor(0, 1)
+        self.chat_splitter.setStretchFactor(1, 0)
+        self.text_input_lay.addWidget(self.chat_splitter)
 
     def _apply_theme(self, theme: dict):
         """Обновляет стили страницы текстового ввода."""
@@ -2376,7 +2414,8 @@ class GesturesInput(ContentPageWidget):
         self.send_box = ChatSendBox()
         # Подключаем ЛОКАЛЬНЫЙ сигнал send_box к диалогу
 
-        self.chat_lay.addWidget(self.dialog_box, stretch=2)
+        self.bottom_widget = QWidget()
+        self.bottom_widget.setLayout(self.bottom_lay)
         self.bottom_lay.addWidget(self.send_box, stretch=1)
 
         # Правая часть: превью камеры + кнопки управления
@@ -2413,7 +2452,19 @@ class GesturesInput(ContentPageWidget):
 
         self.camera_lay.addLayout(self.camera_btn_lay)
 
-        self.chat_lay.addLayout(self.bottom_lay)
+        self.chat_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.chat_splitter.setHandleWidth(6)
+        self.chat_splitter.setChildrenCollapsible(False)
+        self.chat_splitter.setStyleSheet("""
+            QSplitter::handle { background-color: transparent; border-radius: 3px; }
+            QSplitter::handle:hover { background-color: transparent; }
+        """)
+        self.chat_splitter.addWidget(self.dialog_box)
+        self.chat_splitter.addWidget(self.bottom_widget)
+        self.chat_splitter.setSizes([400, 250])
+        self.chat_splitter.setStretchFactor(0, 1)
+        self.chat_splitter.setStretchFactor(1, 0)
+        self.chat_lay.addWidget(self.chat_splitter)
 
     def _apply_theme(self, theme: dict):
         """Обновляет стили страницы жестового ввода."""
