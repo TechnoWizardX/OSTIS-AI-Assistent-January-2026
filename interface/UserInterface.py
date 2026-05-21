@@ -743,6 +743,8 @@ class ChatSendBox(QWidget):
             self.voice_btn.clicked.connect(self.toggle_voice_recording)
             ui_signals.voice_message_received.connect(self.voice_text_recived)
         # Подключаем сигнал для безопасной обработки текста в главном потоке
+    def showVoiceButton(self):
+        self.voice_btn.setVisible(True)
 
     def toggle_voice_recording(self, checked: bool):
         """Переключение голосовой записи (вкл/выкл)"""
@@ -2315,6 +2317,7 @@ class Profile(ContentPageWidget):
 # ===========================================================
 class VoiceInput(ContentPageWidget):
     def __init__(self):
+        
         super().__init__()
         self.setStyleSheet(THEMES[SELECTED_THEME]["input_page"])
         self.side_panel_btn.setText("Голосовой Ввод")
@@ -2324,6 +2327,7 @@ class VoiceInput(ContentPageWidget):
         self.dialog_box = DialogBox()
         self.send_box = ChatSendBox()
         self.send_box.addVoiceButton()
+        self.send_box.showVoiceButton()
         # Подключаем ЛОКАЛЬНЫЙ сигнал send_box к диалогу
        
 

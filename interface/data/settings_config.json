@@ -36,9 +36,9 @@
     ],
     "speaker_index": 0,
     "recommended_methods": [
-        "voice",
-        "gesture",
         "text",
+        "gesture",
+        "voice",
         "tts"
     ],
     "auto_tts": false
