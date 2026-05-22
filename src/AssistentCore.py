@@ -369,8 +369,7 @@ class AssistentCore():
         """Запуск интерфейса"""
         self.user_interface.show()
         
-
-if __name__ == "__main__":
+def run_core():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     api_key = BasicUtils.get_env_variable("OPENROUTER_API_KEY")
@@ -378,3 +377,6 @@ if __name__ == "__main__":
     app.aboutToQuit.connect(assistent.intent_handler.shutdown_ollama)
     assistent.run()
     sys.exit(app.exec())
+
+if __name__ == "__main__":
+    run_core()
