@@ -1,3 +1,3 @@
-# OSTIS AI-ASSISTENT
+# AI-Assistant
 
 At the moment the Windows version has limited functionality due to the small number of libraries.
