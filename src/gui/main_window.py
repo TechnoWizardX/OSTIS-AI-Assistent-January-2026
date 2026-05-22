@@ -10,9 +10,10 @@ import os
 import math
 from src.utils.BasicUtils import BasicUtils, DataBaseEditor
 from themes import THEMES, _COLOR_MAP
-from signals import ui_signals
-# Базовый путь для иконок
+from datetime import datetime
 
+# Базовый путь для иконок
+ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
 DATABASE_EDITOR = DataBaseEditor()
 
 CONFIG = BasicUtils.load_settings_config()
@@ -33,6 +34,27 @@ layout - лэйаут - lay
 frame - рамка/фрейм - frame
 Qt Style Sheets - стили qss - qss
 """
+
+class Signals(QObject):
+    settings_changed = pyqtSignal(dict)
+    camera_selected = pyqtSignal(str)
+    microphone_selected = pyqtSignal(str)
+    profile_updated = pyqtSignal() # Сигнал для передачи текста из голосового ввода
+    message_sent = pyqtSignal(str, str)
+    voice_input_changed = pyqtSignal(bool)
+    voice_message_received = pyqtSignal(str)
+    speaker_pressed = pyqtSignal(str)
+    speaker_stop_all = pyqtSignal()        # сброс всех кнопок для воспроизведения
+    speaker_stop_request = pyqtSignal()    # остановка воспроизведения
+    speaker_finished = pyqtSignal()        # конец воспроизведения без вмешательства
+    history_cleared = pyqtSignal()          # для обновления чатов после очистки
+    clear_history_requested = pyqtSignal()  # запрос на очистку истории (отправляется в ядро)
+    recommendation_ready = pyqtSignal(list, str)  # (список методов, текст для пользователя)
+    openrouter_api_key_changed = pyqtSignal(str)  # Сигнал для изменения API ключа OpenRouter
+    dysfunctions_saved = pyqtSignal()  # Сигнал о сохранении нарушений
+    typing_started  = pyqtSignal()    # нейросеть начала думать
+    typing_finished = pyqtSignal()    # нейросеть ответила
+ui_signals = Signals()
 
 
 # ==========================================================

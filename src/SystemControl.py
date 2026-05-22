@@ -7,7 +7,7 @@ import win32con
 import psutil
 import webbrowser
 import pyautogui
-from BasicUtils import BasicUtils, global_signals 
+from src.utils.BasicUtils import BasicUtils, global_signals 
 import os
 import ctypes
 from comtypes import CLSCTX_ALL

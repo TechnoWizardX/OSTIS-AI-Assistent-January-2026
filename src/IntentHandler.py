@@ -1,7 +1,7 @@
 import requests
 import json
 import re
-from BasicUtils import BasicUtils, global_signals, DataBaseEditor
+from src.utils.BasicUtils import BasicUtils, global_signals, DataBaseEditor
 from PyQt6.QtCore import QThread, pyqtSignal
 import openai
 import subprocess

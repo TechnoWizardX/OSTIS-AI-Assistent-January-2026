@@ -9,7 +9,7 @@ VOICE_INPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'inter
 if VOICE_INPUT_DIR not in sys.path:
     sys.path.insert(0, VOICE_INPUT_DIR)
 import threading
-from BasicUtils import BasicUtils, DataBaseEditor, global_signals
+from src.utils.BasicUtils import BasicUtils, DataBaseEditor, global_signals
 import VoiceInput.WhisperRecognition as Whisper
 from TTSSilero import SileroTTS
 from ai_services import NetworkChecker, LocalModel, AccessibilityRecommender, RecommendationFormatter

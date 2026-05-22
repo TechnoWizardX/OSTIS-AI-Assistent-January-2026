@@ -14,7 +14,7 @@ from typing import Union, List, Optional
 import requests
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from BasicUtils import BasicUtils
+from src.utils.BasicUtils import BasicUtils
 
 
 # ============================================================================

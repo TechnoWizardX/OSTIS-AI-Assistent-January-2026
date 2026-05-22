@@ -8,7 +8,7 @@ import torch
 import speech_recognition as sr
 from faster_whisper import WhisperModel
 from silero_vad import load_silero_vad, get_speech_timestamps
-from BasicUtils import BasicUtils, global_signals
+from src.utils.BasicUtils import BasicUtils, global_signals
 
 torch.set_num_threads(1)
 

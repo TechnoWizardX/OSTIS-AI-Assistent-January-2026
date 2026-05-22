@@ -21,7 +21,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
-from BasicUtils import BasicUtils, DataBaseEditor
+from src.utils.BasicUtils import BasicUtils, DataBaseEditor
 from .services import MedicalAPI, LocalModel
 
 
