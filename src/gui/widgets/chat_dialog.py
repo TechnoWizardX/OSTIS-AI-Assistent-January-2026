@@ -5,10 +5,10 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
 from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap, QTextOption, QPen
-from gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
-from gui.signals import ui_signals
-from gui.widgets.typing_indicator import TypingIndicator
-from gui.widgets.message_item import Message
+from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
+from src.gui.signals import ui_signals
+from src.gui.widgets.typing_indicator import TypingIndicator
+from src.gui.widgets.message_item import Message
 from src.utils.BasicUtils import BasicUtils
 class DialogBox(QWidget):
     """Чат (здесь отображаются сообщения)"""

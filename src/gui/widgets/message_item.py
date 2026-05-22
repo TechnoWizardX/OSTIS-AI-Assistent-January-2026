@@ -2,9 +2,9 @@ from PyQt6.QtWidgets import QLabel, QWidget, QHBoxLayout, QVBoxLayout, QFrame, Q
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QSize, Qt
 from datetime import datetime
-from themes import THEMES, SELECTED_THEME, _COLOR_MAP
-from gui.main_window import icon_path
-from gui.signals import ui_signals
+from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
+from src.gui.signals import ui_signals
+from src.gui import icon_path
 class Message(QWidget):
     def __init__(self, author: str, text: str, time: str = None):
         super().__init__()

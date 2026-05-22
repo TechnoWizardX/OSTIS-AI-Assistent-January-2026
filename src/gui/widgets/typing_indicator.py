@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
 from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap, QTextOption, QPen
-from themes import THEMES, _COLOR_MAP, SELECTED_THEME
+from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
 import math
 
 class TypingDotsWidget(QWidget):

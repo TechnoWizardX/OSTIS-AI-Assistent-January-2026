@@ -695,3 +695,5 @@ THEMES = {
     "nord":     get_theme("nord"),
     "gruvbox":  get_theme("gruvbox"),
 }
+from src.utils.BasicUtils import BasicUtils
+SELECTED_THEME = BasicUtils.get_settings_config_value("theme")

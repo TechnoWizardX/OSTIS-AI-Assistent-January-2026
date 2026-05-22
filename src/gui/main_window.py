@@ -9,22 +9,23 @@ import sys
 import os
 import math
 from src.utils.BasicUtils import BasicUtils, DataBaseEditor
-from themes import THEMES, _COLOR_MAP
-from datetime import datetime
-
+from .themes import THEMES, _COLOR_MAP
+from .signals import ui_signals
 # Базовый путь для иконок
-ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
+from .widgets.chat_dialog import DialogBox
+from .widgets.chat_send_box import ChatSendBox
+from .widgets.typing_indicator import TypingIndicator
+from .widgets.message_item import Message
+from .widgets.glow_effects import RecommendationGlowEffect 
 DATABASE_EDITOR = DataBaseEditor()
 
 CONFIG = BasicUtils.load_settings_config()
 SELECTED_THEME = CONFIG.get("theme") or "light"
 RECOGNITION_MODEL = CONFIG.get("recognition_model")
 
-from GesturesInput.gestures import GestureCameraThread
+from src.GesturesInput.gestures import GestureCameraThread
+from src.gui import icon_path
 
-def icon_path(filename):
-    """Возвращает абсолютный путь к иконке"""
-    return os.path.join(ICONS_DIR, filename)
 
 """
 ====================================================
@@ -34,303 +35,6 @@ layout - лэйаут - lay
 frame - рамка/фрейм - frame
 Qt Style Sheets - стили qss - qss
 """
-
-class Signals(QObject):
-    settings_changed = pyqtSignal(dict)
-    camera_selected = pyqtSignal(str)
-    microphone_selected = pyqtSignal(str)
-    profile_updated = pyqtSignal() # Сигнал для передачи текста из голосового ввода
-    message_sent = pyqtSignal(str, str)
-    voice_input_changed = pyqtSignal(bool)
-    voice_message_received = pyqtSignal(str)
-    speaker_pressed = pyqtSignal(str)
-    speaker_stop_all = pyqtSignal()        # сброс всех кнопок для воспроизведения
-    speaker_stop_request = pyqtSignal()    # остановка воспроизведения
-    speaker_finished = pyqtSignal()        # конец воспроизведения без вмешательства
-    history_cleared = pyqtSignal()          # для обновления чатов после очистки
-    clear_history_requested = pyqtSignal()  # запрос на очистку истории (отправляется в ядро)
-    recommendation_ready = pyqtSignal(list, str)  # (список методов, текст для пользователя)
-    openrouter_api_key_changed = pyqtSignal(str)  # Сигнал для изменения API ключа OpenRouter
-    dysfunctions_saved = pyqtSignal()  # Сигнал о сохранении нарушений
-    typing_started  = pyqtSignal()    # нейросеть начала думать
-    typing_finished = pyqtSignal()    # нейросеть ответила
-ui_signals = Signals()
-
-
-# ==========================================================
-# ИНДИКАТОР ПЕЧАТАНИЯ / ДУМАНИЯ НЕЙРОСЕТИ
-# ==========================================================
-
-class TypingDotsWidget(QWidget):
-    """
-    Анимированные три точки, имитирующие эффект печатания/думания.
-    Точки поочерёдно пульсируют по яркости и подпрыгивают вверх-вниз (~60 FPS).
-    """
-    def __init__(self, dot_color: str = "#4CAF50", parent=None):
-        super().__init__(parent)
-        self._dot_color = QColor(dot_color)
-        self._dot_count = 3
-        self._phase = 0.0
-        self._dot_radius = 5
-        self._dot_spacing = 20
-        self._min_alpha = 120
-        self._max_alpha = 255
-        self._jump_amplitude = 2  # амплитуда подпрыгивания в пикселях
-
-        total_w = self._dot_count * self._dot_spacing
-        total_h = self._dot_radius * 2 + 6 + self._jump_amplitude * 2
-        self.setFixedSize(total_w, total_h)
-
-        self._timer = QTimer(self)
-        self._timer.setInterval(24)
-        self._timer.timeout.connect(self._tick)
-
-    def start(self):
-        self._phase = 0.0
-        self._timer.start()
-
-    def stop(self):
-        self._timer.stop()
-        self.update()
-
-    def set_color(self, hex_color: str):
-        self._dot_color = QColor(hex_color)
-        self.update()
-
-    def apply_theme(self, theme: dict):
-        """
-        Применяет тему интерфейса — устанавливает цвет точек из темы.
-        :param theme: словарь темы с ключом 'typing_dots'
-        """
-        dots_config = theme.get("typing_dots", {})
-        dot_color = dots_config.get("color", "#4CAF50")
-        self.set_color(dot_color)
-
-    def _tick(self):
-        self._phase = (self._phase + 0.06) % self._dot_count
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        cx = self._dot_radius
-        base_cy = self.height() // 2
-        for i in range(self._dot_count):
-            dist = abs((self._phase - i + self._dot_count) % self._dot_count)
-            dist = min(dist, self._dot_count - dist)
-            brightness = math.cos(dist * math.pi / (self._dot_count - 0.5))
-            brightness = max(0.0, brightness)
-            alpha = int(self._min_alpha + (self._max_alpha - self._min_alpha) * brightness)
-            color = QColor(self._dot_color.red(), self._dot_color.green(),
-                           self._dot_color.blue(), alpha)
-            
-            # Вычисляем смещение по Y для эффекта подпрыгивания
-            jump_offset = math.sin((self._phase - i) * math.pi) * self._jump_amplitude * brightness
-            cy = base_cy + jump_offset
-            
-            painter.setBrush(color)
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(
-                QRectF(cx - self._dot_radius, cy - self._dot_radius,
-                       self._dot_radius * 2, self._dot_radius * 2)
-            )
-            cx += self._dot_spacing
-        painter.end()
-
-class TypingIndicator(QWidget):
-    """
-    Пузырь «думания» нейросети с анимированными точками.
-    Стилизован аналогично Message — органично встраивается в DialogBox.
-    """
-    def __init__(self, author_name: str = "IAMOS", frame_style: str = "",
-                 label_style: str = "", parent=None):
-        super().__init__(parent)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
-
-        outer_lay = QHBoxLayout(self)
-        outer_lay.setContentsMargins(10, 5, 10, 5)
-        outer_lay.setSpacing(5)
-
-        self.main_frame = QFrame()
-        self.main_frame.setStyleSheet(frame_style)
-        self.main_frame.setMinimumWidth(100)
-        self.main_frame.setMaximumWidth(300)
-        self.main_frame.setSizePolicy(QSizePolicy.Policy.MinimumExpanding,
-                                      QSizePolicy.Policy.MinimumExpanding)
-
-        frame_lay = QVBoxLayout(self.main_frame)
-        frame_lay.setContentsMargins(12, 10, 12, 10)
-        frame_lay.setSpacing(6)
-
-        self.author_label = QLabel(author_name)
-        self.author_label.setStyleSheet(label_style)
-        frame_lay.addWidget(self.author_label)
-
-        self.dots = TypingDotsWidget()
-        frame_lay.addWidget(self.dots, alignment=Qt.AlignmentFlag.AlignLeft)
-
-        outer_lay.addWidget(self.main_frame)
-        outer_lay.addStretch()
-
-    def start(self):
-        self.dots.start()
-
-    def stop(self):
-        self.dots.stop()
-
-    def _apply_theme(self, theme: dict):
-        self.main_frame.setStyleSheet(theme.get("message_frame", ""))
-        self.author_label.setStyleSheet(theme.get("message_author", ""))
-        self.dots.apply_theme(theme)
-
-class RunningLineOverlay(QWidget):
-    """
-    Overlay-виджет для отрисовки бегущей линии по периметру кнопки.
-    Цвет линии адаптируется к текущей теме интерфейса.
-    """
-    def __init__(self, parent, button, theme_name: str = "dark"):
-        super().__init__(parent)
-        self.button = button
-        self.phase = 0
-        self.theme_name = theme_name
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
-
-        # Получаем параметры свечения из темы
-        colors = _COLOR_MAP.get(theme_name, _COLOR_MAP["dark"])
-        
-        # Цвет и радиус свечения из темы
-        glow_color_hex = colors.get("glow", "#00FF00")
-        glow_blur = colors.get("glow_blur", 30)
-        
-        self.line_color = QColor(glow_color_hex)
-
-        # Тень для линии — яркий эффект с параметрами из темы
-        self.glow_effect = QGraphicsDropShadowEffect(self)
-        self.glow_effect.setBlurRadius(glow_blur)
-        self.glow_effect.setColor(QColor(self.line_color.red(), self.line_color.green(), self.line_color.blue(), 200))
-        self.glow_effect.setXOffset(0)
-        self.glow_effect.setYOffset(0)
-        self.setGraphicsEffect(self.glow_effect)
-
-    def paintEvent(self, event):
-        """Рисует бегущую линию по периметру с скруглёнными углами."""
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Размеры кнопки
-        w = self.width()
-        h = self.height()
-        margin = 2  # отступ для границы
-        corner_radius = 12  # радиус скругления как у кнопки
-
-        # Рисуем полный контур кнопки (скруглённый прямоугольник)
-        path = QPainterPath()
-        path.addRoundedRect(margin, margin, w - 2*margin, h - 2*margin, corner_radius, corner_radius)
-
-        # Получаем длину контура
-        perimeter = path.length()
-
-        # Позиция бегущей линии
-        line_length = perimeter * 0.35  # длина линии 35% от периметра
-        start_pos = (self.phase % 4) * perimeter / 4
-
-        # Рисуем линию вдоль контура с градиентом прозрачности
-        num_segments = int(line_length)
-        for i in range(num_segments):
-            pos = (start_pos + i) % perimeter
-            prev_pos = (start_pos + i - 1) % perimeter if i > 0 else pos
-
-            # Градиент прозрачности: яркий центр, тусклые края
-            dist_from_start = i / line_length
-            # Используем синусоиду для плавного градиента
-            alpha = int(255 * math.sin(dist_from_start * math.pi))
-
-            point = path.pointAtPercent(pos / perimeter)
-            prev_point = path.pointAtPercent(prev_pos / perimeter)
-
-            # Рисуем сегмент линии с цветом из темы
-            pen = QPen(QColor(self.line_color.red(), self.line_color.green(), self.line_color.blue(), alpha), 3)
-            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-            painter.setPen(pen)
-
-            if i > 0:
-                painter.drawLine(prev_point, point)
-
-        painter.end()
-        
-class RecommendationGlowEffect:
-    """
-    Класс для управления анимированной 'бегущей' подсветкой по периметру кнопки.
-    Создает overlay-виджет с бегущей линией и тенью поверх кнопки.
-    """
-
-    def __init__(self, button: QPushButton, theme_name: str = "dark"):
-        self.button = button
-        self.theme_name = theme_name
-        self.overlay = None
-        self.animation_timer = QTimer()
-        self.animation_timer.timeout.connect(self._update_position)
-        self.phase = 0
-        self.is_active = False
-
-    def start(self):
-        """Запускает анимацию бегущей линии."""
-        if self.is_active:
-            return
-        self.is_active = True
-
-        # Создаем overlay-виджет если ещё не создан
-        if not self.overlay:
-            self._create_overlay()
-
-        self.overlay.show()
-        self.animation_timer.start(16)  # ~60 FPS для плавности
-
-    def stop(self):
-        """Останавливает анимацию и скрывает overlay."""
-        self.is_active = False
-        self.animation_timer.stop()
-        if self.overlay:
-            self.overlay.hide()
-
-    def update_theme(self, theme_name: str):
-        """Обновляет тему и пересоздает overlay с новым цветом."""
-        self.theme_name = theme_name
-        if self.overlay:
-            # Скрываем старый overlay
-            self.overlay.hide()
-            # Пересоздаем overlay с новой темой
-            self._create_overlay()
-            # Если анимация была активна, показываем новый overlay
-            if self.is_active:
-                self.overlay.show()
-
-    def _create_overlay(self):
-        """Создает overlay-виджет для отрисовки бегущей линии."""
-        self.overlay = RunningLineOverlay(self.button.parent(), self.button, self.theme_name)
-        self.overlay.setGeometry(self.button.geometry())
-        self.overlay.raise_()
-
-    def _update_position(self):
-        """Обновляет позицию бегущей линии."""
-        if not self.is_active or not self.overlay:
-            return
-
-        self.phase += 0.03  # Медленнее для плавности
-
-        # Синхронизируем overlay с позицией и размером кнопки
-        self.overlay.setGeometry(self.button.geometry())
-        self.overlay.raise_()
-
-        # Обновляем фазу для отрисовки
-        self.overlay.phase = self.phase
-        self.overlay.update()  # Вызываем перерисовку
-
-
-# ===========================================================
-# ГЛАВНЫЙ ИНТЕРФЕЙС
-# ===========================================================
 class UserInterface(QMainWindow):
     """Основной интерфейс приложения."""
     def __init__(self, api_key = ""):
@@ -369,8 +73,6 @@ class UserInterface(QMainWindow):
             }
         """)
         
-
-
         self.settings_page = Settings(api_key)
         self.profile_page = Profile()
         self.voice_input_page = VoiceInput()
@@ -383,13 +85,10 @@ class UserInterface(QMainWindow):
                             self.gestures_input_page : self.gestures_input_page.side_panel_btn
                             }
         
-        
          # Панель контента(является лэйаутом)
         self.content_panel = QStackedWidget(self.main_widget)
         self.content_panel.setMinimumWidth(330)
 
-
-        
         # Боковая панель
         self.side_panel = QWidget(self.main_widget)
         self.side_panel.setMaximumWidth(190)
