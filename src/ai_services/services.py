@@ -1,243 +1,97 @@
-"""
-AI Services — сервисные классы для работы с AI и сетью
-========================================================
-Объединяет:
-- MedicalAPI: клиент OpenRouter API для LLM-запросов
-- LocalModel: заглушка для локальных моделей (Ollama)
-- NetworkChecker: проверка подключения к интернету
-"""
-
-import os
-import time
+import os, time, requests
 from typing import Union, List, Optional
-
-import requests
 from PyQt6.QtCore import QThread, pyqtSignal
+from src.BasicUtils import BasicUtils
 
-from src.utils.BasicUtils import BasicUtils
-
-
-# ============================================================================
-# MedicalAPI — клиент OpenRouter API
-# ============================================================================
+# --- Настройки ---
+Prompt = Union[str, List[str]]
+Response = Union[str, List[str]]
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 class MedicalAPI:
-    """
-    Клиент для OpenRouter API (https://openrouter.ai).
-    Позволяет отправлять chat-запросы к различным моделям (Gemini, Claude, GPT и др.)
-    с возможностью указания системного промпта, температуры и максимального числа токенов.
-    """
-
-    BASE_URL = "https://openrouter.ai/api/v1"
-    DEFAULT_HEADERS = {
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://github.com/your-iamos-project",
-        "X-Title": "IAMOS Assistant"
-    }
-
+    """Клиент OpenRouter (облачные LLM)."""
     def __init__(self, api_key: str = None, model: str = "anthropic/claude-3-haiku"):
-        """
-        :param api_key: API-ключ OpenRouter (если None, берётся из env OPENROUTER_API_KEY)
-        :param model: идентификатор модели (например, "google/gemini-flash-1.5",
-                      "anthropic/claude-3-haiku", "openai/gpt-4o")
-        """
+        self.model = model
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         if not self.api_key:
-            raise ValueError("❌ Не найден API-ключ. Установите OPENROUTER_API_KEY в .env или передайте в конструктор.")
-
-        self.model = model
-        self.headers = {**self.DEFAULT_HEADERS, "Authorization": f"Bearer {self.api_key}"}
-        BasicUtils.logger("MedicalAPI", "INFO", f"Инициализация: model={model}")
-
-    def _send_request(self, messages: list, temperature: float = 0.7, max_tokens: int = 1024) -> str:
-        """
-        Внутренний метод для отправки HTTP-запроса к OpenRouter.
-        :param messages: список сообщений в формате [{"role": "user", "content": "..."}, ...]
-        :param temperature: креативность (0.0 — детерминировано, 1.0 — разнообразно)
-        :param max_tokens: максимальная длина ответа в токенах
-        :return: текст ответа или сообщение об ошибке (начинается с ⚠️ или ❌)
-        """
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens
+            raise ValueError("OPENROUTER_API_KEY не найден.")
+        self.headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "X-Title": "IAMOS Assistant"
         }
-        try:
-            BasicUtils.logger("MedicalAPI", "INFO", f"Отправка запроса к {self.model}... (temp={temperature}, max_tokens={max_tokens})")
-            resp = requests.post(
-                f"{self.BASE_URL}/chat/completions",
-                json=payload,
-                headers=self.headers,
-                timeout=30
-            )
-            resp.raise_for_status()
+        BasicUtils.logger("MedicalAPI", "INFO", f"Init model: {model}")
 
-            data = resp.json()
-            content = data.get("choices", [{}])[0].get("message", {}).get("content")
-            result = (content or "").strip()
-
-            if not result:
-                BasicUtils.logger("MedicalAPI", "WARNING", "⚠️ API вернул пустой ответ")
-            else:
-                BasicUtils.logger("MedicalAPI", "INFO", f"Запрос успешно выполнен (ответ: {len(result)} символов)")
-
-            return result
-
-        except requests.exceptions.HTTPError as e:
-            err = f"⚠️ Ошибка API ({resp.status_code}): {resp.text}"
-            BasicUtils.logger("MedicalAPI", "ERROR", err)
-            return err
-        except Exception as e:
-            err = f"❌ Ошибка сети или обработки: {str(e)}"
-            BasicUtils.logger("MedicalAPI", "ERROR", err)
-            return err
-
-    def chat(self, prompt: str, system_prompt: Optional[str] = None,
-             temperature: float = 0.7, max_tokens: int = 1024) -> str:
-        """
-        Отправляет один запрос к модели.
-        :param prompt: пользовательское сообщение
-        :param system_prompt: системный промпт (задаёт роль, правила, формат ответа)
-        :param temperature: температура (по умолчанию 0.7)
-        :param max_tokens: максимальное количество токенов в ответе
-        :return: ответ модели или сообщение об ошибке
-        """
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-        return self._send_request(messages, temperature, max_tokens)
-
-    def batch_chat(self, prompts: List[str], system_prompt: Optional[str] = None,
-                   temperature: float = 0.7, max_tokens: int = 1024) -> List[str]:
-        """
-        Пакетная обработка нескольких запросов (последовательно, не параллельно).
-        :param prompts: список пользовательских промптов
-        :return: список ответов (в том же порядке)
-        """
-        return [self.chat(p, system_prompt, temperature, max_tokens) for p in prompts]
-
-    def generate(self, prompt: Union[str, List[str]], system_prompt: Optional[str] = None,
-                 temperature: float = 0.7, max_tokens: int = 1024) -> Union[str, List[str]]:
-        """
-        Универсальный метод: если prompt — строка, возвращает строку;
-        если список строк — возвращает список строк.
-        """
+    def generate(self, prompt: Prompt, system: str = None, temp=0.7, tokens=1024) -> Response:
         if isinstance(prompt, list):
-            return self.batch_chat(prompt, system_prompt, temperature, max_tokens)
-        return self.chat(prompt, system_prompt, temperature, max_tokens)
+            return [self._request(p, system, temp, tokens) for p in prompt]
+        return self._request(prompt, system, temp, tokens)
 
-
-# ============================================================================
-# LocalModel — локальная LLM через Ollama
-# ============================================================================
+    def _request(self, text: str, system: str, temp: float, tokens: int) -> str:
+        messages = [{"role": "system", "content": system}] if system else []
+        messages.append({"role": "user", "content": text})
+        
+        try:
+            resp = requests.post(OPENROUTER_URL, headers=self.headers, timeout=30, json={
+                "model": self.model, "messages": messages, "temperature": temp, "max_tokens": tokens
+            })
+            resp.raise_for_status()
+            res = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+            return res or "⚠️ Пустой ответ"
+        except Exception as e:
+            BasicUtils.logger("MedicalAPI", "ERROR", str(e))
+            return f"❌ Ошибка API: {e}"
 
 class LocalModel:
-    """
-    Локальная LLM через Ollama (qwen2.5:3b).
-    Работает оффлайн, без зависимости от интернета.
-    """
+    """Клиент Ollama (оффлайн LLM)."""
+    def __init__(self, model: str = "qwen2.5:3b", url: str = "http://localhost:11434/api/generate"):
+        self.model, self.url = model, url
 
-    def __init__(self, model: str = "qwen2.5:3b", ollama_url: str = "http://localhost:11434/api/generate"):
-        self.model = model
-        self.ollama_url = ollama_url
-        BasicUtils.logger("LocalModel", "INFO", f"Инициализация локальной модели: {model} ({ollama_url})")
+    def generate(self, prompt: Prompt, system: str = None, **kwargs) -> Response:
+        if isinstance(prompt, list):
+            return [self._request(p, system) for p in prompt]
+        return self._request(prompt, system)
 
-    def _send_offline_request(self, prompt: str) -> str:
-        """Отправляет запрос в Ollama и возвращает ответ"""
-        import requests
-        payload = {
-            "model": self.model,
-            "prompt": prompt,
-            "stream": False,
-            "format": "json"
-        }
+    def _request(self, text: str, system: str) -> str:
+        full_prompt = f"{system}\n\n{text}" if system else text
         try:
-            response = requests.post(self.ollama_url, json=payload, timeout=60)
-            if response.status_code == 200:
-                result = response.json().get('response', '')
-                BasicUtils.logger("LocalModel", "INFO", f"Локальная модель ответила ({len(result)} символов)")
-                return result
-            else:
-                err = f"⚠️ Ошибка Ollama (статус {response.status_code})"
-                BasicUtils.logger("LocalModel", "ERROR", err)
-                return err
-        except requests.exceptions.ConnectionError:
-            err = "❌ Ollama не запущена. Проверьте, что Ollama serve работает на localhost:11434"
-            BasicUtils.logger("LocalModel", "ERROR", err)
-            return err
+            resp = requests.post(self.url, timeout=60, json={
+                "model": self.model, "prompt": full_prompt, "stream": False
+            })
+            if resp.status_code == 200:
+                return resp.json().get("response", "").strip()
+            return f"⚠️ Ollama Error: {resp.status_code}"
         except Exception as e:
-            err = f"❌ Ошибка локальной модели: {str(e)}"
-            BasicUtils.logger("LocalModel", "ERROR", err)
-            return err
-
-    def generate(self, prompt: Union[str, List[str]], system_prompt: Optional[str] = None) -> Union[str, List[str]]:
-        """
-        Генерирует ответ для одного или нескольких запросов.
-        :param prompt: строка или список строк
-        :param system_prompt: системный промпт (добавляется к запросу)
-        :return: ответ или список ответов
-        """
-        is_list = isinstance(prompt, list)
-        prompts = prompt if is_list else [prompt]
-        answers = []
-
-        BasicUtils.logger("LocalModel", "INFO", f"Запрос локальной модели (запросов: {len(prompts)})")
-        for p in prompts:
-            full_prompt = p
-            if system_prompt:
-                full_prompt = f"{system_prompt}\n\n{p}"
-            answers.append(self._send_offline_request(full_prompt))
-
-        BasicUtils.logger("LocalModel", "INFO", "Локальная модель: ответы сформированы")
-        return answers if is_list else answers[0]
-
-
-# ============================================================================
-# NetworkChecker — проверка подключения к интернету
-# ============================================================================
+            return f"❌ Ошибка локальной модели: {e}"
 
 class NetworkChecker(QThread):
-    """
-    Фоновый поток для периодической проверки подключения к интернету.
-    Использует Cloudflare DNS (1.1.1.1) как надёжный эндпоинт.
-    """
-
+    """Мониторинг интернет-соединения."""
     connection_changed = pyqtSignal(bool)
 
-    def __init__(self, check_interval: int = 15):
-        """
-        :param check_interval: интервал проверки в секундах (по умолчанию 15)
-        """
+    def __init__(self, interval: int = 15):
         super().__init__()
-        self.check_interval = check_interval
+        self.interval = interval
         self._is_online = False
         self._running = True
-        BasicUtils.logger("NetworkChecker", "INFO", f"Инициализация: интервал={check_interval}с")
+
+    def is_online(self) -> bool:
+        return self._is_online
+
+    def stop(self):
+        self._running = False
+        self.wait()
 
     def run(self):
-        BasicUtils.logger("NetworkChecker", "INFO", "Запуск проверки подключения")
         while self._running:
             try:
-                requests.get("https://1.1.1.1", timeout=5, headers={"User-Agent": "IAMOS/1.0"})
+                # Проверка через быстрый запрос к Cloudflare
+                requests.get("https://1.1.1.1", timeout=5)
                 new_status = True
-            except Exception:
+            except:
                 new_status = False
 
             if new_status != self._is_online:
                 self._is_online = new_status
-                status_str = "ONLINE" if new_status else "OFFLINE"
-                BasicUtils.logger("NetworkChecker", "INFO", f"Статус подключения изменён: {status_str}")
-                self.connection_changed.emit(self._is_online)
-
-            time.sleep(self.check_interval)
-
-    def is_online(self) -> bool:
-        """Возвращает текущий статус (для синхронного вызова из ядра)"""
-        return self._is_online
-
-    def stop(self):
-        BasicUtils.logger("NetworkChecker", "INFO", "Остановка проверки подключения")
-        self._running = False
-        self.wait()
+                self.connection_changed.emit(new_status)
+                BasicUtils.logger("NetChecker", "INFO", f"Online: {new_status}")
+            time.sleep(self.interval)
