@@ -12,7 +12,8 @@ import threading
 from BasicUtils import BasicUtils, DataBaseEditor, global_signals
 import VoiceInput.WhisperRecognition as Whisper
 from TTSSilero import SileroTTS
-from ai_services import NetworkChecker, LocalModel, AccessibilityRecommender, RecommendationFormatter
+from ai_services.services import NetworkChecker, LocalModel
+from ai_services.accessibility_recommender import AccessibilityRecommender, RecommendationParser, METHOD_LABELS
 from IntentHandler import IntentHandler, IntentWorker
 from dotenv import load_dotenv
 from SystemControl import ControlSystem
@@ -88,21 +89,23 @@ class AssistentCore():
     def _on_recommendation_obtained(self, methods: list, text: str):
         """
         Обработка полученной рекомендации.
-        Отправляет рекомендацию в интерфейс и озвучивает её, если нарушения были отредактированы.
         """
-        # Форматируем и отправляем рекомендацию в интерфейс
-        formatted_text = RecommendationFormatter.format_for_profile(methods, text)
+        # 1. Форматируем текст (замена RecommendationFormatter)
+        if methods:
+            readable_names = [METHOD_LABELS.get(m, m) for m in methods]
+            formatted_text = f"Рекомендуемые методы ввода: {', '.join(readable_names)}\n\n{text}"
+        else:
+            formatted_text = text
+
+        # 2. Отправляем в интерфейс
         ui_signals.recommendation_ready.emit(methods, formatted_text)
 
-        # Проверяем настройку "Озвучивать рекомендацию всегда" и флаг редактирования нарушений
+        # 3. Озвучка (ваша существующая логика)
         tts_recommendation_always = BasicUtils.get_settings_config_value("tts_recommendation_always")
         if tts_recommendation_always and self._dysfunctions_edited:
-            BasicUtils.logger("AssistentCore | Recommendation", "INFO", "Озвучивание рекомендации (нарушения отредактированы)")
+            BasicUtils.logger("AssistentCore | Recommendation", "INFO", "Озвучивание рекомендации")
             self.text_to_speech(formatted_text)
-        else:
-            BasicUtils.logger("AssistentCore | Recommendation", "INFO", "Озвучивание рекомендации отключено")
         
-        # Сбрасываем флаг после обработки рекомендации
         self._dysfunctions_edited = False
 
     def handle_intent(self, intent_data: dict):
