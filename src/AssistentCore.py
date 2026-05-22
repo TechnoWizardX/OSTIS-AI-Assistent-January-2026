@@ -1,4 +1,4 @@
-from UserInterface import UserInterface, ui_signals
+from src.gui.UserInterface import UserInterface, ui_signals
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import pyqtSignal, QObject
 from PyQt6.QtCore import QThread
