@@ -8,7 +8,9 @@ from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainte
 from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
 from src.gui.signals import ui_signals
 from src.gui import icon_path
-from src.utils.BasicUtils import BasicUtils
+from src.utils.chat_history import add_message
+from src.utils.logger import logger
+from src.utils.config import set_settings_config_value
 
 class ChatSendBox(QWidget):
     """Виджет отправки сообщений."""
@@ -79,10 +81,10 @@ class ChatSendBox(QWidget):
     def toggle_voice_recording(self, checked: bool):
         """Переключение голосовой записи (вкл/выкл)"""
         if checked:
-            BasicUtils.set_settings_config_value("recording_enabled", True)
+            set_settings_config_value("recording_enabled", True)
             ui_signals.voice_input_changed.emit(True)
         else:
-            BasicUtils.set_settings_config_value("recording_enabled", False)
+            set_settings_config_value("recording_enabled", False)
             ui_signals.voice_input_changed.emit(False)
     def voice_text_recived(self, text: str):
         self.handle_voice_text(text)
@@ -93,7 +95,7 @@ class ChatSendBox(QWidget):
         # Защита от дублирования: игнорируем повторяющийся текст
         if self._voice_processing or not text.strip():
             return
-        BasicUtils.logger("ChatSendBox", "INFO", f"Распознан голосовой текст: {text}")
+        logger("ChatSendBox", "INFO", f"Распознан голосовой текст: {text}")
         # Проверяем состояние переключателя из настроек
         send_directly = False
         main_window = self.window()
@@ -102,7 +104,7 @@ class ChatSendBox(QWidget):
 
         if send_directly:
             # Отправляем сразу в чат
-            BasicUtils.add_message("user", text)
+            add_message("user", text)
             ui_signals.message_sent.emit("user", text)
         else:
             # Вставляем текст в поле ввода
@@ -135,7 +137,7 @@ class ChatSendBox(QWidget):
 
         if send_directly:
             # Отправляем сразу в чат
-            BasicUtils.add_message("user", text)
+            add_message("user", text)
             ui_signals.message_sent.emit("user", text)
         else:
             # Вставляем текст в поле ввода
@@ -157,7 +159,7 @@ class ChatSendBox(QWidget):
         
         if not text:
             return
-        BasicUtils.add_message("user", text)
+        add_message("user", text)
         self.chat_send_input.clear()
 
         ui_signals.message_sent.emit("user", text)

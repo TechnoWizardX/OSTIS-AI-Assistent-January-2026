@@ -1,15 +1,12 @@
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox, QButtonGroup, QTextEdit, QLineEdit,
-    QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser, QMessageBox, QSplitter
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QFrame, QScrollArea
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
-from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap, QTextOption, QPen
+from PyQt6.QtCore import QTimer
 from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
 from src.gui.signals import ui_signals
 from src.gui.widgets.typing_indicator import TypingIndicator
 from src.gui.widgets.message_item import Message
-from src.utils.BasicUtils import BasicUtils
+from src.utils.chat_history import load_chat_history
 class DialogBox(QWidget):
     """Чат (здесь отображаются сообщения)"""
     def __init__(self):
@@ -84,7 +81,7 @@ class DialogBox(QWidget):
     
     def load_history(self):
         """Загружает историю сообщений."""
-        history = BasicUtils.load_chat_history()
+        history = load_chat_history()
         for message in history:
             self.add_message(message["author"], message["text"], message["time"])
     

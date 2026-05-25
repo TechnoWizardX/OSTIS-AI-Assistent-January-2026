@@ -1,0 +1,45 @@
+{
+    "Wifi": {
+        "ssid": "",
+        "password": ""
+    },
+    "use_online_model": true,
+    "allow_online_model_user_info": true,
+    "theme": "twilight",
+    "last_message_send": null,
+    "recording_enabled": false,
+    "camera_index": 0,
+    "microphone_index": 1,
+    "voice_send_directly": true,
+    "gesture_send_directly": false,
+    "recognition_model": "faster-whisper",
+    "available_silero_voices": {
+        "Сеня": "xenia",
+        "Евгений": "eugene",
+        "Байя": "baya",
+        "Айдар": "aidar",
+        "Ксения": "kseniya"
+    },
+    "available_silero_voices_reversed": {
+        "xenia": "Сеня",
+        "eugene": "Евгений",
+        "baya": "Байя",
+        "aidar": "Айдар",
+        "kseniya": "Ксения"
+    },
+    "tts_voice": "kseniya",
+    "tts_model": "silero",
+    "tts_speed": 1,
+    "tts_recommendation_always": false,
+    "available_recognition_models": [
+        "faster-whisper"
+    ],
+    "speaker_index": 0,
+    "recommended_methods": [
+        "text",
+        "gesture",
+        "voice",
+        "tts"
+    ],
+    "auto_tts": false
+}
