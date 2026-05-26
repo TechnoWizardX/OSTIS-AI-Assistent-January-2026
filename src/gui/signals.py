@@ -14,6 +14,7 @@ class Signals(QObject):
     history_cleared = pyqtSignal()          # для обновления чатов после очистки
     clear_history_requested = pyqtSignal()  # запрос на очистку истории (отправляется в ядро)
     recommendation_ready = pyqtSignal(list, str)  # (список методов, текст для пользователя)
+    recommendation_requested = pyqtSignal()  # Запрос на получение рекомендации (при сохранении нарушений)
     openrouter_api_key_changed = pyqtSignal(str)  # Сигнал для изменения API ключа OpenRouter
     dysfunctions_saved = pyqtSignal()  # Сигнал о сохранении нарушений
     typing_started  = pyqtSignal()    # нейросеть начала думать

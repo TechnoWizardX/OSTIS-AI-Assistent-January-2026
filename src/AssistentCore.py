@@ -12,8 +12,9 @@ import threading
 from src.utils.BasicUtils import BasicUtils, DataBaseEditor, global_signals
 import VoiceInput.WhisperRecognition as Whisper
 from TTSSilero import SileroTTS
-from ai_services.services import NetworkChecker, LocalModel
-from ai_services.accessibility_recommender import AccessibilityRecommender, RecommendationParser, METHOD_LABELS
+from src.core.network_monitor import NetworkChecker
+from src.core.llm_client import LocalModel
+from src.core.recommendation import AccessibilityRecommender, RecommendationParser, METHOD_LABELS
 from IntentHandler import IntentHandler, IntentWorker
 from dotenv import load_dotenv
 from SystemControl import ControlSystem
@@ -50,6 +51,9 @@ class AssistentCore():
         # Автозапуск при каждом сохранении профиля
         ui_signals.profile_updated.connect(lambda: self.accessibility_advisor.request_recommendation(0))
         
+        # Отдельный сигнал для получения рекомендации при сохранении нарушений
+        ui_signals.recommendation_requested.connect(lambda: self.accessibility_advisor.request_recommendation(0))
+
         # Флаг: были ли отредактированы нарушения перед получением рекомендации
         self._dysfunctions_edited = False
 

@@ -449,10 +449,10 @@ class DysfunctionsProfileOption(QFrame):
             self.text_edit.setPlainText(self._get_truncated_text())
 
         DATABASE_EDITOR.update_data(self.table_name, {self.column: new_value}, self.row_id)
-        ui_signals.profile_updated.emit()
         self.value_changed.emit(new_value)
         self.dysfunctions_saved.emit()  # Сигнал о сохранении нарушений
-        self._update_text_height()
+        ui_signals.recommendation_requested.emit()  # Запрос рекомендации
+        self._update_height()
 
     def _cancel_editing(self):
         """Отменяет редактирование, восстанавливая предыдущий текст."""
