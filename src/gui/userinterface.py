@@ -8,7 +8,8 @@ from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainte
 import sys
 import os
 import math
-from src.utils.BasicUtils import BasicUtils, DataBaseEditor
+from src.utils.BasicUtils import BasicUtils
+from src.utils.database import DataBaseEditor
 from gui.themes import THEMES, _COLOR_MAP
 from signals import ui_signals
 # Базовый путь для иконок
