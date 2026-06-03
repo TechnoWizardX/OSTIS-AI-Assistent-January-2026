@@ -15,6 +15,7 @@ class BaseInputPage(ContentPageWidget):
         self.chat_splitter = QSplitter(Qt.Orientation.Vertical)
         self.chat_splitter.addWidget(self.dialog_box)
         self.chat_splitter.addWidget(self.send_box)
+        self.chat_splitter.setSizes([400, 200])
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.chat_splitter)
