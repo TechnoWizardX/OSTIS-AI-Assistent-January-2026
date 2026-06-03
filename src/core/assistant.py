@@ -49,6 +49,7 @@ class AssistentCore():
 
         # Инициализация рекомендателя (рекомендации отправляются только в профиль)
         self.accessibility_advisor = AccessibilityRecommender()
+        self.accessibility_advisor = AccessibilityRecommender()
         # Подключаем сигнал рекомендателя к сигналу интерфейса для обновления профиля
         # accessibility_advisor передаёт (methods, text), recommendation_ready принимает то же
         # Форматируем текст рекомендации перед отправкой в интерфейс
