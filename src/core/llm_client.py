@@ -1,7 +1,8 @@
 import os
 import requests
 from typing import Union, List
-
+import traceback
+print(__file__) 
 from src.utils.logger import logger
 
 # ---------------------------------------------------------------------------
@@ -21,10 +22,12 @@ class MedicalAPI:
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         if not self.api_key:
             raise ValueError("OPENROUTER_API_KEY не найден.")
+        # Content-Type выставляется автоматически библиотекой requests при json=
+        # Ручной charset=utf-8 в заголовке вынуждал http.client кодировать
+        # заголовки через latin-1, что ломалось на кириллице в теле запроса.
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "Content-Type":  "application/json",
-            "X-Title":        "IAMOS Assistant",
+            "X-Title":       "IAMOS Assistant",
         }
         logger("MedicalAPI", "INFO", f"Init model: {model}")
 
@@ -40,10 +43,17 @@ class MedicalAPI:
         messages = [{"role": "system", "content": system}] if system else []
         messages.append({"role": "user", "content": text})
         try:
+            # json= сам сериализует payload и выставляет Content-Type: application/json
             resp = requests.post(
-                OPENROUTER_URL, headers=self.headers, timeout=30,
-                json={"model": self.model, "messages": messages,
-                      "temperature": temp, "max_tokens": tokens},
+                OPENROUTER_URL,
+                headers=self.headers,
+                timeout=30,
+                json={
+                    "model":       self.model,
+                    "messages":    messages,
+                    "temperature": temp,
+                    "max_tokens":  tokens,
+                },
             )
             resp.raise_for_status()
             content = (resp.json()

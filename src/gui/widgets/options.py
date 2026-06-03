@@ -452,7 +452,7 @@ class DysfunctionsProfileOption(QFrame):
         self.value_changed.emit(new_value)
         self.dysfunctions_saved.emit()  # Сигнал о сохранении нарушений
         ui_signals.recommendation_requested.emit()  # Запрос рекомендации
-        self._update_height()
+        self._update_text_height()
 
     def _cancel_editing(self):
         """Отменяет редактирование, восстанавливая предыдущий текст."""

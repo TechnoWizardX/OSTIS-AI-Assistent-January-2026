@@ -46,19 +46,19 @@ class AssistentCore():
         #self.current_worker = None
 
         # Инициализация рекомендателя (рекомендации отправляются только в профиль)
-        #self.accessibility_advisor = AccessibilityRecommender()
+        self.accessibility_advisor = AccessibilityRecommender()
         # Подключаем сигнал рекомендателя к сигналу интерфейса для обновления профиля
         # accessibility_advisor передаёт (methods, text), recommendation_ready принимает то же
         # Форматируем текст рекомендации перед отправкой в интерфейс
-        # self.accessibility_advisor.recommendation_obtained.connect(
-        #     self._on_recommendation_obtained
-        # )
+        self.accessibility_advisor.recommendation_obtained.connect(
+            self._on_recommendation_obtained
+        )
 
         # Автозапуск при каждом сохранении профиля
-        # ui_signals.profile_updated.connect(lambda: self.accessibility_advisor.request_recommendation(0))
+        ui_signals.profile_updated.connect(lambda: self.accessibility_advisor.request_recommendation(0))
 
         # Отдельный сигнал для получения рекомендации при сохранении нарушений
-        # ui_signals.recommendation_requested.connect(lambda: self.accessibility_advisor.request_recommendation(0))
+        ui_signals.recommendation_requested.connect(lambda: self.accessibility_advisor.request_recommendation(0))
 
         # Флаг: были ли отредактированы нарушения перед получением рекомендации
         self._dysfunctions_edited = False
@@ -96,27 +96,27 @@ class AssistentCore():
         self._dysfunctions_edited = True
         logger("AssistentCore", "INFO", "Нарушения отредактированы, следующая рекомендация будет озвучена")
 
-    # def _on_recommendation_obtained(self, methods: list, text: str):
-    #     """
-    #     Обработка полученной рекомендации.
-    #     """
-    #     # 1. Форматируем текст (замена RecommendationFormatter)
-    #     if methods:
-    #         readable_names = [METHOD_LABELS.get(m, m) for m in methods]
-    #         formatted_text = f"Рекомендуемые методы ввода: {', '.join(readable_names)}\n\n{text}"
-    #     else:
-    #         formatted_text = text
-    #
-    #     # 2. Отправляем в интерфейс
-    #     ui_signals.recommendation_ready.emit(methods, formatted_text)
-    #
-    #     # 3. Озвучка (ваша существующая логика)
-    #     tts_recommendation_always = get_settings_config_value("tts_recommendation_always")
-    #     if tts_recommendation_always and self._dysfunctions_edited:
-    #         logger("AssistentCore | Recommendation", "INFO", "Озвучивание рекомендации")
-    #         self.text_to_speech(formatted_text)
-    #
-    #     self._dysfunctions_edited = False
+    def _on_recommendation_obtained(self, methods: list, text: str):
+        """
+        Обработка полученной рекомендации.
+        """
+        # 1. Форматируем текст (замена RecommendationFormatter)
+        if methods:
+            readable_names = [METHOD_LABELS.get(m, m) for m in methods]
+            formatted_text = f"Рекомендуемые методы ввода: {', '.join(readable_names)}\n\n{text}"
+        else:
+            formatted_text = text
+
+        # 2. Отправляем в интерфейс
+        ui_signals.recommendation_ready.emit(methods, formatted_text)
+
+        # 3. Озвучка (ваша существующая логика)
+        tts_recommendation_always = get_settings_config_value("tts_recommendation_always")
+        if tts_recommendation_always and self._dysfunctions_edited:
+            logger("AssistentCore | Recommendation", "INFO", "Озвучивание рекомендации")
+            self.text_to_speech(formatted_text)
+
+        self._dysfunctions_edited = False
 
     def handle_intent(self, intent_data: dict):
         """Обработка распознанного интента от IntentHandler и выполнение соответствующих действий"""
