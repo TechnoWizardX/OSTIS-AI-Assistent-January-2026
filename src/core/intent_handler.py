@@ -37,9 +37,10 @@ class IntentHandler:
         self.online_model = online_model
         self._api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         self.online_client = openai.OpenAI(api_key=self._api_key, base_url=self.base_url)
-        path = Path(__file__).parent / "data" / "basic_prompt.md"
-        self.basic_prompt = self._load_prompt(path=path)
+        path = Path(__file__).parent.parent / "data" / "basic_prompt.md"
         
+        self.basic_prompt = self._load_prompt(path=path)
+        logger("IntentHandler", "INFO", f"Расположение промта: {path}")
         logger("IntentHandler", "INFO", f"Инициализирован с моделью: {self.offline_model}")
     
     def _load_prompt(self, path="data/basic_prompt.md") -> str:

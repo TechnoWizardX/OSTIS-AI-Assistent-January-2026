@@ -58,8 +58,9 @@ MAX_CHUNK_LENGTH = 500
 MAX_SENTENCE_LENGTH = 300
 
 # Путь для сохранения моделей (относительно корня проекта)
-MODELS_DIR = Path(__file__).parent.parent / "models" / "silero"
-logger("TTSSilero", "INFO", f"Директория моделей: {MODELS_DIR}")
+MODELS_DIR = Path(__file__).parent.parent.parent / "models" / "silero"
+MODEL_URL = "https://models.silero.ai/models/tts/ru/v5_5_ru.pt"
+logger("TTSSilero", "INFO", f"Директория моделей: {MODELS_DIR} |||")
 # Паузы между чанками по последнему знаку препинания (в секундах)
 CHUNK_PAUSE_MAP = {
     '.': 0.5, '!': 0.5, '?': 0.5,
@@ -173,49 +174,22 @@ class SileroTTS:
         torch.hub.set_dir(torch_home)
 
     def _load_model(self):
-        """Загружает модель Silero TTS через torch.hub"""
+        """Загружает модель из локального .pt файла, при необходимости скачивает."""
         if self._model is not None:
             return
 
-        self._log_status(f"Загрузка модели Silero TTS {MODEL_ID} в {MODELS_DIR}...")
+        model_path = MODELS_DIR / "model.pt"
+        if not model_path.exists():
+            self._log_status(f"Скачивание модели {MODEL_ID}...")
+            import urllib.request
+            urllib.request.urlretrieve(MODEL_URL, model_path)
+            self._log_status("Модель успешно скачана.")
 
-        try:
-            torch.hub.set_dir(str(MODELS_DIR.parent.parent))
-
-            result = torch.hub.load(
-                repo_or_dir="snakers4/silero-models",
-                model="silero_tts",
-                language="ru",
-                speaker=MODEL_ID,
-                trust_repo=True,
-            )
-
-            # v5_x_ru возвращает кортеж (model, sample_rate)
-            if isinstance(result, tuple):
-                if len(result) == 2:
-                    self._model, self.sample_rate = result
-                elif len(result) == 3:
-                    # Обратная совместимость с v4
-                    self._model, _, self.sample_rate = result
-                else:
-                    raise ValueError(f"Неожиданный формат: {len(result)} элементов")
-            else:
-                self._model = result
-
-            if not isinstance(self.sample_rate, int):
-                self.sample_rate = DEFAULT_SAMPLE_RATE
-
-            if hasattr(self._model, 'to'):
-                self._model.to(self.device)
-
-            self._log_status(f"Модель {MODEL_ID} загружена (частота: {self.sample_rate} Гц)")
-
-        except Exception as e:
-            logger("TTSSilero", "ERROR", f"Ошибка загрузки модели: {e}")
-            import traceback
-            traceback.print_exc()
-            raise
-
+        self._log_status(f"Загрузка модели из {model_path}...")
+        # Загружаем модель через torch.package (способ Silero)
+        self._model = torch.package.PackageImporter(str(model_path)).load_pickle("tts_models", "model")
+        self._model.to(self.device)
+        self._log_status(f"Модель загружена на {self.device}")
     # ============================================================
     # ВОРКЕР ОЧЕРЕДИ
     # ============================================================

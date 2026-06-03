@@ -188,36 +188,5 @@ class ChatSendBox(QWidget):
 
            # прижимаем влево
     
-    def _on_voice_clicked(self):
-        """Обработчик нажатия на кнопку динамика."""
-        if self.is_playing:
-            # Остановить текущее воспроизведение
-            ui_signals.speaker_stop_request.emit()
-            self._reset_button()
-        else:
-            # Сбросить все другие кнопки, затем запустить новое
-            ui_signals.speaker_stop_all.emit()
-            ui_signals.speaker_pressed.emit(self.text_content)
-            self.is_playing = True
-        self.voice_btn.setChecked(True)
-
-    def _reset_button(self):
-        """Возвращает кнопку в исходное неактивное состояние."""
-        self.is_playing = False
-        self.voice_btn.setChecked(False)        
         
-    def _apply_theme(self, theme: dict):
-        self.main_frame.setStyleSheet(theme["message_frame"])
-        self.author_label.setStyleSheet(theme["message_author"])
-        self.text_label.setStyleSheet(theme["message_text"])
-        self.time_label.setStyleSheet(theme["message_time"])
-        self.copy_btn.setStyleSheet(theme["btn_1"])
-        if hasattr(self, 'voice_btn'):
-            base_style = theme.get("btn_checkable", "")
-            accent_color = _COLOR_MAP[SELECTED_THEME].get("accent", "#4CAF50")
-            self.voice_btn.setStyleSheet(base_style + f"QPushButton:checked {{ background-color: {accent_color}; }}")    
-    def copy_text(self):
-        """Копирует текст сообщения в буфер обмена."""
-        clipboard = QApplication.clipboard()
-        clipboard.setText(self.text_content)
 

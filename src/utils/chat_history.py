@@ -1,4 +1,5 @@
-import json, datetime
+import json
+from datetime import datetime
 from pathlib import Path
 
 CHAT_FILE = Path(__file__).parent / "data" / "chat_history.json"
