@@ -23,7 +23,7 @@ Silero TTS v5 — обёртка для синтеза речи на русск�
 - stop() стал thread-safe через Queue.mutex
 - Паузы между чанками динамические (зависят от последнего знака препинания)
 """
-from src.utils.BasicUtils import BasicUtils
+from src.utils.logger import logger
 import os
 import threading
 import time
@@ -154,7 +154,7 @@ class SileroTTS:
         # Запуск фонового воркера для очереди
         self._start_tts_worker()
 
-        BasicUtils.logger("TTSSilero", "INFO",
+        logger("TTSSilero", "INFO",
                           f"Инициализирован {MODEL_ID}: голос={voice}, качество={quality}, "
                           f"устройство={self.device}, макс. длина фрагмента={max_chunk_length}, "
                           f"путь моделей={MODELS_DIR}")
@@ -168,7 +168,7 @@ class SileroTTS:
         MODELS_DIR.mkdir(parents=True, exist_ok=True)
         os.environ['TORCH_HOME'] = str(MODELS_DIR.parent.parent)
         torch.hub.set_dir(str(MODELS_DIR.parent.parent))
-        BasicUtils.logger("TTSSilero", "INFO", f"Директория моделей: {MODELS_DIR}")
+        logger("TTSSilero", "INFO", f"Директория моделей: {MODELS_DIR}")
 
     def _load_model(self):
         """Загружает модель Silero TTS через torch.hub"""
@@ -209,7 +209,7 @@ class SileroTTS:
             self._log_status(f"Модель {MODEL_ID} загружена (частота: {self.sample_rate} Гц)")
 
         except Exception as e:
-            BasicUtils.logger("TTSSilero", "ERROR", f"Ошибка загрузки модели: {e}")
+            logger("TTSSilero", "ERROR", f"Ошибка загрузки модели: {e}")
             import traceback
             traceback.print_exc()
             raise
@@ -223,7 +223,7 @@ class SileroTTS:
         self._tts_worker_running = True
         self._tts_worker_thread = threading.Thread(target=self._tts_worker, daemon=True)
         self._tts_worker_thread.start()
-        BasicUtils.logger("TTSSilero", "INFO", "Фоновый TTS воркер запущен")
+        logger("TTSSilero", "INFO", "Фоновый TTS воркер запущен")
 
     def _tts_worker(self):
         """
@@ -237,12 +237,12 @@ class SileroTTS:
             except Empty:
                 continue
             except Exception as e:
-                BasicUtils.logger("TTSSilero", "ERROR", f"Ошибка получения задачи из очереди: {e}")
+                logger("TTSSilero", "ERROR", f"Ошибка получения задачи из очереди: {e}")
                 continue
 
             self._tts_processing = True
             try:
-                BasicUtils.logger("TTSSilero", "INFO",
+                logger("TTSSilero", "INFO",
                                    f"Воспроизведение из очереди: {text[:50]}...")
                 self._speak_sync(text, voice, speed)
 
@@ -250,9 +250,9 @@ class SileroTTS:
                     try:
                         callback()
                     except Exception as e:
-                        BasicUtils.logger("TTSSilero", "WARNING", f"Ошибка в callback: {e}")
+                        logger("TTSSilero", "WARNING", f"Ошибка в callback: {e}")
             except Exception as e:
-                BasicUtils.logger("TTSSilero", "ERROR", f"Ошибка в TTS воркере: {e}")
+                logger("TTSSilero", "ERROR", f"Ошибка в TTS воркере: {e}")
             finally:
                 self._tts_processing = False
 
@@ -307,10 +307,10 @@ class SileroTTS:
             chunks.append(current_chunk)
 
         if len(chunks) > 1:
-            BasicUtils.logger("TTSSilero", "INFO",
+            logger("TTSSilero", "INFO",
                                f"Текст разбит на {len(chunks)} частей (макс. длина {self.max_chunk_length})")
             for i, chunk in enumerate(chunks):
-                BasicUtils.logger("TTSSilero", "DEBUG",
+                logger("TTSSilero", "DEBUG",
                                    f"  Часть {i + 1}: {len(chunk)} символов - {chunk[:50]}...")
 
         return chunks
@@ -586,7 +586,7 @@ class SileroTTS:
             text += '.'
 
         if original_text != text:
-            BasicUtils.logger("TTSSilero", "DEBUG",
+            logger("TTSSilero", "DEBUG",
                                f"Текст обработан: {original_text[:50]}... -> {text[:50]}...")
 
         return text
@@ -664,7 +664,7 @@ class SileroTTS:
 
             return audio
         except Exception as e:
-            BasicUtils.logger("TTSSilero", "WARNING", f"Ошибка пост-обработки: {e}")
+            logger("TTSSilero", "WARNING", f"Ошибка пост-обработки: {e}")
             return audio
 
     def _normalize_volume(self, audio: torch.Tensor, target_db: float = -14.0) -> torch.Tensor:
@@ -696,7 +696,7 @@ class SileroTTS:
 
             return audio
         except Exception as e:
-            BasicUtils.logger("TTSSilero", "WARNING", f"Ошибка нормализации: {e}")
+            logger("TTSSilero", "WARNING", f"Ошибка нормализации: {e}")
             return audio
 
     # ============================================================
@@ -776,7 +776,7 @@ class SileroTTS:
             cache_key = f"{text}_{v}_{s}"
             cached = self._get_from_cache(cache_key)
             if cached is not None:
-                BasicUtils.logger("TTSSilero", "DEBUG", f"Кэш: {text[:50]}...")
+                logger("TTSSilero", "DEBUG", f"Кэш: {text[:50]}...")
                 return cached
 
             audio = self._synthesize_single_chunk(text, v, s)
@@ -795,11 +795,11 @@ class SileroTTS:
             cache_key = f"{chunk}_{v}_{s}"
             cached = self._get_from_cache(cache_key)
             if cached is not None:
-                BasicUtils.logger("TTSSilero", "DEBUG", f"Кэш для части {i + 1}")
+                logger("TTSSilero", "DEBUG", f"Кэш для части {i + 1}")
                 audio_parts.append(cached)
                 continue
 
-            BasicUtils.logger("TTSSilero", "DEBUG",
+            logger("TTSSilero", "DEBUG",
                                f"Синтез части {i + 1}/{len(chunks)}: {len(chunk)} символов")
             audio = self._synthesize_single_chunk(chunk, v, s)
             if self.quality != "low":
@@ -818,7 +818,7 @@ class SileroTTS:
         for part in audio_parts[1:]:
             combined = torch.cat([combined, silence, part])
 
-        BasicUtils.logger("TTSSilero", "INFO",
+        logger("TTSSilero", "INFO",
                            f"Объединено {len(audio_parts)} фрагментов: "
                            f"{len(combined) / self.sample_rate:.1f} сек")
         return combined
@@ -863,9 +863,9 @@ class SileroTTS:
 
                 if cached is not None:
                     audio = cached
-                    BasicUtils.logger("TTSSilero", "DEBUG", f"Кэш для части {i + 1}")
+                    logger("TTSSilero", "DEBUG", f"Кэш для части {i + 1}")
                 else:
-                    BasicUtils.logger("TTSSilero", "DEBUG",
+                    logger("TTSSilero", "DEBUG",
                                        f"Синтез части {i + 1}/{len(chunks)}: {len(chunk)} символов")
                     audio = self._synthesize_single_chunk(chunk, v, s)
                     if self.quality != "low":
@@ -886,7 +886,7 @@ class SileroTTS:
 
                 if self._stop_requested:
                     sd.stop()
-                    BasicUtils.logger("TTSSilero", "INFO", "Воспроизведение прервано")
+                    logger("TTSSilero", "INFO", "Воспроизведение прервано")
                     break
 
                 # Динамическая пауза между чанками
@@ -896,7 +896,7 @@ class SileroTTS:
                     time.sleep(pause)
 
         except Exception as e:
-            BasicUtils.logger("TTSSilero", "ERROR", f"Ошибка воспроизведения: {e}")
+            logger("TTSSilero", "ERROR", f"Ошибка воспроизведения: {e}")
         finally:
             self._is_speaking = False
             self._stop_requested = False
@@ -921,14 +921,14 @@ class SileroTTS:
         text_len = len(text)
         if text_len > self.max_chunk_length:
             chunks_count = len(self._split_text_into_chunks(text))
-            BasicUtils.logger("TTSSilero", "INFO",
+            logger("TTSSilero", "INFO",
                                f"Длинный текст ({text_len} символов) → {chunks_count} частей")
 
         if block:
             self._speak_sync(text, v, s)
         else:
             self._tts_queue.put((text, v, s, None))
-            BasicUtils.logger("TTSSilero", "INFO", f"В очередь: {text[:50]}...")
+            logger("TTSSilero", "INFO", f"В очередь: {text[:50]}...")
 
     def speak_async(self, text: str, voice: Optional[str] = None, speed: Optional[float] = None,
                     callback: Optional[Callable] = None):
@@ -950,7 +950,7 @@ class SileroTTS:
         s = speed if speed is not None else self.speed
 
         self._tts_queue.put((text, v, s, callback))
-        BasicUtils.logger("TTSSilero", "INFO", f"В очередь (async): {text[:50]}...")
+        logger("TTSSilero", "INFO", f"В очередь (async): {text[:50]}...")
 
     def stop(self):
         """
@@ -964,7 +964,7 @@ class SileroTTS:
         with self._tts_queue.mutex:
             self._tts_queue.queue.clear()
 
-        BasicUtils.logger("TTSSilero", "INFO", "Воспроизведение остановлено, очередь очищена")
+        logger("TTSSilero", "INFO", "Воспроизведение остановлено, очередь очищена")
 
     # ============================================================
     # УТИЛИТЫ
@@ -972,14 +972,14 @@ class SileroTTS:
 
     def _log_status(self, message: str):
         """Логирование статуса с вызовом on_status callback"""
-        BasicUtils.logger("TTSSilero", "INFO", message)
+        logger("TTSSilero", "INFO", message)
         if self.on_status:
             self.on_status(message)
 
     def clear_cache(self):
         """Очищает кэш аудио."""
         self._audio_cache.clear()
-        BasicUtils.logger("TTSSilero", "INFO", "Кэш аудио очищен")
+        logger("TTSSilero", "INFO", "Кэш аудио очищен")
 
     @property
     def is_speaking(self) -> bool:
@@ -1016,11 +1016,11 @@ class SileroTTS:
             import scipy.io.wavfile as wavfile
             audio_int16 = (audio.cpu().numpy() * 32767).astype(np.int16)
             wavfile.write(filepath, self.sample_rate, audio_int16)
-            BasicUtils.logger("TTSSilero", "INFO", f"Файл сохранён: {filepath}")
+            logger("TTSSilero", "INFO", f"Файл сохранён: {filepath}")
         except ImportError:
             import torchaudio
             torchaudio.save(filepath, audio.unsqueeze(0).cpu(), self.sample_rate)
-            BasicUtils.logger("TTSSilero", "INFO", f"Файл сохранён (torchaudio): {filepath}")
+            logger("TTSSilero", "INFO", f"Файл сохранён (torchaudio): {filepath}")
 
     def get_cache_info(self) -> Dict:
         """Возвращает информацию о кэше и текущем состоянии."""
@@ -1040,7 +1040,7 @@ class SileroTTS:
 
     def cleanup(self):
         """Очистка ресурсов при завершении"""
-        BasicUtils.logger("TTSSilero", "INFO", "Очистка ресурсов...")
+        logger("TTSSilero", "INFO", "Очистка ресурсов...")
         self._tts_worker_running = False
         self.stop()
 

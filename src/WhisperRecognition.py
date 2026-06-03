@@ -8,8 +8,8 @@ import torch
 import speech_recognition as sr
 from faster_whisper import WhisperModel
 from silero_vad import load_silero_vad, get_speech_timestamps
-from src.utils.BasicUtils import BasicUtils, global_signals
-
+from src.utils.BasicUtils import global_signals
+from src.utils.logger import logger
 torch.set_num_threads(1)
 
 
@@ -52,7 +52,7 @@ class WhisperRecognition:
         # ── Усиление сигнала для тихой речи ─────────────────────────
         amplify_factor: float = 2.5,        # коэффициент усиления (1.0 = выкл)
     ):
-        BasicUtils.logger("Whisper", "INFO", f"Модель: {model} | Режим ОПРФ активен")
+        logger("Whisper", "INFO", f"Модель: {model} | Режим ОПРФ активен")
 
         self.model = WhisperModel(
             model,
@@ -68,9 +68,9 @@ class WhisperRecognition:
         self.max_chunk_samples = int(max_chunk_sec * self.sample_rate)
         self.amplify_factor = amplify_factor
 
-        BasicUtils.logger("Whisper", "INFO", "Загрузка Silero VAD...")
+        logger("Whisper", "INFO", "Загрузка Silero VAD...")
         self.vad_model = load_silero_vad()
-        BasicUtils.logger("Whisper", "INFO", "Silero VAD загружен")
+        logger("Whisper", "INFO", "Silero VAD загружен")
 
         self.recognizer = sr.Recognizer()
         self.recognizer.energy_threshold = 150   # ↓ стандарт 300 → тихий голос
@@ -103,7 +103,7 @@ class WhisperRecognition:
     def start_recognition(self):
         if self._stop_func is not None:
             return
-        BasicUtils.logger("Whisper", "INFO", "Микрофон включён (режим ОПРФ)")
+        logger("Whisper", "INFO", "Микрофон включён (режим ОПРФ)")
         mic = sr.Microphone(sample_rate=self.sample_rate)
         with mic as source:
             # Дольше калибруемся — голос может быть тихим или нестабильным
@@ -115,7 +115,7 @@ class WhisperRecognition:
             self._stop_func(wait_for_stop=False)
             self._stop_func = None
             self._cancel_flush_timer()
-            BasicUtils.logger("Whisper", "INFO", "Микрофон выключен")
+            logger("Whisper", "INFO", "Микрофон выключен")
 
     # ──────────────────────────────────────────────────────────────────
     # Пайплайн
@@ -139,7 +139,7 @@ class WhisperRecognition:
                     pass
                 self._audio_queue.put_nowait(audio_np)
         except Exception as e:
-            BasicUtils.logger("Whisper", "ERROR", f"Callback: {e}")
+            logger("Whisper", "ERROR", f"Callback: {e}")
 
     def _process_loop(self):
         """
@@ -161,7 +161,7 @@ class WhisperRecognition:
 
             # VAD: есть ли речь в фрагменте?
             if not self._vad_contains_speech(audio_np):
-                BasicUtils.logger("Whisper", "DEBUG", "VAD: речь не обнаружена")
+                logger("Whisper", "DEBUG", "VAD: речь не обнаружена")
                 with self._buffer_lock:
                     if self._buffer:
                         self._schedule_flush()
@@ -264,11 +264,11 @@ class WhisperRecognition:
             full_text = _postprocess(full_text)
 
             if full_text:
-                BasicUtils.logger("Whisper", "INFO", f"Распознано: {full_text}")
+                logger("Whisper", "INFO", f"Распознано: {full_text}")
                 global_signals.voice_message_recognized.emit(full_text)
 
         except Exception as e:
-            BasicUtils.logger("Whisper", "ERROR", f"Транскрипция: {e}")
+            logger("Whisper", "ERROR", f"Транскрипция: {e}")
 
 
 # ──────────────────────────────────────────────────────────────────────

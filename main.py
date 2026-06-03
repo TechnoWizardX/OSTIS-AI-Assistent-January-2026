@@ -1,4 +1,4 @@
-from src import AssistentCore
+from src.core.assistant import run_core
 
 if __name__ == "__main__":
-    AssistentCore.run_core()
+    run_core()

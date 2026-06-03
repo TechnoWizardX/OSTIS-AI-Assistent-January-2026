@@ -7,13 +7,15 @@ import win32con
 import psutil
 import webbrowser
 import pyautogui
-from src.utils.BasicUtils import BasicUtils, global_signals 
+from src.utils.BasicUtils import global_signals 
+from src.utils.config import get_settings_config_value, set_settings_config_value
+from src.utils.logger import logger
 import os
 import ctypes
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 import wmi
-CONFIG = BasicUtils.get_settings_config_value("Wifi")
+CONFIG = get_settings_config_value("Wifi")
 class ControlSystem:
     
     @staticmethod
@@ -24,9 +26,9 @@ class ControlSystem:
             if not url.startswith("http"):
                 url = "https://" + url
             webbrowser.open(url)
-            BasicUtils.logger("SystemControl", "INFO", f"Открыт сайт: {url}")
+            logger("SystemControl", "INFO", f"Открыт сайт: {url}")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при открытии сайта: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка при открытии сайта: {e}")
             global_signals.error_signal.emit(f"Не удалось открыть сайт")
 
     @staticmethod
@@ -34,9 +36,9 @@ class ControlSystem:
         """Отправляет команду закрытия текущей вкладки (Ctrl+W)"""
         try:
             pyautogui.hotkey('ctrl', 'w')
-            BasicUtils.logger("SystemControl", "INFO", f"Отправлена команда закрытия вкладки (Ctrl+W)")
+            logger("SystemControl", "INFO", f"Отправлена команда закрытия вкладки (Ctrl+W)")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при закрытии вкладки: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка при закрытии вкладки: {e}")
             global_signals.error_signal.emit(f"Не удалось закрыть вкладку")
     
     @staticmethod
@@ -45,9 +47,9 @@ class ControlSystem:
 
         try:
             sbc.set_brightness(level)
-            BasicUtils.logger("SystemControl", "INFO", f"Установлена яркость {level}")
+            logger("SystemControl", "INFO", f"Установлена яркость {level}")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при установке яркости: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка при установке яркости: {e}")
             global_signals.error_signal.emit(f"Не удалось установить яркость")  
     
     @staticmethod
@@ -68,9 +70,9 @@ class ControlSystem:
             for _ in range(int(level / 2)): # Поднимаем до нужного уровня
                 ctypes.windll.user32.SendMessageW(hwnd, WM_APPCOMMAND, hwnd, APPCOMMAND_VOLUME_UP * 0x10000)
 
-            BasicUtils.logger("SystemControl", "INFO", f"Громкость установлена на {level}%")
+            logger("SystemControl", "INFO", f"Громкость установлена на {level}%")
         except Exception as e:
-            BasicUtils.logger("SystemControl","ERROR", f"Ошибка громкости: {e}")
+            logger("SystemControl","ERROR", f"Ошибка громкости: {e}")
             global_signals.error_signal.emit(f"Не удалось установить громкость")
     
     @staticmethod
@@ -83,9 +85,9 @@ class ControlSystem:
         """Открывает приложение по имени"""
         try:
             AppOpener.open(app_name, output=False, match_closest=True, throw_error=False)
-            BasicUtils.logger("SystemControl", "INFO", f"Открыто приложение {app_name}")
+            logger("SystemControl", "INFO", f"Открыто приложение {app_name}")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при открытии приложения {app_name}: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка при открытии приложения {app_name}: {e}")
             global_signals.error_signal.emit(f"Не удалось открыть приложение")
 
     @staticmethod
@@ -93,9 +95,9 @@ class ControlSystem:
         """Закрывает приложение по имени"""
         try:
             AppOpener.close(app_name, output=False, match_closest=True, throw_error=False)
-            BasicUtils.logger("SystemControl", "INFO", f"Закрыто приложение {app_name}")
+            logger("SystemControl", "INFO", f"Закрыто приложение {app_name}")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при закрытии приложения {app_name}: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка при закрытии приложения {app_name}: {e}")
             global_signals.error_signal.emit(f"Не удалось закрыть приложение")
     
     @staticmethod
@@ -105,9 +107,9 @@ class ControlSystem:
             ControlSystem.close_application(app_name)
             time.sleep(2)  # Небольшая задержка для корректного закрытия
             ControlSystem.open_application(app_name)
-            BasicUtils.logger("SystemControl", "INFO", f"Перезагружено приложение {app_name}")
+            logger("SystemControl", "INFO", f"Перезагружено приложение {app_name}")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при перезагрузке приложения {app_name}: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка при перезагрузке приложения {app_name}: {e}")
             global_signals.error_signal.emit(f"Не удалось перезагрузить приложение")
 
     @staticmethod
@@ -124,10 +126,10 @@ class ControlSystem:
             # Извлекаем имя (например, 'chrome.exe') и убираем расширение
             app_name = process.name().replace(".exe", "").lower()
             
-            BasicUtils.logger("SystemControl", "INFO", f"Активное приложение определено: {app_name}")
+            logger("SystemControl", "INFO", f"Активное приложение определено: {app_name}")
             return app_name
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка при определении приложения: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка при определении приложения: {e}")
             return None
     
     @staticmethod
@@ -135,7 +137,7 @@ class ControlSystem:
         apps_dict = AppOpener.give_appnames()
     
         # Нам нужны только названия (ключи) для ассистента
-        BasicUtils.logger("SystemControl", "INFO", f"Запрошен список доступных приложений")
+        logger("SystemControl", "INFO", f"Запрошен список доступных приложений")
         return apps_dict
     
     @staticmethod
@@ -151,11 +153,11 @@ class ControlSystem:
             result = SHEmptyRecycleBin(None, None, 1 | 2 | 4)
             
             if result == 0:
-                BasicUtils.logger("SystemControl", "INFO", "Корзина успешно очищена")
+                logger("SystemControl", "INFO", "Корзина успешно очищена")
             else:
-                BasicUtils.logger("SystemControl", "INFO|ERROR", f"Корзина: код результата {result} (возможно, она уже пуста)")
+                logger("SystemControl", "INFO|ERROR", f"Корзина: код результата {result} (возможно, она уже пуста)")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка очистки корзины: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка очистки корзины: {e}")
             global_signals.error_signal.emit(f"Ну далось очистить корзину, возможно она уже пуста")
     
     @staticmethod
@@ -165,9 +167,9 @@ class ControlSystem:
             import subprocess
             # Команда для сна. Она безопасна и не требует админа.
             subprocess.run("rundll32.exe powrprof.dll,SetSuspendState 0,1,0", shell=True)
-            BasicUtils.logger("SystemControl", "INFO", "Система уходит в спящий режим")
+            logger("SystemControl", "INFO", "Система уходит в спящий режим")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка перехода в сон: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка перехода в сон: {e}")
             global_signals.error_signal.emit(f"Не удалось перевести компьютер в спящий режим")
 
     @staticmethod
@@ -177,9 +179,9 @@ class ControlSystem:
             import subprocess
             # /s - выключение, /t - время в секундах
             subprocess.run(f"shutdown /s /t {delay}", shell=True)
-            BasicUtils.logger("SystemControl", "INFO", f"Запланировано выключение через {delay} сек.")
+            logger("SystemControl", "INFO", f"Запланировано выключение через {delay} сек.")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка команды выключения: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка команды выключения: {e}")
 
     @staticmethod
     def cancel_shutdown():
@@ -187,9 +189,9 @@ class ControlSystem:
         try:
             import subprocess
             subprocess.run("shutdown /a", shell=True)
-            BasicUtils.logger("SystemControl", "INFO", "Выключение отменено")
+            logger("SystemControl", "INFO", "Выключение отменено")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "INFO|ERROR", "Нет запланированных выключений для отмены")
+            logger("SystemControl", "INFO|ERROR", "Нет запланированных выключений для отмены")
             global_signals.error_signal.emit(f"Нет запланированных выключений для отмены")
     
     @staticmethod
@@ -198,9 +200,9 @@ class ControlSystem:
         try:
             import subprocess
             subprocess.run(f"shutdown /r /t {delay}", shell=True)
-            BasicUtils.logger("SystemControl", "INFO", "Перезагрузка запланирована")
+            logger("SystemControl", "INFO", "Перезагрузка запланирована")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка команды перезагрузки: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка команды перезагрузки: {e}")
             global_signals.error_signal.emit(f"Ошибка перезагрузки")
 
     @staticmethod
@@ -210,17 +212,17 @@ class ControlSystem:
             import subprocess
             # Команда просто заставляет адаптер забыть текущую сеть
             current_ssid = ControlSystem.get_current_wifi_name()
-            BasicUtils.logger("SystemControl", f"Текущая Wi-Fi сеть: {current_ssid}")
+            logger("SystemControl", f"Текущая Wi-Fi сеть: {current_ssid}")
             if CONFIG.get("ssid") and current_ssid and current_ssid != CONFIG.get("ssid"):
-                BasicUtils.set_settings_config_value("Wifi", "ssid", current_ssid)
+                set_settings_config_value("Wifi", "ssid", current_ssid)
             result = subprocess.run("netsh wlan disconnect", shell=True, capture_output=True, text=True)
             
             if result.returncode == 0:
-                BasicUtils.logger("SystemControl", "Wi-Fi соединение успешно разорвано")
+                logger("SystemControl", "Wi-Fi соединение успешно разорвано")
             else:
-                BasicUtils.logger("SystemControl", f"Не удалось отключить Wi-Fi: {result.stderr}")
+                logger("SystemControl", f"Не удалось отключить Wi-Fi: {result.stderr}")
         except Exception as e:
-            BasicUtils.logger("SystemControl", f"Ошибка при попытке отключения: {e}")
+            logger("SystemControl", f"Ошибка при попытке отключения: {e}")
             global_signals.error_signal.emit(f"Не удалось отключиться от сети")
 
     @staticmethod
@@ -233,11 +235,11 @@ class ControlSystem:
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             
             if result.returncode == 0:
-                BasicUtils.logger("SystemControl", f"Попытка подключения к сети {ssid_name}")
+                logger("SystemControl", f"Попытка подключения к сети {ssid_name}")
             else:
-                BasicUtils.logger("SystemControl", f"Ошибка подключения: {result.stderr}")
+                logger("SystemControl", f"Ошибка подключения: {result.stderr}")
         except Exception as e:
-            BasicUtils.logger("SystemControl", f"Ошибка при попытке подключения: {e}")
+            logger("SystemControl", f"Ошибка при попытке подключения: {e}")
             global_signals.error_signal.emit(f"Не удалось подключиться к сети")
 
     @staticmethod
@@ -266,7 +268,7 @@ class ControlSystem:
             from AppOpener import open as open_app
 
             if target_app:
-                BasicUtils.logger("SystemControl", "INFO", f"Переключение на {target_app}")
+                logger("SystemControl", "INFO", f"Переключение на {target_app}")
                 open_app(target_app, match_closest=True)
                 time.sleep(0.7)
 
@@ -292,24 +294,24 @@ class ControlSystem:
                     time.sleep(0.1)
                     pyautogui.hotkey('ctrl', 'v')
                     
-                    BasicUtils.logger("SystemControl", "INFO", f"Текст успешно внедрен после '{target_word}'")
+                    logger("SystemControl", "INFO", f"Текст успешно внедрен после '{target_word}'")
                 else:
                     # Если слово не найдено, просто вставляем в конец или там, где курсор
-                    BasicUtils.logger("SystemControl", "WARNING", f"Слово '{target_word}' не найдено. Вставка в текущую позицию.")
+                    logger("SystemControl", "WARNING", f"Слово '{target_word}' не найдено. Вставка в текущую позицию.")
                     pyperclip.copy(text)
                     pyautogui.hotkey('ctrl', 'v')
             else:
                 # Простая вставка без поиска
                 pyperclip.copy(text)
                 pyautogui.hotkey('ctrl', 'v')
-                BasicUtils.logger("SystemControl", "INFO", "Выполнена обычная вставка текста.")
+                logger("SystemControl", "INFO", "Выполнена обычная вставка текста.")
 
             # 5. Восстанавливаем буфер пользователя (через паузу)
             time.sleep(0.5)
             pyperclip.copy(original_buffer)
 
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка вставки текста: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка вставки текста: {e}")
             global_signals.error_signal.emit(f"Ошибка вставки текста")
 
     @staticmethod
@@ -328,12 +330,12 @@ class ControlSystem:
             # Если прав нет, используем альтернативу через вызов быстрой панели:
             if not state:
                 # Пример логики: просто уведомляем, если не удалось применить через реестр
-                BasicUtils.logger("SystemControl", "INFO", "Отправлен запрос на изменение режима 'В самолете'")
+                logger("SystemControl", "INFO", "Отправлен запрос на изменение режима 'В самолете'")
             
             subprocess.run(cmd, shell=True, capture_output=True)
-            BasicUtils.logger("SystemControl", "INFO", f"Режим 'В самолете' установлен в: {state}")
+            logger("SystemControl", "INFO", f"Режим 'В самолете' установлен в: {state}")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка режима 'В самолете': {e}")
+            logger("SystemControl", "ERROR", f"Ошибка режима 'В самолете': {e}")
             global_signals.error_signal.emit("Не удалось переключить режим полета")
 
     @staticmethod
@@ -342,10 +344,10 @@ class ControlSystem:
         try:
             cpu = psutil.cpu_percent(interval=1)
             ram = psutil.virtual_memory().percent
-            BasicUtils.logger("SystemControl", "INFO", f"Статус ресурсов: CPU {cpu}%, RAM {ram}%")
+            logger("SystemControl", "INFO", f"Статус ресурсов: CPU {cpu}%, RAM {ram}%")
             return {"cpu": cpu, "ram": ram}
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка мониторинга ресурсов: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка мониторинга ресурсов: {e}")
             return None
 
     @staticmethod
@@ -353,9 +355,9 @@ class ControlSystem:
         """Сворачивает все окна (показывает рабочий стол)"""
         try:
             pyautogui.hotkey('win', 'm')
-            BasicUtils.logger("SystemControl", "INFO", "Все окна свёрнуты")
+            logger("SystemControl", "INFO", "Все окна свёрнуты")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка сворачивания: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка сворачивания: {e}")
 
     @staticmethod
     def toggle_always_on_top():
@@ -367,9 +369,9 @@ class ControlSystem:
                 win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0,0,0,0, win32con.SWP_NOMOVE|win32con.SWP_NOSIZE)
             else:
                 win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0,0,0,0, win32con.SWP_NOMOVE|win32con.SWP_NOSIZE)
-            BasicUtils.logger("SystemControl", "INFO", "Режим 'поверх окон' переключён")
+            logger("SystemControl", "INFO", "Режим 'поверх окон' переключён")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка переключения: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка переключения: {e}")
     
     @staticmethod
     def media_control(command: str):
@@ -382,7 +384,7 @@ class ControlSystem:
         }
         if command in commands:
             pyautogui.press(commands[command])
-            BasicUtils.logger("SystemControl", "INFO", f"Media command: {command}")
+            logger("SystemControl", "INFO", f"Media command: {command}")
 
     @staticmethod
     def _get_valid_path(folder_name: str):
@@ -415,9 +417,9 @@ class ControlSystem:
             target = ControlSystem._get_valid_path(folder_name)
             
             os.startfile(target)
-            BasicUtils.logger("SystemControl", "INFO", f"Открыта папка: {target}")
+            logger("SystemControl", "INFO", f"Открыта папка: {target}")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка открытия папки: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка открытия папки: {e}")
 
     @staticmethod
     def create_quick_note(content: str, filename: str = "note.txt"):
@@ -429,9 +431,9 @@ class ControlSystem:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
             
-            BasicUtils.logger("SystemControl", "INFO", f"Заметка создана: {file_path}")
+            logger("SystemControl", "INFO", f"Заметка создана: {file_path}")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка создания заметки: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка создания заметки: {e}")
 
     @staticmethod
     def get_windows_shell_path(folder_guid: str):
@@ -468,10 +470,10 @@ class ControlSystem:
             
             pyautogui.screenshot(full_path)
             
-            BasicUtils.logger("SystemControl", "INFO", f"Скриншот сохранен в системную папку: {full_path}")
+            logger("SystemControl", "INFO", f"Скриншот сохранен в системную папку: {full_path}")
             return full_path
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка скриншота: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка скриншота: {e}")
     @staticmethod
     def set_window_state(action: str):
         """
@@ -489,9 +491,9 @@ class ControlSystem:
             elif action == 'close':
                 win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
             
-            BasicUtils.logger("SystemControl", "INFO", f"Окно: выполнено действие {action}")
+            logger("SystemControl", "INFO", f"Окно: выполнено действие {action}")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка изменения состояния окна: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка изменения состояния окна: {e}")
 
     @staticmethod
     def snap_window(side: str = "left"):
@@ -513,9 +515,9 @@ class ControlSystem:
             elif side == 'right':
                 win32gui.MoveWindow(hwnd, work_area[0] + width, work_area[1], width, height, True)
                 
-            BasicUtils.logger("SystemControl", "INFO", f"Окно прижато к краю: {side}")
+            logger("SystemControl", "INFO", f"Окно прижато к краю: {side}")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка привязки окна: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка привязки окна: {e}")
 
     @staticmethod
     def set_window_transparency(alpha: int = 255):
@@ -529,9 +531,9 @@ class ControlSystem:
             
             ctypes.windll.user32.SetLayeredWindowAttributes(hwnd, 0, alpha, win32con.LWA_ALPHA)
             
-            BasicUtils.logger("SystemControl", "INFO", f"Прозрачность установлена на {alpha}")
+            logger("SystemControl", "INFO", f"Прозрачность установлена на {alpha}")
         except Exception as e:
-            BasicUtils.logger("SystemControl", "ERROR", f"Ошибка прозрачности: {e}")
+            logger("SystemControl", "ERROR", f"Ошибка прозрачности: {e}")
 
 if __name__ == "__main__":
     c = ControlSystem()

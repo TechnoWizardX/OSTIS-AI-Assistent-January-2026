@@ -10,25 +10,27 @@ VOICE_INPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'inter
 if VOICE_INPUT_DIR not in sys.path:
     sys.path.insert(0, VOICE_INPUT_DIR)
 import threading
+from src.utils.network import has_internet
 from src.utils.database import DataBaseEditor
 from src.utils.logger import logger
 from src.utils.config import load_settings_config, get_settings_config_value, set_settings_config_value, get_env_variable
 from src.utils.chat_history import add_message, clear_chat_history, load_chat_history, format_chat_history
 from src.utils.devices import get_available_cameras, get_available_microphones
-from src.utils.BasicUtils import global_signals, BasicUtils
-#import VoiceInput.WhisperRecognition as Whisper
-#from TTSSilero import SileroTTS
+from src.utils.BasicUtils import global_signals
+from src.utils.database import DataBaseEditor
+import src.audio.stt_engine as Whisper
+from src.audio.tts_engine import SileroTTS
 from src.core.network_monitor import NetworkChecker
 from src.core.llm_client import LocalModel
 from src.core.recommendation import AccessibilityRecommender, RecommendationParser, METHOD_LABELS
-#from IntentHandler import IntentHandler, IntentWorker
+from src.core.intent_handler import IntentHandler, IntentWorker
 from dotenv import load_dotenv
-#from SystemControl import ControlSystem
+from src.SystemControl import ControlSystem
 load_dotenv()
 DATABASE_EDITOR = DataBaseEditor()
-#WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
-#TTSSILERO_MODEL = SileroTTS()
-#INTENT_HANDLER = IntentHandler(online_model="poolside/laguna-xs.2:free", base_url="https://openrouter.ai/api/v1")
+WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
+TTSSILERO_MODEL = SileroTTS()
+INTENT_HANDLER = IntentHandler(online_model="poolside/laguna-xs.2:free", base_url="https://openrouter.ai/api/v1")
 
 class AssistentCore():
     def __init__(self, api_key: str = ""):
@@ -36,52 +38,52 @@ class AssistentCore():
         self.user_interface = UserInterface(api_key=api_key)
         self.settings_config = load_settings_config()
 
-        #self.network_checker = NetworkChecker()
-        #self.network_checker.connection_changed.connect(self._on_network_status)
-        #self.network_checker.start()
+        self.network_checker = NetworkChecker()
+        self.network_checker.connection_changed.connect(self._on_network_status)
+        self.network_checker.start()
 
         # Локальная модель
-        #self.local_model = LocalModel()
-        #self.active_model = self.local_model
-        #self.current_worker = None
+        self.local_model = LocalModel()
+        self.active_model = self.local_model
+        self.current_worker = None
 
         # Инициализация рекомендателя (рекомендации отправляются только в профиль)
-        #self.accessibility_advisor = AccessibilityRecommender()
+        self.accessibility_advisor = AccessibilityRecommender()
         # Подключаем сигнал рекомендателя к сигналу интерфейса для обновления профиля
         # accessibility_advisor передаёт (methods, text), recommendation_ready принимает то же
         # Форматируем текст рекомендации перед отправкой в интерфейс
-        # self.accessibility_advisor.recommendation_obtained.connect(
-        #     self._on_recommendation_obtained
-        # )
+        self.accessibility_advisor.recommendation_obtained.connect(
+             self._on_recommendation_obtained
+         )
 
         # Автозапуск при каждом сохранении профиля
-        # ui_signals.profile_updated.connect(lambda: self.accessibility_advisor.request_recommendation(0))
+        ui_signals.profile_updated.connect(lambda: self.accessibility_advisor.request_recommendation(0))
 
         # Отдельный сигнал для получения рекомендации при сохранении нарушений
-        # ui_signals.recommendation_requested.connect(lambda: self.accessibility_advisor.request_recommendation(0))
+        ui_signals.recommendation_requested.connect(lambda: self.accessibility_advisor.request_recommendation(0))
 
         # Флаг: были ли отредактированы нарушения перед получением рекомендации
         self._dysfunctions_edited = False
 
         self.recognition_model = self.settings_config.get("recognition_model", "auto")
 
-        #self.whisper_model = WHISPER_MODEL
+        self.whisper_model = WHISPER_MODEL
         self.tts_voice = get_settings_config_value("tts_voice")
-        #self.ttssilero_model = TTSSILERO_MODEL
+        self.ttssilero_model = TTSSILERO_MODEL
 
-        #self.intent_handler = INTENT_HANDLER
-        #self.intent_handler.start_ollama()
+        self.intent_handler = INTENT_HANDLER
+        self.intent_handler.start_ollama()
 
         # Подписка на сигналы интерфейса
-        # ui_signals.message_sent.connect(self.on_message_sent)
+        ui_signals.message_sent.connect(self.on_message_sent)
         ui_signals.settings_changed.connect(self.on_settings_changed)
         ui_signals.voice_input_changed.connect(self.on_voice_input_changed)
         global_signals.voice_message_recognized.connect(self.voice_text_recived_core)
-        # ui_signals.speaker_pressed.connect(self.text_to_speech)
-        # ui_signals.speaker_stop_request.connect(self.stop_speech)
+        ui_signals.speaker_pressed.connect(self.text_to_speech)
+        ui_signals.speaker_stop_request.connect(self.stop_speech)
         ui_signals.clear_history_requested.connect(self.clear_chat_history)
         global_signals.error_signal.connect(self.handle_error)
-        # ui_signals.openrouter_api_key_changed.connect(lambda key: self.intent_handler.update_api_key(key))
+        ui_signals.openrouter_api_key_changed.connect(lambda key: self.intent_handler.update_api_key(key))
         ui_signals.dysfunctions_saved.connect(self._on_dysfunctions_saved)
 
     def _on_network_status(self, online: bool):
@@ -96,27 +98,26 @@ class AssistentCore():
         self._dysfunctions_edited = True
         logger("AssistentCore", "INFO", "Нарушения отредактированы, следующая рекомендация будет озвучена")
 
-    # def _on_recommendation_obtained(self, methods: list, text: str):
-    #     """
-    #     Обработка полученной рекомендации.
-    #     """
-    #     # 1. Форматируем текст (замена RecommendationFormatter)
-    #     if methods:
-    #         readable_names = [METHOD_LABELS.get(m, m) for m in methods]
-    #         formatted_text = f"Рекомендуемые методы ввода: {', '.join(readable_names)}\n\n{text}"
-    #     else:
-    #         formatted_text = text
-    #
-    #     # 2. Отправляем в интерфейс
-    #     ui_signals.recommendation_ready.emit(methods, formatted_text)
-    #
-    #     # 3. Озвучка (ваша существующая логика)
-    #     tts_recommendation_always = get_settings_config_value("tts_recommendation_always")
-    #     if tts_recommendation_always and self._dysfunctions_edited:
-    #         logger("AssistentCore | Recommendation", "INFO", "Озвучивание рекомендации")
-    #         self.text_to_speech(formatted_text)
-    #
-    #     self._dysfunctions_edited = False
+    def _on_recommendation_obtained(self, methods: list, text: str):
+        """
+        Обработка полученной рекомендации.
+         """
+        # 1. Форматируем текст (замена RecommendationFormatter)
+        if methods:
+            readable_names = [METHOD_LABELS.get(m, m) for m in methods]
+            formatted_text = f"Рекомендуемые методы ввода: {', '.join(readable_names)}\n\n{text}"
+        else:
+            formatted_text = text
+
+        # 2. Отправляем в интерфейс
+        ui_signals.recommendation_ready.emit(methods, formatted_text)
+    
+        # 3. Озвучка (ваша существующая логика)
+        tts_recommendation_always = get_settings_config_value("tts_recommendation_always")
+        if tts_recommendation_always and self._dysfunctions_edited:
+            logger("AssistentCore | Recommendation", "INFO", "Озвучивание рекомендации")
+            self.text_to_speech(formatted_text)
+            self._dysfunctions_edited = False
 
     def handle_intent(self, intent_data: dict):
         """Обработка распознанного интента от IntentHandler и выполнение соответствующих действий"""
@@ -144,61 +145,61 @@ class AssistentCore():
             params = task.get("params", {})
             info = task.get("info", "")
             self.actions_mapping(function, params, info)
-    # def actions_mapping(self, function_name: str, params: dict, info: str):
-    #     """Здесь будет логика сопоставления имен функций к реальным функциям в коде"""
-    #     logger("CORE | ActionsMapping", "INFO", f"Вызов функции: {function_name} с параметрами: {params} и info: {info}")
-    #     methods = {
-    #         # 1. БРАУЗЕР
-    #         "open_site": lambda: ControlSystem.open_site(params.get("url", "")),
-    #         "close_current_tab": ControlSystem.close_current_tab,
-    #
-    #         # 2. ПРИЛОЖЕНИЯ И ОКНА
-    #         "open_application": lambda: ControlSystem.open_application(params.get("app_name", "")),
-    #         "close_application": lambda: ControlSystem.close_application(params.get("app_name", "")),
-    #         "reload_application": lambda: ControlSystem.reload_application(params.get("app_name", "")),
-    #         "minimize_all_windows": ControlSystem.minimize_all_windows,
-    #         "toggle_always_on_top": ControlSystem.toggle_always_on_top,
-    #         "set_window_state": lambda: ControlSystem.set_window_state(params.get("action", "restore")),
-    #         "set_window_transparency": lambda: ControlSystem.set_window_transparency(params.get("alpha", 255)),
-    #         "snap_window": lambda: ControlSystem.snap_window(params.get("side", "left")),
-    #
-    #         # 3. ПАРАМЕТРЫ СИСТЕМЫ
-    #         "set_brightness": lambda: ControlSystem.set_brightness(params.get("level", 50)),
-    #         "set_volume": lambda: ControlSystem.set_volume(params.get("level", 50)),
-    #
-    #         # 4. ПИТАНИЕ ПК
-    #         "os_sleep": ControlSystem.os_sleep,
-    #         "os_shutdown": lambda: ControlSystem.os_shutdown(params.get("delay", 60)),
-    #         "cancel_shutdown": ControlSystem.cancel_shutdown,
-    #         "os_restart": lambda: ControlSystem.os_restart(params.get("delay", 0)),
-    #
-    #         # 5. СЕРВИСНЫЕ
-    #         "insert_text": lambda: ControlSystem.insert_text(
-    #             params.get("text", ""),
-    #             params.get("target_word"),
-    #             params.get("target_app")
-    #         ),
-    #         "empty_recycle_bin": ControlSystem.empty_recycle_bin,
-    #         "get_system_stats": ControlSystem.get_system_stats,
-    #         "disconnect_wifi": ControlSystem.disconnect_wifi,
-    #         "connect_wifi": lambda: ControlSystem.connect_wifi(params.get("ssid_name")),
-    #         "set_airplane_mode": lambda: ControlSystem.set_airplane_mode(params.get("state", False)),
-    #         "create_quick_note": lambda: ControlSystem.create_quick_note(
-    #             params.get("content", ""),
-    #             params.get("filename", "note.txt")
-    #         ),
-    #         "open_directory": lambda: ControlSystem.open_directory(params.get("path_type", "desktop")),
-    #         "take_screenshot": lambda: ControlSystem.take_screenshot(params.get("name")),
-    #         "media_control": lambda: ControlSystem.media_control(params.get("action", "play"))
-    #     }
-    #     try:
-    #         if function_name in methods:
-    #             methods[function_name]()
-    #         else:
-    #             logger("CORE | ActionsMapping", "WARNING", f"Неизвестная функция: {function_name}")
-    #     except Exception as e:
-    #         logger("CORE | ActionsMapping", "ERROR", f"Ошибка при выполнении функции {function_name}: {e}")
-    #         global_signals.error_signal.emit(f"Не удалось выполнить функцию {function_name}: {e}")
+    def actions_mapping(self, function_name: str, params: dict, info: str):
+        """Здесь будет логика сопоставления имен функций к реальным функциям в коде"""
+        logger("CORE | ActionsMapping", "INFO", f"Вызов функции: {function_name} с параметрами: {params} и info: {info}")
+        methods = {
+            # 1. БРАУЗЕР
+            "open_site": lambda: ControlSystem.open_site(params.get("url", "")),
+            "close_current_tab": ControlSystem.close_current_tab,
+    
+            # 2. ПРИЛОЖЕНИЯ И ОКНА
+            "open_application": lambda: ControlSystem.open_application(params.get("app_name", "")),
+            "close_application": lambda: ControlSystem.close_application(params.get("app_name", "")),
+            "reload_application": lambda: ControlSystem.reload_application(params.get("app_name", "")),
+            "minimize_all_windows": ControlSystem.minimize_all_windows,
+            "toggle_always_on_top": ControlSystem.toggle_always_on_top,
+            "set_window_state": lambda: ControlSystem.set_window_state(params.get("action", "restore")),
+            "set_window_transparency": lambda: ControlSystem.set_window_transparency(params.get("alpha", 255)),
+            "snap_window": lambda: ControlSystem.snap_window(params.get("side", "left")),
+    
+            # 3. ПАРАМЕТРЫ СИСТЕМЫ
+            "set_brightness": lambda: ControlSystem.set_brightness(params.get("level", 50)),
+            "set_volume": lambda: ControlSystem.set_volume(params.get("level", 50)),
+    
+            # 4. ПИТАНИЕ ПК
+            "os_sleep": ControlSystem.os_sleep,
+            "os_shutdown": lambda: ControlSystem.os_shutdown(params.get("delay", 60)),
+            "cancel_shutdown": ControlSystem.cancel_shutdown,
+            "os_restart": lambda: ControlSystem.os_restart(params.get("delay", 0)),
+    
+            # 5. СЕРВИСНЫЕ
+            "insert_text": lambda: ControlSystem.insert_text(
+                params.get("text", ""),
+                params.get("target_word"),
+                params.get("target_app")
+            ),
+            "empty_recycle_bin": ControlSystem.empty_recycle_bin,
+            "get_system_stats": ControlSystem.get_system_stats,
+            "disconnect_wifi": ControlSystem.disconnect_wifi,
+            "connect_wifi": lambda: ControlSystem.connect_wifi(params.get("ssid_name")),
+            "set_airplane_mode": lambda: ControlSystem.set_airplane_mode(params.get("state", False)),
+            "create_quick_note": lambda: ControlSystem.create_quick_note(
+                params.get("content", ""),
+                params.get("filename", "note.txt")
+            ),
+            "open_directory": lambda: ControlSystem.open_directory(params.get("path_type", "desktop")),
+            "take_screenshot": lambda: ControlSystem.take_screenshot(params.get("name")),
+            "media_control": lambda: ControlSystem.media_control(params.get("action", "play"))
+        }
+        try:
+            if function_name in methods:
+                methods[function_name]()
+            else:
+                logger("CORE | ActionsMapping", "WARNING", f"Неизвестная функция: {function_name}")
+        except Exception as e:
+            logger("CORE | ActionsMapping", "ERROR", f"Ошибка при выполнении функции {function_name}: {e}")
+            global_signals.error_signal.emit(f"Не удалось выполнить функцию {function_name}: {e}")
 
     def send_ai_message(self, message: str):
         """Отправляет сообщение от AI в интерфейс с логированием"""
@@ -249,109 +250,108 @@ class AssistentCore():
 
     def control_whisper(self, new_status: bool):
         """Управление Whisper"""
-        # if new_status:
-        #     self.whisper_model.start_recognition()
-        # else:
-        #     self.whisper_model.stop_recognition()
+        if new_status:
+            self.whisper_model.start_recognition()
+        else:
+            self.whisper_model.stop_recognition()
         pass
 
-    # def text_to_speech(self, text: str):
-    #     """Преобразование текста в речь с выбором модели TTS в зависимости от настроек"""
-    #     if not text or not text.strip():
-    #         return
-    #
-    #     # Останавливаем предыдущее воспроизведение и сбрасываем все кнопки
-    #     self.stop_speech()
-    #
-    #     # Получаем настройки
-    #     tts_speed = get_settings_config_value("tts_speed")
-    #     tts_model = get_settings_config_value("tts_model")
-    #     tts_voice = get_settings_config_value("tts_voice")
-    #
-    #     # Словарь с доступными TTS моделями
-    #     tts_engines = {
-    #         "silero": self.ttssilero_model,
-    #         # тут могут быть другие модели по аналогии с silero
-    #     }
-    #
-    #     # Выбираем нужную модель или используем Silero по умолчанию
-    #     tts_engine = tts_engines.get(tts_model, self.ttssilero_model)
-    #
-    #     if tts_model != "silero" and tts_model not in tts_engines:
-    #         logger("CORE | TTS", "WARNING", f"Неизвестная модель TTS: {tts_model}, используем Silero")
-    #
-    #     logger("CORE | TTS", "INFO", f"TTS: модель={tts_model}, голос={tts_voice}, скорость={tts_speed}")
-    #
-    #     # Функция обратного вызова по окончании воспроизведения
-    #     def on_finished():
-    #         logger("CORE | TTS", "INFO", "Воспроизведение завершено")
-    #         ui_signals.speaker_finished.emit()
-    #
-    #     # Запускаем асинхронное воспроизведение с callback
-    #     if hasattr(tts_engine, 'speak_async'):
-    #         tts_engine.speak_async(text, tts_voice, tts_speed, callback=on_finished)
-    #     else:
-    #         # fallback на обычный speak (без callback)
-    #         tts_engine.speak(text, tts_voice, tts_speed)
-    #         # В этом случае кнопка не сбросится автоматически, но можно запустить таймер
-    #         logger("CORE | TTS", "WARNING", "Модель TTS не поддерживает speak_async, кнопка не сбросится автоматически")
+    def text_to_speech(self, text: str):
+        """Преобразование текста в речь с выбором модели TTS в зависимости от настроек"""
+        if not text or not text.strip():
+            return
+    
+        # Останавливаем предыдущее воспроизведение и сбрасываем все кнопки
+        self.stop_speech()
+    
+        # Получаем настройки
+        tts_speed = get_settings_config_value("tts_speed")
+        tts_model = get_settings_config_value("tts_model")
+        tts_voice = get_settings_config_value("tts_voice")
+    
+        # Словарь с доступными TTS моделями
+        tts_engines = {
+            "silero": self.ttssilero_model,
+            # тут могут быть другие модели по аналогии с silero
+        }
+    
+        # Выбираем нужную модель или используем Silero по умолчанию
+        tts_engine = tts_engines.get(tts_model, self.ttssilero_model)
+    
+        if tts_model != "silero" and tts_model not in tts_engines:
+            logger("CORE | TTS", "WARNING", f"Неизвестная модель TTS: {tts_model}, используем Silero")
+    
+        logger("CORE | TTS", "INFO", f"TTS: модель={tts_model}, голос={tts_voice}, скорость={tts_speed}")
+    
+        # Функция обратного вызова по окончании воспроизведения
+        def on_finished():
+            logger("CORE | TTS", "INFO", "Воспроизведение завершено")
+            ui_signals.speaker_finished.emit()
+    
+        # Запускаем асинхронное воспроизведение с callback
+        if hasattr(tts_engine, 'speak_async'):
+            tts_engine.speak_async(text, tts_voice, tts_speed, callback=on_finished)
+        else:
+            # fallback на обычный speak (без callback)
+            tts_engine.speak(text, tts_voice, tts_speed)
+            # В этом случае кнопка не сбросится автоматически, но можно запустить таймер
+            logger("CORE | TTS", "WARNING", "Модель TTS не поддерживает speak_async, кнопка не сбросится автоматически")
 
-    # def stop_speech(self):
-    #     """Останавливает текущее воспроизведение речи и сбрасывает кнопки."""
-    #     if hasattr(self.ttssilero_model, 'stop'):
-    #         self.ttssilero_model.stop()
-    #         logger("CORE | TTS", "INFO", "Воспроизведение остановлено пользователем")
-    #         # Сбрасываем все кнопки динамиков
-    #         ui_signals.speaker_stop_all.emit()
-    #     else:
-    #         logger("CORE | TTS", "WARNING", "Модель TTS не поддерживает остановку")
-    #    pass
+    def stop_speech(self):
+        """Останавливает текущее воспроизведение речи и сбрасывает кнопки."""
+        if hasattr(self.ttssilero_model, 'stop'):
+            self.ttssilero_model.stop()
+            logger("CORE | TTS", "INFO", "Воспроизведение остановлено пользователем")
+            # Сбрасываем все кнопки динамиков
+            ui_signals.speaker_stop_all.emit()
+        else:
+            logger("CORE | TTS", "WARNING", "Модель TTS не поддерживает остановку")
 
-    # def on_message_sent(self, sender: str = "Unknown", message: str = "No message"):
-    #     """Обработка сообщения пользователя: отправка в IntentHandler для анализа."""
-    #     if sender != "user" or message == "No message":
-    #         return
-    #
-    #     logger("CORE", "INFO", f"Пользователь: {message}")
-    #     raw_history = BasicUtils.load_chat_history()
-    #     formatted_history = BasicUtils.format_chat_history(raw_history, 10)
-    #
-    #     use_online = get_settings_config_value("use_online_model") and BasicUtils.has_internet()
-    #     if use_online:
-    #         logger("CORE", "INFO", "Использование облачного ИИ для обработки запроса")
-    #         if get_settings_config_value("allow_online_model_user_info"):
-    #             logger("CORE", "INFO", "Разрешён доступ облачному ИИ к персональным данным")
-    #             user_context = self.intent_handler.build_user_data(
-    #                 name=DATABASE_EDITOR.get_data("Users", "firstname", 0),
-    #                 birthday=DATABASE_EDITOR.get_data("Users", "birthday", 0),
-    #                 gender=DATABASE_EDITOR.get_data("Users", "gender", 0),
-    #                 chat_history=formatted_history,
-    #                 current_app=ControlSystem.get_active_app(),
-    #                 available_apps=ControlSystem.get_available_apps(),
-    #             )
-    #         else:
-    #             logger("CORE", "INFO", "Доступ облачному ИИ к персональным данным запрещён")
-    #             user_context = self.intent_handler.build_user_data(
-    #                 chat_history=formatted_history,
-    #                 current_app=ControlSystem.get_active_app(),
-    #                 available_apps=ControlSystem.get_available_apps(),
-    #             )
-    #     else:
-    #         logger("CORE", "INFO", "Использование локального ИИ для обработки запроса")
-    #         user_context = self.intent_handler.build_user_data(
-    #                 name=DATABASE_EDITOR.get_data("Users", "firstname", 0),
-    #                 birthday=DATABASE_EDITOR.get_data("Users", "birthday", 0),
-    #                 gender=DATABASE_EDITOR.get_data("Users", "gender", 0),
-    #                 chat_history=formatted_history,
-    #                 current_app=ControlSystem.get_active_app(),
-    #                 available_apps=ControlSystem.get_available_apps(),
-    #             )
-    #     self.ai_thread = IntentWorker(handler=self.intent_handler, user_text=message, user_data=user_context, use_online = use_online)
-    #
-    #     self.ai_thread.finished.connect(self.handle_ai_result)
-    #     self.ai_thread.error.connect(self.handle_error)
-    #     self.ai_thread.start()
-    #     ui_signals.typing_started.emit()
+    def on_message_sent(self, sender: str = "Unknown", message: str = "No message"):
+        """Обработка сообщения пользователя: отправка в IntentHandler для анализа."""
+        if sender != "user" or message == "No message":
+            return
+    
+        logger("CORE", "INFO", f"Пользователь: {message}")
+        raw_history = load_chat_history()
+        formatted_history = format_chat_history(raw_history, 10)
+    
+        use_online = get_settings_config_value("use_online_model") and has_internet()
+        if use_online:
+            logger("CORE", "INFO", "Использование облачного ИИ для обработки запроса")
+            if get_settings_config_value("allow_online_model_user_info"):
+                logger("CORE", "INFO", "Разрешён доступ облачному ИИ к персональным данным")
+                user_context = self.intent_handler.build_user_data(
+                    name=DATABASE_EDITOR.get_data("Users", "firstname", 0),
+                    birthday=DATABASE_EDITOR.get_data("Users", "birthday", 0),
+                    gender=DATABASE_EDITOR.get_data("Users", "gender", 0),
+                    chat_history=formatted_history,
+                    current_app=ControlSystem.get_active_app(),
+                    available_apps=ControlSystem.get_available_apps(),
+                )
+            else:
+                logger("CORE", "INFO", "Доступ облачному ИИ к персональным данным запрещён")
+                user_context = self.intent_handler.build_user_data(
+                    chat_history=formatted_history,
+                    current_app=ControlSystem.get_active_app(),
+                    available_apps=ControlSystem.get_available_apps(),
+                )
+        else:
+            logger("CORE", "INFO", "Использование локального ИИ для обработки запроса")
+            user_context = self.intent_handler.build_user_data(
+                    name=DATABASE_EDITOR.get_data("Users", "firstname", 0),
+                    birthday=DATABASE_EDITOR.get_data("Users", "birthday", 0),
+                    gender=DATABASE_EDITOR.get_data("Users", "gender", 0),
+                    chat_history=formatted_history,
+                    current_app=ControlSystem.get_active_app(),
+                    available_apps=ControlSystem.get_available_apps(),
+                )
+        self.ai_thread = IntentWorker(handler=self.intent_handler, user_text=message, user_data=user_context, use_online = use_online)
+    
+        self.ai_thread.finished.connect(self.handle_ai_result)
+        self.ai_thread.error.connect(self.handle_error)
+        self.ai_thread.start()
+        ui_signals.typing_started.emit()
 
     def handle_ai_result(self, result):
         """Метод-обработчик успешного ответа"""
