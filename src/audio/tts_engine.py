@@ -180,16 +180,46 @@ class SileroTTS:
 
         model_path = MODELS_DIR / "model.pt"
         if not model_path.exists():
-            self._log_status(f"Скачивание модели {MODEL_ID}...")
-            import urllib.request
-            urllib.request.urlretrieve(MODEL_URL, model_path)
-            self._log_status("Модель успешно скачана.")
+            self._download_model_with_progress(model_path)
+        else:
+            self._log_status(f"Загрузка модели из {model_path}...")
 
-        self._log_status(f"Загрузка модели из {model_path}...")
         # Загружаем модель через torch.package (способ Silero)
         self._model = torch.package.PackageImporter(str(model_path)).load_pickle("tts_models", "model")
         self._model.to(self.device)
         self._log_status(f"Модель загружена на {self.device}")
+
+    def _download_model_with_progress(self, model_path: Path):
+        """Скачивает модель с отображением прогресса в логах."""
+        import urllib.request
+        import sys
+
+        self._log_status(f"Скачивание модели {MODEL_ID}...")
+        
+        # Создаём директорию если не существует
+        model_path.parent.mkdir(parents=True, exist_ok=True)
+
+        def reporthook(blocknum, blocksize, totalsize):
+            """Callback для отображения прогресса скачивания в одной строке."""
+            read = blocknum * blocksize
+            if totalsize > 0:
+                percent = min(100, (read * 100) // totalsize)
+                # Бегущая строка прогресса
+                bar_width = 30
+                filled = int(bar_width * percent / 100)
+                bar = "█" * filled + "░" * (bar_width - filled)
+                # Анимация вращения
+                spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"][blocknum % 10]
+                status = f"\r{spinner} [{bar}] {percent}% ({read / 1024 / 1024:.1f} МБ / {totalsize / 1024 / 1024:.1f} МБ)"
+                # Вывод в одну строку с возвратом каретки
+                sys.stdout.write(status)
+                sys.stdout.flush()
+
+        urllib.request.urlretrieve(MODEL_URL, model_path, reporthook=reporthook)
+        # Перевод строки после завершения
+        sys.stdout.write("\r✓ Модель успешно скачана.\n")
+        sys.stdout.flush()
+        self._log_status("Модель загружена.")
     # ============================================================
     # ВОРКЕР ОЧЕРЕДИ
     # ============================================================
