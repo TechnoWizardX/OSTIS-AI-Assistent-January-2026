@@ -44,15 +44,20 @@ class IntentHandler:
         logger("IntentHandler", "INFO", f"Инициализирован с моделью: {self.offline_model}")
     
     def _load_prompt(self, path="data/basic_prompt.md") -> str:
-        
+        path = Path(path)
+        path.parent.mkdir(exist_ok=True)
+
+        if not path.exists():
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(RESERVE_PROMPT)
+            logger("IntentHandler", "WARNING", f"Файл с промптом не найден, создан базовый: {path}")
+            return RESERVE_PROMPT
+
         try:
             with open(path, "r", encoding="utf-8") as f:
-                prompt =  f.read()
+                prompt = f.read()
             logger("IntentHandler", "INFO", f"Промпт загружен из {path}")
-            return prompt
-        except FileNotFoundError:
-            logger("IntentHandler", "ERROR", f"Файл с промптом не найден: {path}")
-            return RESERVE_PROMPT
+            return prompt or RESERVE_PROMPT
         except Exception as e:
             logger("IntentHandler", "ERROR", f"Ошибка чтения промпта: {e}")
             return RESERVE_PROMPT

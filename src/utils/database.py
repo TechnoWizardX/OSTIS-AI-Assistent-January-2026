@@ -4,6 +4,8 @@ from .logger import logger
 from pathlib import Path
 
 DATABASE_FILE = Path(__file__).parent / "data" / "database.db"
+DATABASE_FILE.parent.mkdir(exist_ok=True)
+
 class DataBaseEditor():
     def __init__(self):
         self._open_connection()

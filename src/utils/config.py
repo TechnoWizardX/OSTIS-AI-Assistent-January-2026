@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from pathlib import Path
 import os
 from dotenv import load_dotenv
@@ -51,23 +52,47 @@ DEFAULT_SETTINGS_CONFIG = {
     "auto_tts": False
 }
 
-def load_settings_config() -> dict:
-    """Загружает настройки из settings_config.json. Если файла нет, создаёт с дефолтными значениями."""
-    if SETTINGS_CONFIG_FILE.exists():
-        with open(SETTINGS_CONFIG_FILE, "r", encoding="utf-8") as file:
-            settings_config = json.load(file)
-            # Дополняем отсутствующие ключи дефолтными значениями
-            for key, value in DEFAULT_SETTINGS_CONFIG.items():
-                if key not in settings_config:
-                    settings_config[key] = value
-            return settings_config
-    return DEFAULT_SETTINGS_CONFIG.copy()
+def _default_settings_config() -> dict:
+    return deepcopy(DEFAULT_SETTINGS_CONFIG)
 
 
 def save_settings_config(settings_config: dict) -> None:
     """Сохраняет настройки в settings_config.json."""
+    SETTINGS_CONFIG_FILE.parent.mkdir(exist_ok=True)
     with open(SETTINGS_CONFIG_FILE, "w", encoding="utf-8") as file:
         json.dump(settings_config, file, ensure_ascii=False, indent=4)
+
+
+def load_settings_config() -> dict:
+    """Загружает настройки из settings_config.json. Если файла нет или JSON повреждён, создаёт дефолтный файл."""
+    if not SETTINGS_CONFIG_FILE.exists():
+        settings_config = _default_settings_config()
+        save_settings_config(settings_config)
+        return settings_config
+
+    try:
+        with open(SETTINGS_CONFIG_FILE, "r", encoding="utf-8") as file:
+            settings_config = json.load(file)
+    except (json.JSONDecodeError, OSError):
+        settings_config = _default_settings_config()
+        save_settings_config(settings_config)
+        return settings_config
+
+    if not isinstance(settings_config, dict):
+        settings_config = _default_settings_config()
+        save_settings_config(settings_config)
+        return settings_config
+
+    changed = False
+    for key, value in DEFAULT_SETTINGS_CONFIG.items():
+        if key not in settings_config:
+            settings_config[key] = deepcopy(value)
+            changed = True
+
+    if changed:
+        save_settings_config(settings_config)
+
+    return settings_config
 
 
 def get_settings_config_value(key: str):

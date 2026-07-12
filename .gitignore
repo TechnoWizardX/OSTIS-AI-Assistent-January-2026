@@ -1,38 +1,72 @@
-.idea
-.vscode
-cmake-build-*
-/build
-/bin
-/logs
-/install
-/ConanPresets.json
+# OS / editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
 
+# Python cache / bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
-
-.env
-
-
-
-pycache
-.venv
-__pycache__
-interface/data/accessibility_cache.json
-interface/data/database.db
+# Virtual environments
+.venv/
 .venv_mp/
-*.pyc
-*.pyo
-*.pyd
-env/
 venv/
-.qwen
-.memory
-/memory
-.voice-model
-interface/data/chat_history.json
+env/
+ENV/
 
-voice-model/
-QWEN.md
-problem-solver/samples/GesturesInput/models/hand_landmarker.task
-snakers4_silero-models_master
+# Build / packaging artifacts
+build/
+dist/
+install/
+bin/
+*.egg-info/
+.eggs/
+cmake-build-*/
+ConanPresets.json
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Local assistant/tool state
+.qwen/
+.memory/
+memory/
 trusted_list
+QWEN.md
+
+# Runtime application data
+*.db
+*.sqlite
+*.sqlite3
+src/data/
+src/utils/data/
+interface/data/
+interface/.env
+
+# Downloaded ML models / large external assets
 models/
+voice-model/
+.voice-model/
+snakers4_silero-models_master/
+src/GesturesInput/models/
+interface/GesturesInput/models/
+problem-solver/samples/GesturesInput/models/hand_landmarker.task
+
+# Legacy/local copies outside src
+interface/

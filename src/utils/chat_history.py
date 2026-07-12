@@ -7,10 +7,17 @@ CHAT_FILE.parent.mkdir(exist_ok=True)
 
 
 def load_chat_history() -> list:
-    if CHAT_FILE.exists():
+    if not CHAT_FILE.exists():
+        save_chat_history([])
+        return []
+
+    try:
         with open(CHAT_FILE, "r", encoding="utf-8") as file:
-            return json.load(file)
-    return []
+            history = json.load(file)
+            return history if isinstance(history, list) else []
+    except (json.JSONDecodeError, OSError):
+        save_chat_history([])
+        return []
 
 def format_chat_history(history_list: list, limit: int = 5) -> str:
     """Превращает список словарей в строку: 'Автор: Текст'"""
@@ -24,6 +31,7 @@ def format_chat_history(history_list: list, limit: int = 5) -> str:
     return "\n".join(lines) if lines else "История пуста"
 
 def save_chat_history(chat_history) -> None:
+    CHAT_FILE.parent.mkdir(exist_ok=True)
     with open(CHAT_FILE, "w", encoding="utf-8") as file:
         json.dump(chat_history, file, ensure_ascii=False, indent=4)
 

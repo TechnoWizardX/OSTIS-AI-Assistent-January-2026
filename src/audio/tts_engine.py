@@ -10,7 +10,7 @@ Silero TTS v5 — обёртка для синтеза речи на русск�
 Модели хранятся локально в папке проекта ./models/silero/
 
 Пример:
-    from TTSSilero import SileroTTS
+    from src.audio.tts_engine import SileroTTS
     tts = SileroTTS(voice="xenia", quality="high")
     tts.speak("Очень длинный текст...")  # автоматически разобьётся на части
 

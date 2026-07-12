@@ -39,6 +39,31 @@ METHOD_LABELS: dict[str, str] = {
 }
 
 _FALLBACK_SYSTEM_PROMPT = "Ты помощник по доступности. Предложи методы ввода для: "
+_DEFAULT_RECOMMENDATION_PROMPT = """Ты помощник по доступности.
+Предложи подходящие методы взаимодействия только из списка: voice, gesture, text, tts.
+Ответь строго в формате:
+METHODS: voice,gesture,text,tts
+TEXT: краткое объяснение на русском
+"""
+
+
+def _ensure_data_dir() -> None:
+    os.makedirs(_DATA_DIR, exist_ok=True)
+
+
+def _ensure_text_file(path: str, default_content: str) -> str:
+    _ensure_data_dir()
+    if not os.path.exists(path):
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(default_content)
+        return default_content
+
+    try:
+        with open(path, encoding="utf-8") as fh:
+            content = fh.read()
+            return content or default_content
+    except OSError:
+        return default_content
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +119,7 @@ class RecommendationCache:
     def __init__(self, path: str = CACHE_PATH, ttl_hours: int = 2):
         self._path = path
         self._ttl  = timedelta(hours=ttl_hours)
+        _ensure_data_dir()
         self._data = self._load()
 
     # ------------------------------------------------------------------
@@ -124,13 +150,22 @@ class RecommendationCache:
         return hashlib.sha256(diagnosis.strip().lower().encode()).hexdigest()
 
     def _load(self) -> dict:
-        if os.path.exists(self._path):
-            try:
-                with open(self._path, encoding="utf-8") as fh:
-                    return json.load(fh)
-            except (json.JSONDecodeError, OSError):
-                pass
-        return {}
+        if not os.path.exists(self._path):
+            self._write_empty_cache()
+            return {}
+
+        try:
+            with open(self._path, encoding="utf-8") as fh:
+                data = json.load(fh)
+                return data if isinstance(data, dict) else {}
+        except (json.JSONDecodeError, OSError):
+            self._write_empty_cache()
+            return {}
+
+    def _write_empty_cache(self) -> None:
+        os.makedirs(os.path.dirname(self._path), exist_ok=True)
+        with open(self._path, "w", encoding="utf-8") as fh:
+            json.dump({}, fh, ensure_ascii=False, indent=2)
 
 
 # ---------------------------------------------------------------------------
@@ -230,13 +265,10 @@ class AccessibilityRecommender(QObject):
         model      = self._online_model if use_online else self._offline_model
 
         # 4. Загружаем системный промпт
-        sys_prompt = _FALLBACK_SYSTEM_PROMPT
-        try:
-            with open(PROMPT_PATH, encoding="utf-8") as fh:
-                sys_prompt = fh.read()
-        except OSError:
+        sys_prompt = _ensure_text_file(PROMPT_PATH, _DEFAULT_RECOMMENDATION_PROMPT)
+        if sys_prompt == _DEFAULT_RECOMMENDATION_PROMPT:
             logger("Recommender", "WARNING",
-                   f"Не удалось прочитать {PROMPT_PATH}, используется встроенный промпт")
+                   f"Используется базовый промпт рекомендаций: {PROMPT_PATH}")
 
         user_prompt = f"Особенности здоровья: {diag}. Предложи лучшие методы взаимодействия."
 
