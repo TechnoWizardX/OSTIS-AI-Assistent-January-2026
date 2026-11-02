@@ -1,30 +1,29 @@
-from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QStackedWidget, QButtonGroup, QMessageBox, QSplitter
-)
-from PyQt6.QtCore import Qt, QSize, QTimer
 import sys
-from src.utils.database import DataBaseEditor
-from src.utils.config import load_settings_config, set_settings_config_value, get_settings_config_value
-from src.utils.logger import logger
-from .signals import ui_signals
-# Базовый путь для иконок
-from .widgets.glow_effects import RecommendationGlowEffect 
 
-from .pages.gestures_page import GesturesPage
-from .pages.voice_page import VoicePage
-from .pages.text_page import TextPage
-from .pages.settings_page import SettingsPage
-from .pages.profile_page import ProfilePage
+from PyQt6.QtCore import QSize, Qt, QTimer
+from PyQt6.QtWidgets import (QApplication, QButtonGroup, QHBoxLayout,
+                             QMainWindow, QMessageBox, QPushButton, QSplitter,
+                             QStackedWidget, QVBoxLayout, QWidget)
+
+from src.gui.pages.gestures_page import GesturesPage
+from src.gui.pages.profile_page import ProfilePage
+from src.gui.pages.settings_page import SettingsPage
+from src.gui.pages.text_page import TextPage
+from src.gui.pages.voice_page import VoicePage
+from src.gui.signals import ui_signals
+from src.gui.widgets.glow_effects import RecommendationGlowEffect
+from src.utils.config import (get_settings_config_value, load_settings_config,
+                              set_settings_config_value)
+from src.utils.database import DataBaseEditor
+from src.utils.icons import set_theme_icon
+from src.utils.logger import logger
+from src.utils.theme_manager import ThemeManager
+
 DATABASE_EDITOR = DataBaseEditor()
 
 CONFIG = load_settings_config()
 SELECTED_THEME = CONFIG.get("theme") or "light"
 RECOGNITION_MODEL = CONFIG.get("recognition_model")
-
-from src.utils.icons import set_theme_icon
-from src.utils.theme_manager import ThemeManager
-
 
 """
 ====================================================

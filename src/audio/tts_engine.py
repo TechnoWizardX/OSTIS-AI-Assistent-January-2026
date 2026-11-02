@@ -23,19 +23,20 @@ Silero TTS v5 — обёртка для синтеза речи на русск�
 - stop() стал thread-safe через Queue.mutex
 - Паузы между чанками динамические (зависят от последнего знака препинания)
 """
-from src.utils.logger import logger
 import os
+import re
 import threading
 import time
-import re
-from pathlib import Path
-from typing import Optional, Callable, List, Dict
 from collections import OrderedDict
-from queue import Queue, Empty
+from pathlib import Path
+from queue import Empty, Queue
+from typing import Callable, Dict, List, Optional
 
-import torch
-import sounddevice as sd
 import numpy as np
+import sounddevice as sd
+import torch
+
+from src.utils.logger import logger
 
 # ============================================================
 # КОНФИГУРАЦИЯ
@@ -191,8 +192,8 @@ class SileroTTS:
 
     def _download_model_with_progress(self, model_path: Path):
         """Скачивает модель с отображением прогресса в логах."""
-        import urllib.request
         import sys
+        import urllib.request
 
         self._log_status(f"Скачивание модели {MODEL_ID}...")
         

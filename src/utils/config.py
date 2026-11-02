@@ -1,8 +1,10 @@
 import json
+import os
 from copy import deepcopy
 from pathlib import Path
-import os
+
 from dotenv import load_dotenv
+
 SETTINGS_CONFIG_FILE = Path(__file__).parent / "data" / "settings_config.json"
 SETTINGS_CONFIG_FILE.parent.mkdir(exist_ok=True)
 

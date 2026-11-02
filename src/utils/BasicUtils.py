@@ -1,6 +1,9 @@
-from pathlib import Path
-from PyQt6.QtCore import pyqtSignal, QObject
 import socket
+from pathlib import Path
+
+from PyQt6.QtCore import QObject, pyqtSignal
+
+
 class Signals(QObject):
     voice_message_recognized = pyqtSignal(str)
     error_signal = pyqtSignal(str)

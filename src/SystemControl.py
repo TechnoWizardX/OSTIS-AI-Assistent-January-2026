@@ -1,17 +1,21 @@
-import screen_brightness_control as sbc
-import AppOpener 
+import ctypes
+import os
 import time
+import webbrowser
+
+import AppOpener
+import psutil
+import pyautogui
+import screen_brightness_control as sbc
+import win32con
 import win32gui
 import win32process
-import win32con
-import psutil
-import webbrowser
-import pyautogui
-from src.utils.BasicUtils import global_signals 
-from src.utils.config import get_settings_config_value, set_settings_config_value
+
+from src.utils.BasicUtils import global_signals
+from src.utils.config import (get_settings_config_value,
+                              set_settings_config_value)
 from src.utils.logger import logger
-import os
-import ctypes
+
 CONFIG = get_settings_config_value("Wifi")
 class ControlSystem:
     
@@ -162,6 +166,7 @@ class ControlSystem:
         """Перевод системы в спящий режим"""
         try:
             import subprocess
+
             # Команда для сна. Она безопасна и не требует админа.
             subprocess.run("rundll32.exe powrprof.dll,SetSuspendState 0,1,0", shell=True)
             logger("SystemControl", "INFO", "Система уходит в спящий режим")
@@ -174,6 +179,7 @@ class ControlSystem:
         """Выключение ПК с задержкой"""
         try:
             import subprocess
+
             # /s - выключение, /t - время в секундах
             subprocess.run(f"shutdown /s /t {delay}", shell=True)
             logger("SystemControl", "INFO", f"Запланировано выключение через {delay} сек.")
@@ -207,6 +213,7 @@ class ControlSystem:
         """Разрывает соединение с текущей Wi-Fi сетью (Админ НЕ нужен)"""
         try:
             import subprocess
+
             # Команда просто заставляет адаптер забыть текущую сеть
             current_ssid = ControlSystem.get_current_wifi_name()
             logger("SystemControl", f"Текущая Wi-Fi сеть: {current_ssid}")
@@ -227,6 +234,7 @@ class ControlSystem:
         """Подключается к сохраненной Wi-Fi сети по её имени (SSID)"""
         try:
             import subprocess
+
             # ssid_name — это название твоего Wi-Fi (например, "MyHome_5G")
             cmd = f'netsh wlan connect name="{ssid_name}"'
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
@@ -243,8 +251,8 @@ class ControlSystem:
     def get_current_wifi_name():
         """Возвращает название текущей Wi-Fi сети"""
         try:
-            import subprocess
             import re
+            import subprocess
             data = subprocess.check_output('netsh wlan show interfaces', shell=True).decode('cp866')
             ssid = re.search(r'SSID\s+:\s(.+)', data)
             if ssid:
@@ -259,9 +267,10 @@ class ControlSystem:
         Вставка: забирает весь текст, обрабатывает в Python и вставляет обратно.
         """
         try:
-            import pyperclip
-            import pyautogui
             import time
+
+            import pyautogui
+            import pyperclip
             from AppOpener import open as open_app
 
             if target_app:

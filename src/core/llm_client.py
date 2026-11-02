@@ -1,8 +1,11 @@
 import os
+from typing import List, Union
+
 import requests
-from typing import Union, List
-print(__file__) 
+
 from src.utils.logger import logger
+
+print(__file__)
 
 # ---------------------------------------------------------------------------
 # Типы

@@ -4,15 +4,18 @@
 Архитектура: GestureProcessor + GestureCameraThread для PyQt интерфейса.
 """
 
-import cv2
-import mediapipe as mp
-import math
-import numpy as np
-import sys
 import json
+import math
 import os
+import sys
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
+
+import cv2
+import mediapipe as mp
+import numpy as np
+from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtGui import QImage
 
 try:
     import screen_brightness_control as sbc
@@ -31,9 +34,6 @@ try:
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
-
-from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtGui import QImage
 
 print(sys.executable)
 

@@ -1,9 +1,11 @@
-from PyQt6.QtWidgets import (QVBoxLayout,QSplitter
-)
 from PyQt6.QtCore import Qt
-from .base_page import ContentPageWidget
-from ..widgets.chat_dialog import DialogBox
-from ..widgets.chat_send_box import ChatSendBox
+from PyQt6.QtWidgets import QSplitter, QVBoxLayout
+
+from src.gui.pages.base_page import ContentPageWidget
+from src.gui.widgets.chat_dialog import DialogBox
+from src.gui.widgets.chat_send_box import ChatSendBox
+
+
 class BaseInputPage(ContentPageWidget):
     def __init__(self):
         super().__init__()

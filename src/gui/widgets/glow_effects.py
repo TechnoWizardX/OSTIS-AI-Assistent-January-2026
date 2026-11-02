@@ -1,10 +1,11 @@
-from PyQt6.QtWidgets import (
-    QWidget, QPushButton, QGraphicsDropShadowEffect
-)
+import math
+
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen
+from PyQt6.QtWidgets import QGraphicsDropShadowEffect, QPushButton, QWidget
+
 from src.utils.theme_manager import ThemeManager
-import math
+
 
 class RunningLineOverlay(QWidget):
     """

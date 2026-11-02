@@ -1,7 +1,8 @@
-import sqlite3
 import re
-from .logger import logger
+import sqlite3
 from pathlib import Path
+
+from src.utils.logger import logger
 
 DATABASE_FILE = Path(__file__).parent / "data" / "database.db"
 DATABASE_FILE.parent.mkdir(exist_ok=True)

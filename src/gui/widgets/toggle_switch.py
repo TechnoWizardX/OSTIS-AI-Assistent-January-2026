@@ -1,12 +1,11 @@
-from PyQt6.QtWidgets import (
-    QWidget, QHBoxLayout,
-    QLabel, QFrame
-)
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QRectF
+from PyQt6.QtCore import QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPainterPath
-from src.utils.config import load_settings_config, set_settings_config_value
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
+
 from src.gui.signals import ui_signals
+from src.utils.config import load_settings_config, set_settings_config_value
 from src.utils.theme_manager import ThemeManager
+
 
 class ToggleSwitch(QWidget):
     """Красивый переключатель с плавной анимацией"""

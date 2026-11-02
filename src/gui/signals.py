@@ -1,4 +1,6 @@
 from PyQt6.QtCore import QObject, pyqtSignal
+
+
 class Signals(QObject):
     settings_changed = pyqtSignal(dict)
     camera_selected = pyqtSignal(str)

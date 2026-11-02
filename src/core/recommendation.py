@@ -8,21 +8,22 @@
     METHOD_LABELS              — человекочитаемые названия методов
 """
 
-import os
-import json
 import hashlib
+import json
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import List, Optional
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
-from src.utils.logger    import logger
-from src.utils.config    import get_settings_config_value
-from src.utils.database  import DataBaseEditor
-from src.utils.network   import has_internet          # тонкая обёртка над BasicUtils.has_internet
-from src.core.llm_client import MedicalAPI, LocalModel
+from src.core.llm_client import LocalModel, MedicalAPI
+from src.utils.config import get_settings_config_value
+from src.utils.database import DataBaseEditor
+from src.utils.logger import logger
+from src.utils.network import \
+    has_internet  # тонкая обёртка над BasicUtils.has_internet
 
 # ---------------------------------------------------------------------------
 # Пути и константы

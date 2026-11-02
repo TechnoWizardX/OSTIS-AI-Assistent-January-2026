@@ -1,11 +1,12 @@
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QFrame, QScrollArea
-)
 from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QFrame, QScrollArea, QVBoxLayout, QWidget
+
 from src.gui.signals import ui_signals
-from src.gui.widgets.typing_indicator import TypingIndicator
 from src.gui.widgets.message_item import Message
+from src.gui.widgets.typing_indicator import TypingIndicator
 from src.utils.chat_history import load_chat_history
+
+
 class DialogBox(QWidget):
     """Чат (здесь отображаются сообщения)"""
     def __init__(self):

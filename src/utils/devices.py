@@ -1,5 +1,7 @@
-from PyQt6.QtMultimedia import QMediaDevices
 import cv2
+from PyQt6.QtMultimedia import QMediaDevices
+
+
 def get_available_cameras() -> list:
     cameras = []
     index = 0

@@ -1,5 +1,6 @@
-from datetime import datetime
 import sys
+from datetime import datetime
+
 
 def logger(object: str, type: str = "INFO", message: str = "") -> None:
     date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

@@ -1,5 +1,7 @@
-from .base_input_page import BaseInputPage
+from src.gui.pages.base_input_page import BaseInputPage
 from src.utils.icons import set_theme_icon
+
+
 class TextPage(BaseInputPage):
     def __init__(self):
         super().__init__()

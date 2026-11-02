@@ -1,12 +1,13 @@
-from PyQt6.QtWidgets import ( QVBoxLayout, QHBoxLayout,
-    QLabel, QFrame, QSizePolicy
-)
 from PyQt6.QtCore import Qt, QTimer
-from .base_page import ContentPageWidget
-from src.utils.icons import set_theme_icon, set_theme_pixmap
+from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QSizePolicy,
+                             QVBoxLayout)
+
+from src.gui.pages.base_page import ContentPageWidget
 from src.gui.signals import ui_signals
-from src.gui.widgets.options import ProfileOption, DysfunctionsProfileOption, RecommendationBadge
+from src.gui.widgets.options import (DysfunctionsProfileOption, ProfileOption,
+                                     RecommendationBadge)
 from src.utils.database import DATABASE_EDITOR
+from src.utils.icons import set_theme_icon, set_theme_pixmap
 
 
 class ProfilePage(ContentPageWidget):

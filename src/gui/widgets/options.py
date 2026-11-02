@@ -1,12 +1,12 @@
-from PyQt6.QtWidgets import (
-    QPushButton, QLabel, QVBoxLayout, QHBoxLayout, QFrame, QTextEdit, QLineEdit, QSizePolicy
-)
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
+from PyQt6.QtCore import QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QTextOption
+from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QLineEdit,
+                             QPushButton, QSizePolicy, QTextEdit, QVBoxLayout)
+
 from src.gui.signals import ui_signals
+from src.utils.database import DATABASE_EDITOR
 from src.utils.icons import set_theme_icon
 
-from src.utils.database import DATABASE_EDITOR
 
 class ProfileOption(QFrame):
     """

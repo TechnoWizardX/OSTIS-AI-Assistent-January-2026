@@ -1,13 +1,13 @@
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QFrame, QTextEdit
-)
-from PyQt6.QtCore import Qt, QSize, pyqtSignal
+from PyQt6.QtCore import QSize, Qt, pyqtSignal
+from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QPushButton, QTextEdit,
+                             QVBoxLayout, QWidget)
+
 from src.gui.signals import ui_signals
-from src.utils.icons import set_theme_icon
 from src.utils.chat_history import add_message
-from src.utils.logger import logger
 from src.utils.config import set_settings_config_value
+from src.utils.icons import set_theme_icon
+from src.utils.logger import logger
+
 
 class ChatSendBox(QWidget):
     """Виджет отправки сообщений."""

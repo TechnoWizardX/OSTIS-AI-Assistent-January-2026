@@ -1,14 +1,13 @@
 # src/gui/pages/gestures_page.py
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QImage, QPixmap, QPainter, QPainterPath
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFrame,
-    QPushButton, QLabel, QSplitter
-)
+from PyQt6.QtGui import QImage, QPainter, QPainterPath, QPixmap
+from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QPushButton,
+                             QSplitter, QVBoxLayout, QWidget)
+
+from src.GesturesInput.gestures import GestureCameraThread
 from src.gui.pages.base_input_page import BaseInputPage
 from src.utils.config import get_settings_config_value
-from src.GesturesInput.gestures import GestureCameraThread
 from src.utils.icons import set_theme_icon
 
 

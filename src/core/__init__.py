@@ -1,7 +1,8 @@
-from .assistant import AssistentCore, run_core
-from .recommendation import AccessibilityRecommender, RecommendationResult, METHOD_LABELS
-from .llm_client import MedicalAPI, LocalModel
-from .network_monitor import NetworkChecker
+from src.core.assistant import AssistentCore, run_core
+from src.core.llm_client import LocalModel, MedicalAPI
+from src.core.network_monitor import NetworkChecker
+from src.core.recommendation import (METHOD_LABELS, AccessibilityRecommender,
+                                     RecommendationResult)
 
 __all__ = [
     "AssistentCore",

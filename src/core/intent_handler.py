@@ -1,16 +1,19 @@
 
-import requests
 import json
+import os
 import re
-from src.utils.BasicUtils import  global_signals
+import subprocess
+from pathlib import Path
+
+import openai
+import requests
+from dotenv import load_dotenv
+from PyQt6.QtCore import QThread, pyqtSignal
+
+from src.utils.BasicUtils import global_signals
 from src.utils.database import DataBaseEditor
 from src.utils.logger import logger
-from PyQt6.QtCore import QThread, pyqtSignal
-import openai
-import subprocess
-import os
-from pathlib import Path
-from dotenv import load_dotenv
+
 DATABASE_EDITOR = DataBaseEditor()
 
 RESERVE_PROMPT = """Ты - ассистент для управления ОС.

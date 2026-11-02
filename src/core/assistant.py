@@ -1,26 +1,26 @@
-from src.gui.main_window import UserInterface
-from src.gui.signals import ui_signals
-from PyQt6.QtWidgets import QApplication
 import sys
-import os
-VOICE_INPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'interface', 'VoiceInput'))
-if VOICE_INPUT_DIR not in sys.path:
-    sys.path.insert(0, VOICE_INPUT_DIR)
-from src.utils.network import has_internet
-from src.utils.database import DataBaseEditor
-from src.utils.logger import logger
-from src.utils.config import load_settings_config, get_settings_config_value, set_settings_config_value, get_env_variable
-from src.utils.chat_history import add_message, clear_chat_history, load_chat_history, format_chat_history
-from src.utils.BasicUtils import global_signals
-from src.utils.database import DataBaseEditor
+
+from dotenv import load_dotenv
+from PyQt6.QtWidgets import QApplication
+
 import src.audio.stt_engine as Whisper
 from src.audio.tts_engine import SileroTTS
-from src.core.network_monitor import NetworkChecker
-from src.core.llm_client import LocalModel
-from src.core.recommendation import AccessibilityRecommender, METHOD_LABELS
 from src.core.intent_handler import IntentHandler, IntentWorker
-from dotenv import load_dotenv
+from src.core.llm_client import LocalModel
+from src.core.network_monitor import NetworkChecker
+from src.core.recommendation import METHOD_LABELS, AccessibilityRecommender
+from src.gui.main_window import UserInterface
+from src.gui.signals import ui_signals
 from src.SystemControl import ControlSystem
+from src.utils.BasicUtils import global_signals
+from src.utils.chat_history import (add_message, clear_chat_history,
+                                    format_chat_history, load_chat_history)
+from src.utils.config import (get_env_variable, get_settings_config_value,
+                              load_settings_config, set_settings_config_value)
+from src.utils.database import DataBaseEditor
+from src.utils.logger import logger
+from src.utils.network import has_internet
+
 load_dotenv()
 DATABASE_EDITOR = DataBaseEditor()
 WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")

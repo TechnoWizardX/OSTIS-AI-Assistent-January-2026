@@ -1,8 +1,13 @@
-from PyQt6.QtWidgets import QLabel, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QSizePolicy, QPushButton, QApplication
-from PyQt6.QtCore import QSize, Qt
 from datetime import datetime
+
+from PyQt6.QtCore import QSize, Qt
+from PyQt6.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel,
+                             QPushButton, QSizePolicy, QVBoxLayout, QWidget)
+
 from src.gui.signals import ui_signals
 from src.utils.icons import set_theme_icon
+
+
 class Message(QWidget):
     def __init__(self, author: str, text: str, time: str = None):
         super().__init__()

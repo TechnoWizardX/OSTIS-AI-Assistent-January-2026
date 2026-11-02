@@ -1,8 +1,12 @@
 import io
+
 import speech_recognition as sr
 from faster_whisper import WhisperModel
+
 from src.utils.BasicUtils import global_signals
 from src.utils.logger import logger
+
+
 class WhisperRecognition():
     def __init__(self, model: str = "small", device: str = "cpu", model_download_root: str = None, compute_type: str = "int8"): 
         logger("Whisper", "INFO", "Инициализация Whisper")

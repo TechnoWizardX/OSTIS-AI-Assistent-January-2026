@@ -1,12 +1,13 @@
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QFrame, QSizePolicy
-)
-from PyQt6.QtCore import Qt, QTimer, QRectF
+import math
+
+from PyQt6.QtCore import QRectF, Qt, QTimer
 from PyQt6.QtGui import QColor, QPainter
+from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QSizePolicy,
+                             QVBoxLayout, QWidget)
+
 from src.gui.signals import ui_signals
 from src.utils.theme_manager import ThemeManager
-import math
+
 
 class TypingDotsWidget(QWidget):
     """
