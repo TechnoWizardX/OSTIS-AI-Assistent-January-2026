@@ -3,9 +3,9 @@ from PyQt6.QtGui import QColor, QPainter, QPainterPath
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
 
 from src.gui.signals import ui_signals
+from src.gui.theme_manager import ThemeManager
 from src.utils.config_manager import (load_settings_config,
                                       set_settings_config_value)
-from src.utils.theme_manager import ThemeManager
 
 
 class ToggleSwitch(QWidget):

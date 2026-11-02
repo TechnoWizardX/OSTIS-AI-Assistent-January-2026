@@ -10,7 +10,7 @@ Silero TTS v5 — обёртка для синтеза речи на русск�
 Модели хранятся локально в папке проекта ./models/silero/
 
 Пример:
-    from src.audio.tts_engine import SileroTTS
+    from src.modules.voice.tts_engine import SileroTTS
     tts = SileroTTS(voice="xenia", quality="high")
     tts.speak("Очень длинный текст...")  # автоматически разобьётся на части
 
@@ -59,7 +59,8 @@ MAX_CHUNK_LENGTH = 500
 MAX_SENTENCE_LENGTH = 300
 
 # Путь для сохранения моделей (относительно корня проекта)
-MODELS_DIR = Path(__file__).parent.parent.parent / "models" / "silero"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+MODELS_DIR = PROJECT_ROOT / "models" / "silero"
 MODEL_URL = "https://models.silero.ai/models/tts/ru/v5_5_ru.pt"
 logger("TTSSilero", "INFO", f"Директория моделей: {MODELS_DIR} |||")
 # Паузы между чанками по последнему знаку препинания (в секундах)
@@ -168,7 +169,7 @@ class SileroTTS:
     def _setup_models_path(self):
         """Настраивает путь для хранения моделей Silero через torch.hub"""
         # Модели будут в ROOT/models/hub/
-        models_root = Path(__file__).parent.parent.parent / "models"
+        models_root = PROJECT_ROOT / "models"
         models_root.mkdir(parents=True, exist_ok=True)
         torch_home = str(models_root)
         os.environ['TORCH_HOME'] = torch_home

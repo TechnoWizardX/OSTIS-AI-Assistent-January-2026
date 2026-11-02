@@ -4,7 +4,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PyQt6.QtWidgets import QGraphicsDropShadowEffect, QPushButton, QWidget
 
-from src.utils.theme_manager import ThemeManager
+from src.gui.theme_manager import ThemeManager
 
 
 class RunningLineOverlay(QWidget):

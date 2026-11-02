@@ -1,9 +1,9 @@
 import time
 
-import requests
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from src.utils.logger import logger
+from src.utils.network import has_internet
 
 
 class NetworkChecker(QThread):
@@ -14,8 +14,6 @@ class NetworkChecker(QThread):
     """
 
     connection_changed = pyqtSignal(bool)
-
-    _CHECK_URL = "https://1.1.1.1"
 
     def __init__(self, interval: int = 15, parent=None):
         super().__init__(parent)
@@ -51,8 +49,4 @@ class NetworkChecker(QThread):
 
     @staticmethod
     def _check() -> bool:
-        try:
-            requests.get(NetworkChecker._CHECK_URL, timeout=5)
-            return True
-        except Exception:
-            return False
+        return has_internet()

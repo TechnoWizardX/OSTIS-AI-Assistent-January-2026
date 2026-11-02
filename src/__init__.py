@@ -3,7 +3,7 @@ __all__ = ["AssistentCore", "run_core"]
 
 def __getattr__(name: str):
     if name in __all__:
-        from src.core.assistant import AssistentCore, run_core
+        from src.core.assistant_core import AssistentCore, run_core
 
         return {
             "AssistentCore": AssistentCore,

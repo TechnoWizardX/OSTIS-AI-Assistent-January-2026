@@ -11,12 +11,12 @@ from src.gui.pages.settings_page import SettingsPage
 from src.gui.pages.text_page import TextPage
 from src.gui.pages.voice_page import VoicePage
 from src.gui.signals import ui_signals
+from src.gui.theme_manager import ThemeManager
 from src.gui.widgets.glow_effects import RecommendationGlowEffect
 from src.utils.config_manager import (ConfigManager, get_settings_config_value,
                                       set_settings_config_value)
 from src.utils.icons import set_theme_icon
 from src.utils.logger import logger
-from src.utils.theme_manager import ThemeManager
 
 """
 ====================================================

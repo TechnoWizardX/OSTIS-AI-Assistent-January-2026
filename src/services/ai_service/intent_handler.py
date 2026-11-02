@@ -11,10 +11,14 @@ from dotenv import load_dotenv
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from src.utils.BasicUtils import global_signals
-from src.utils.database import DataBaseEditor
 from src.utils.logger import logger
 
-DATABASE_EDITOR = DataBaseEditor()
+PROMPT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "data"
+    / "prompts"
+    / "basic_prompt.md"
+)
 
 RESERVE_PROMPT = """Ты - ассистент для управления ОС.
 Твоя задача - распознавать намерения пользователя и выдавать структурированный JSON с действием и параметрами.
@@ -40,28 +44,26 @@ class IntentHandler:
         self.online_model = online_model
         self._api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         self.online_client = openai.OpenAI(api_key=self._api_key, base_url=self.base_url)
-        path = Path(__file__).parent.parent / "data" / "basic_prompt.md"
-        
-        self.basic_prompt = self._load_prompt(path=path)
-        logger("IntentHandler", "INFO", f"Расположение промта: {path}")
+        self.basic_prompt = self._load_prompt()
+        logger("IntentHandler", "INFO", f"Расположение промта: {PROMPT_PATH}")
         logger("IntentHandler", "INFO", f"Инициализирован с моделью: {self.offline_model}")
     
-    def _load_prompt(self, path="data/basic_prompt.md") -> str:
+    def _load_prompt(self, path=PROMPT_PATH) -> str:
         path = Path(path)
-        path.parent.mkdir(exist_ok=True)
-
         if not path.exists():
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(RESERVE_PROMPT)
-            logger("IntentHandler", "WARNING", f"Файл с промптом не найден, создан базовый: {path}")
+            logger(
+                "IntentHandler",
+                "WARNING",
+                f"Файл промпта не найден, используется встроенный: {path}",
+            )
             return RESERVE_PROMPT
 
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with path.open("r", encoding="utf-8") as f:
                 prompt = f.read()
             logger("IntentHandler", "INFO", f"Промпт загружен из {path}")
             return prompt or RESERVE_PROMPT
-        except Exception as e:
+        except OSError as e:
             logger("IntentHandler", "ERROR", f"Ошибка чтения промпта: {e}")
             return RESERVE_PROMPT
         

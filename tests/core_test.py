@@ -1,5 +1,5 @@
 """
-Тест для проверки работы ядра (AssistentCore из core/assistant.py)
+Тест для проверки работы ядра (AssistentCore из src/core/assistant_core.py)
 """
 import os
 import sys
@@ -11,7 +11,7 @@ if project_root not in sys.path:
     
 from PyQt6.QtWidgets import QApplication
 
-from src.core.assistant import AssistentCore, run_core
+from src.core.assistant_core import AssistentCore, run_core
 from src.utils.config_manager import get_env_variable
 
 

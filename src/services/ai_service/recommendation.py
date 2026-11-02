@@ -12,25 +12,32 @@ import hashlib
 import json
 import os
 import re
+import shutil
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import List, Optional
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
-from src.core.llm_client import LocalModel, MedicalAPI
+from src.services.ai_service.llm_client import LocalModel, MedicalAPI
 from src.utils.config_manager import get_settings_config_value
 from src.utils.database import DataBaseEditor
 from src.utils.logger import logger
-from src.utils.network import \
-    has_internet  # тонкая обёртка над BasicUtils.has_internet
+from src.utils.network import has_internet
+from src.utils.user_data import (get_legacy_bundled_data_file,
+                                 get_user_data_file)
 
 # ---------------------------------------------------------------------------
 # Пути и константы
 # ---------------------------------------------------------------------------
-_DATA_DIR   = os.path.join(os.path.dirname(__file__), "..", "..", "src", "data")
-CACHE_PATH  = os.path.join(_DATA_DIR, "accessibility_cache.json")
-PROMPT_PATH = os.path.join(_DATA_DIR, "recommendation_prompt.md")
+PROMPT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "data"
+    / "prompts"
+    / "recommendation_prompt.md"
+)
+LEGACY_CACHE_PATH = get_legacy_bundled_data_file("accessibility_cache.json")
 
 METHOD_LABELS: dict[str, str] = {
     "voice":   "Голосовой ввод",
@@ -39,7 +46,6 @@ METHOD_LABELS: dict[str, str] = {
     "tts":     "Озвучка",
 }
 
-_FALLBACK_SYSTEM_PROMPT = "Ты помощник по доступности. Предложи методы ввода для: "
 _DEFAULT_RECOMMENDATION_PROMPT = """Ты помощник по доступности.
 Предложи подходящие методы взаимодействия только из списка: voice, gesture, text, tts.
 Ответь строго в формате:
@@ -48,21 +54,10 @@ TEXT: краткое объяснение на русском
 """
 
 
-def _ensure_data_dir() -> None:
-    os.makedirs(_DATA_DIR, exist_ok=True)
-
-
-def _ensure_text_file(path: str, default_content: str) -> str:
-    _ensure_data_dir()
-    if not os.path.exists(path):
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(default_content)
-        return default_content
-
+def _read_text_file(path: Path, default_content: str) -> str:
     try:
-        with open(path, encoding="utf-8") as fh:
-            content = fh.read()
-            return content or default_content
+        content = path.read_text(encoding="utf-8")
+        return content or default_content
     except OSError:
         return default_content
 
@@ -117,10 +112,13 @@ class RecommendationParser:
 class RecommendationCache:
     """Простой файловый кэш с TTL (по умолчанию 2 часа)."""
 
-    def __init__(self, path: str = CACHE_PATH, ttl_hours: int = 2):
-        self._path = path
+    def __init__(self, path: str | Path | None = None, ttl_hours: int = 2):
+        self._path = Path(path) if path is not None else get_user_data_file(
+            "accessibility_cache.json"
+        )
         self._ttl  = timedelta(hours=ttl_hours)
-        _ensure_data_dir()
+        if not self._path.exists() and LEGACY_CACHE_PATH.is_file():
+            shutil.copy2(LEGACY_CACHE_PATH, self._path)
         self._data = self._load()
 
     # ------------------------------------------------------------------
@@ -141,8 +139,8 @@ class RecommendationCache:
             "model":   model,
             "ts":      datetime.now().isoformat(),
         }
-        os.makedirs(os.path.dirname(self._path), exist_ok=True)
-        with open(self._path, "w", encoding="utf-8") as fh:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        with self._path.open("w", encoding="utf-8") as fh:
             json.dump(self._data, fh, ensure_ascii=False, indent=2)
 
     # ------------------------------------------------------------------
@@ -151,21 +149,32 @@ class RecommendationCache:
         return hashlib.sha256(diagnosis.strip().lower().encode()).hexdigest()
 
     def _load(self) -> dict:
-        if not os.path.exists(self._path):
+        if not self._path.exists():
             self._write_empty_cache()
             return {}
 
         try:
-            with open(self._path, encoding="utf-8") as fh:
+            with self._path.open(encoding="utf-8") as fh:
                 data = json.load(fh)
-                return data if isinstance(data, dict) else {}
-        except (json.JSONDecodeError, OSError):
+                if not isinstance(data, dict):
+                    raise ValueError("Recommendation cache must be a JSON object.")
+                return data
+        except (json.JSONDecodeError, OSError, ValueError):
+            backup_path = self._path.with_name(
+                f"{self._path.name}.invalid-{datetime.now():%Y%m%d-%H%M%S-%f}"
+            )
+            shutil.copy2(self._path, backup_path)
+            logger(
+                "RecommendationCache",
+                "ERROR",
+                f"Invalid cache preserved at {backup_path}; resetting cache.",
+            )
             self._write_empty_cache()
             return {}
 
     def _write_empty_cache(self) -> None:
-        os.makedirs(os.path.dirname(self._path), exist_ok=True)
-        with open(self._path, "w", encoding="utf-8") as fh:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        with self._path.open("w", encoding="utf-8") as fh:
             json.dump({}, fh, ensure_ascii=False, indent=2)
 
 
@@ -266,7 +275,7 @@ class AccessibilityRecommender(QObject):
         model      = self._online_model if use_online else self._offline_model
 
         # 4. Загружаем системный промпт
-        sys_prompt = _ensure_text_file(PROMPT_PATH, _DEFAULT_RECOMMENDATION_PROMPT)
+        sys_prompt = _read_text_file(PROMPT_PATH, _DEFAULT_RECOMMENDATION_PROMPT)
         if sys_prompt == _DEFAULT_RECOMMENDATION_PROMPT:
             logger("Recommender", "WARNING",
                    f"Используется базовый промпт рекомендаций: {PROMPT_PATH}")

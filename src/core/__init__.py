@@ -12,7 +12,7 @@ __all__ = [
 
 def __getattr__(name: str):
     if name in {"AssistentCore", "run_core"}:
-        from src.core.assistant import AssistentCore, run_core
+        from src.core.assistant_core import AssistentCore, run_core
 
         return {
             "AssistentCore": AssistentCore,
@@ -23,9 +23,8 @@ def __getattr__(name: str):
         "RecommendationResult",
         "METHOD_LABELS",
     }:
-        from src.core.recommendation import (METHOD_LABELS,
-                                             AccessibilityRecommender,
-                                             RecommendationResult)
+        from src.services.ai_service.recommendation import (
+            METHOD_LABELS, AccessibilityRecommender, RecommendationResult)
 
         return {
             "AccessibilityRecommender": AccessibilityRecommender,
@@ -33,7 +32,7 @@ def __getattr__(name: str):
             "METHOD_LABELS": METHOD_LABELS,
         }[name]
     if name in {"MedicalAPI", "LocalModel"}:
-        from src.core.llm_client import LocalModel, MedicalAPI
+        from src.services.ai_service.llm_client import LocalModel, MedicalAPI
 
         return {"MedicalAPI": MedicalAPI, "LocalModel": LocalModel}[name]
     if name == "NetworkChecker":

@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QSizePolicy,
                              QVBoxLayout, QWidget)
 
 from src.gui.signals import ui_signals
-from src.utils.theme_manager import ThemeManager
+from src.gui.theme_manager import ThemeManager
 
 
 class TypingDotsWidget(QWidget):

@@ -1,17 +1,18 @@
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from PyQt6.QtWidgets import QApplication
 
-import src.audio.stt_engine as Whisper
-from src.audio.tts_engine import SileroTTS
-from src.core.intent_handler import IntentHandler, IntentWorker
-from src.core.llm_client import LocalModel
 from src.core.network_monitor import NetworkChecker
-from src.core.recommendation import METHOD_LABELS, AccessibilityRecommender
 from src.gui.main_window import UserInterface
 from src.gui.signals import ui_signals
-from src.SystemControl import ControlSystem
+from src.modules.voice import stt_engine as Whisper
+from src.modules.voice.tts_engine import SileroTTS
+from src.services.ai_service.intent_handler import IntentHandler, IntentWorker
+from src.services.ai_service.llm_client import LocalModel
+from src.services.ai_service.recommendation import (METHOD_LABELS,
+                                                    AccessibilityRecommender)
 from src.utils.BasicUtils import global_signals
 from src.utils.chat_history import (add_message, clear_chat_history,
                                     format_chat_history, load_chat_history)
@@ -22,11 +23,16 @@ from src.utils.config_manager import (ConfigManager, get_env_variable,
 from src.utils.database import DataBaseEditor
 from src.utils.logger import logger
 from src.utils.network import has_internet
+from src.utils.system_control import ControlSystem
 from src.utils.user_data import get_user_data_dir
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 load_dotenv()
 DATABASE_EDITOR = DataBaseEditor()
-WHISPER_MODEL = Whisper.WhisperRecognition(model_download_root="./models")
+WHISPER_MODEL = Whisper.WhisperRecognition(
+    model_download_root=str(PROJECT_ROOT / "models")
+)
 TTSSILERO_MODEL = SileroTTS()
 INTENT_HANDLER = IntentHandler(online_model="poolside/laguna-xs.2:free", base_url="https://openrouter.ai/api/v1")
 

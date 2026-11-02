@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (QComboBox, QFrame, QGridLayout, QHBoxLayout,
 
 from src.gui.pages.base_input_page import ContentPageWidget
 from src.gui.signals import ui_signals
+from src.gui.theme_manager import ThemeManager
 from src.gui.widgets.settings_section import SettingsSectionLabel
 from src.gui.widgets.toggle_switch import ToggleSwitchRow, ToggleSwitchState
 from src.utils.config_manager import (get_settings_config_value,
@@ -12,7 +13,6 @@ from src.utils.config_manager import (get_settings_config_value,
                                       set_settings_config_value)
 from src.utils.devices import get_available_cameras, get_available_microphones
 from src.utils.icons import set_theme_icon
-from src.utils.theme_manager import ThemeManager
 
 
 class SettingsPage(ContentPageWidget):
