@@ -1,5 +1,7 @@
 import os
-ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources/icons")
+from src.utils.icons import ICONS_DIR
+
+
 def icon_path(filename):
     """Возвращает абсолютный путь к иконке"""
-    return os.path.join(ICONS_DIR, filename)
+    return os.path.join(str(ICONS_DIR), filename)

@@ -1,0 +1,20 @@
+<!DOCTYPE RCC><RCC version="1.0">
+  <qresource prefix="/icons">
+    <file alias="accept.svg">icons/accept.svg</file>
+    <file alias="camera.svg">icons/camera.svg</file>
+    <file alias="chevron-down.svg">icons/chevron-down.svg</file>
+    <file alias="chevron-up.svg">icons/chevron-up.svg</file>
+    <file alias="copy.svg">icons/copy.svg</file>
+    <file alias="delete.svg">icons/delete.svg</file>
+    <file alias="hide.svg">icons/hide.svg</file>
+    <file alias="microphone.svg">icons/microphone.svg</file>
+    <file alias="pencil.svg">icons/pencil.svg</file>
+    <file alias="profile.svg">icons/profile.svg</file>
+    <file alias="send.svg">icons/send.svg</file>
+    <file alias="settings.svg">icons/settings.svg</file>
+    <file alias="show.svg">icons/show.svg</file>
+    <file alias="speaker.svg">icons/speaker.svg</file>
+    <file alias="text.svg">icons/text.svg</file>
+    <file alias="user.svg">icons/user.svg</file>
+  </qresource>
+</RCC>

@@ -5,7 +5,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
 from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap, QTextOption, QPen
-from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
+from src.gui.signals import ui_signals
+from src.utils.theme_manager import ThemeManager
 import math
 
 class TypingDotsWidget(QWidget):
@@ -13,9 +14,10 @@ class TypingDotsWidget(QWidget):
     Анимированные три точки, имитирующие эффект печатания/думания.
     Точки поочерёдно пульсируют по яркости и подпрыгивают вверх-вниз (~60 FPS).
     """
-    def __init__(self, dot_color: str = "#4CAF50", parent=None):
+    def __init__(self, dot_color: str | None = None, parent=None):
         super().__init__(parent)
-        self._dot_color = QColor(dot_color)
+        self.setObjectName("typingDots")
+        self._dot_color = QColor(dot_color or str(ThemeManager.get_color("typing_dots")))
         self._dot_count = 3
         self._phase = 0.0
         self._dot_radius = 5
@@ -31,6 +33,7 @@ class TypingDotsWidget(QWidget):
         self._timer = QTimer(self)
         self._timer.setInterval(24)
         self._timer.timeout.connect(self._tick)
+        ui_signals.settings_changed.connect(self._on_settings_changed)
 
     def start(self):
         self._phase = 0.0
@@ -44,14 +47,9 @@ class TypingDotsWidget(QWidget):
         self._dot_color = QColor(hex_color)
         self.update()
 
-    def apply_theme(self, theme: dict):
-        """
-        Применяет тему интерфейса — устанавливает цвет точек из темы.
-        :param theme: словарь темы с ключом 'typing_dots'
-        """
-        dots_config = theme.get("typing_dots", {})
-        dot_color = dots_config.get("color", "#4CAF50")
-        self.set_color(dot_color)
+    def _on_settings_changed(self, changes: dict):
+        if "theme" in changes:
+            self.set_color(str(ThemeManager.get_color("typing_dots")))
 
     def _tick(self):
         self._phase = (self._phase + 0.06) % self._dot_count
@@ -89,9 +87,9 @@ class TypingIndicator(QWidget):
     Пузырь «думания» нейросети с анимированными точками.
     Стилизован аналогично Message — органично встраивается в DialogBox.
     """
-    def __init__(self, author_name: str = "IAMOS", frame_style: str = "",
-                 label_style: str = "", parent=None):
+    def __init__(self, author_name: str = "IAMOS", parent=None):
         super().__init__(parent)
+        self.setObjectName("typingIndicator")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
 
         outer_lay = QHBoxLayout(self)
@@ -99,7 +97,7 @@ class TypingIndicator(QWidget):
         outer_lay.setSpacing(5)
 
         self.main_frame = QFrame()
-        self.main_frame.setStyleSheet(frame_style)
+        self.main_frame.setObjectName("messageFrame")
         self.main_frame.setMinimumWidth(100)
         self.main_frame.setMaximumWidth(300)
         self.main_frame.setSizePolicy(QSizePolicy.Policy.MinimumExpanding,
@@ -110,7 +108,7 @@ class TypingIndicator(QWidget):
         frame_lay.setSpacing(6)
 
         self.author_label = QLabel(author_name)
-        self.author_label.setStyleSheet(label_style)
+        self.author_label.setObjectName("messageAuthor")
         frame_lay.addWidget(self.author_label)
 
         self.dots = TypingDotsWidget()
@@ -124,8 +122,3 @@ class TypingIndicator(QWidget):
 
     def stop(self):
         self.dots.stop()
-
-    def _apply_theme(self, theme: dict):
-        self.main_frame.setStyleSheet(theme.get("message_frame", ""))
-        self.author_label.setStyleSheet(theme.get("message_author", ""))
-        self.dots.apply_theme(theme)

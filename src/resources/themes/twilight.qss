@@ -1,0 +1,382 @@
+QWidget {
+    color: {{text_1}};
+}
+
+QMainWindow#mainWindow, QWidget#mainWidget {
+    background-color: {{bg_1}};
+}
+
+QWidget#sidePanel {
+    background-color: {{bg_2}};
+    border-radius: 16px;
+}
+
+QWidget#inputPage {
+    background-color: transparent;
+    border-radius: 16px;
+}
+
+QFrame#settingsFrame, QFrame#profileOptionFrame, QFrame#profilePhotoFrame,
+QFrame#toggleSwitchFrame, QFrame#gesturesCameraFrame {
+    background-color: {{bg_4}};
+    border-radius: 12px;
+}
+
+QFrame#dialogFrame {
+    background-color: {{bg_2}};
+    border-radius: 16px;
+}
+
+QFrame#messageFrame {
+    background-color: {{bg_4}};
+    border-radius: 12px;
+}
+
+QFrame#chatSendBoxFrame {
+    background-color: {{bg_2}};
+    border-radius: 16px;
+}
+
+QFrame#accentFrame {
+    background-color: {{accent_1}};
+    border-radius: 2px;
+}
+
+QFrame#borderLine, QFrame#profileLine {
+    color: {{divider}};
+    background-color: {{divider}};
+}
+
+QLabel#settingsText {
+    color: {{text_1}};
+    font-size: 14px;
+    font-family: "Roboto";
+}
+
+QLabel#profileText, QLineEdit#profileValueInput {
+    color: {{text_1}};
+    font-size: 16px;
+}
+
+QLabel#profileBadgeTitle {
+    color: {{text_1}};
+    font-size: 16px;
+    font-weight: bold;
+}
+
+QTextEdit#profileTextEdit {
+    background-color: transparent;
+    border: none;
+    border-radius: 8px;
+    padding: 4px 6px;
+    font-size: 14px;
+    font-family: "Roboto";
+    color: {{text_1}};
+}
+
+QTextEdit#profileTextEdit:focus {
+    border: none;
+}
+
+QLabel#messageAuthor {
+    color: {{text_2}};
+    font-size: 12px;
+    font-family: "Roboto";
+    background-color: transparent;
+    font-weight: bold;
+}
+
+QLabel#messageText {
+    color: {{text_1}};
+    font-size: 14px;
+    font-family: "Roboto";
+    background-color: transparent;
+}
+
+QLabel#messageTime {
+    color: {{text_3}};
+    background-color: transparent;
+    font-size: 10px;
+    font-family: "Roboto";
+}
+
+QLabel#toggleSwitchRowLabel {
+    color: {{text_1}};
+    font-size: 14px;
+    font-family: "Roboto";
+}
+
+QLabel#settingsSectionLabel {
+    color: {{text_2}};
+    background: transparent;
+    border: none;
+    font-size: 9px;
+    font-weight: normal;
+    letter-spacing: 0.5px;
+}
+
+QLabel#cameraPreviewLabel {
+    background-color: {{bg_camera}};
+    border-radius: 8px;
+}
+
+QComboBox#settingsComboBox {
+    background-color: {{bg_combo}};
+    border: 1px solid {{border_1}};
+    border-radius: 4px;
+    font-size: 14px;
+    color: {{text_1}};
+}
+
+QComboBox#settingsComboBox:hover {
+    border-color: {{border_2}};
+    background-color: {{bg_combo_hover}};
+}
+
+QComboBox#settingsComboBox:on {
+    border-color: {{border_2}};
+}
+
+QComboBox#settingsComboBox::drop-down {
+    border: none;
+    width: 20px;
+}
+
+QComboBox#settingsComboBox QAbstractItemView {
+    background-color: {{bg_combo}};
+    border-radius: 8px;
+    selection-background-color: {{selection_bg}};
+    selection-color: {{selection_text}};
+    outline: none;
+}
+
+QLineEdit#settingsInput {
+    background-color: {{bg_combo}};
+    border: 1px solid {{border_1}};
+    border-radius: 4px;
+    font-size: 14px;
+    color: {{text_1}};
+    padding: 4px 8px;
+}
+
+QLineEdit#settingsInput:hover {
+    border-color: {{border_2}};
+    background-color: {{bg_combo_hover}};
+}
+
+QLineEdit#settingsInput:focus {
+    border-color: {{border_3}};
+}
+
+QLineEdit#profileValueInput {
+    background: transparent;
+    border: none;
+}
+
+QTextEdit#chatSendInput {
+    background-color: transparent;
+    border: none;
+    font-size: 14px;
+    font-family: "Roboto";
+    color: {{text_1}};
+}
+
+QScrollArea#chatScrollArea, QScrollArea#settingsScrollArea {
+    border: none;
+    background: transparent;
+}
+
+QScrollBar:vertical {
+    border: none;
+    background-color: {{bg_scrollbar}};
+    width: 8px;
+    margin: 0;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: {{bg_scrollbar_handle}};
+    border-radius: 4px;
+    min-height: 20px;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+}
+
+QPushButton#primaryButton {
+    background-color: {{bg_3}};
+    border-radius: 12px;
+    color: {{text_1}};
+    font-size: 14px;
+    font-family: "Roboto";
+    border: 3px solid transparent;
+    padding: 10px 10px 10px 20px;
+}
+
+QPushButton#primaryButton:hover {
+    background-color: {{bg_hover}};
+    border: 3px solid {{border_2}};
+}
+
+QPushButton#primaryButton:pressed {
+    background-color: {{bg_pressed}};
+    border: 3px solid {{border_3}};
+}
+
+QPushButton#copyButton {
+    background-color: {{bg_3}};
+    border: none;
+    border-radius: 8px;
+    color: {{text_1}};
+    padding: 0;
+}
+
+QPushButton#copyButton:hover {
+    background-color: {{bg_hover}};
+}
+
+QPushButton#copyButton:pressed {
+    background-color: {{bg_pressed}};
+}
+
+QPushButton#sidePanelButton {
+    background-color: {{bg_3}};
+    border-radius: 12px;
+    color: {{text_1}};
+    font-size: 14px;
+    font-family: "Roboto";
+    border: 3px solid transparent;
+    padding: 5px 5px 5px 16px;
+    text-align: left;
+}
+
+QPushButton#sidePanelButton:hover {
+    background-color: {{bg_hover}};
+    border: 3px solid {{border_2}};
+}
+
+QPushButton#sidePanelButton:pressed {
+    background-color: {{bg_pressed}};
+    border: 3px solid {{border_3}};
+}
+
+QPushButton#sidePanelButton:checked {
+    background-color: {{bg_checked}};
+    border: 3px solid {{nav_border}};
+    color: {{nav_checked_text}};
+}
+
+QPushButton#accentButton {
+    background-color: {{accent_1}};
+    border-radius: 8px;
+    color: {{text_on_accent}};
+    font-size: 14px;
+    font-family: "Roboto";
+    padding: 8px 16px;
+}
+
+QPushButton#accentButton:hover {
+    background-color: {{accent_2}};
+}
+
+QPushButton#accentButton:pressed {
+    background-color: {{accent_3}};
+}
+
+QPushButton#dangerButton, QPushButton#clearHistoryButton {
+    background-color: {{danger_1}};
+    border-radius: 8px;
+    color: {{text_on_accent}};
+    font-size: 14px;
+    font-family: "Roboto";
+    padding: 8px 16px;
+}
+
+QPushButton#dangerButton:hover, QPushButton#clearHistoryButton:hover {
+    background-color: {{danger_2}};
+}
+
+QPushButton#dangerButton:pressed, QPushButton#clearHistoryButton:pressed {
+    background-color: {{danger_3}};
+}
+
+QPushButton#clearHistoryButton {
+    border: none;
+    font-weight: bold;
+    text-align: left;
+    padding-left: 15px;
+}
+
+QPushButton#iconButton, QPushButton#profileIconButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 8px;
+    color: {{text_1}};
+}
+
+QPushButton#iconButton:hover, QPushButton#iconButton:pressed,
+QPushButton#profileIconButton:hover, QPushButton#profileIconButton:pressed {
+    background-color: transparent;
+    border: none;
+}
+
+QPushButton#profileCancelButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 8px;
+    color: {{danger_1}};
+    font-size: 12px;
+}
+
+QPushButton#checkableButton {
+    background-color: {{bg_3}};
+    border-radius: 12px;
+    border: 3px solid transparent;
+    padding: 8px;
+}
+
+QPushButton#checkableButton:hover {
+    background-color: {{bg_hover}};
+    border: 3px solid {{border_2}};
+}
+
+QPushButton#checkableButton:pressed {
+    background-color: {{bg_pressed}};
+    border: 3px solid {{border_3}};
+}
+
+QPushButton#checkableButton:checked {
+    background-color: {{accent_1}};
+    border: 3px solid {{accent_3}};
+}
+
+QPushButton#themeButton {
+    background-color: {{bg_2}};
+    border-radius: 12px;
+    color: {{text_1}};
+    font-size: 14px;
+    font-family: "Roboto";
+    border: 3px solid transparent;
+    padding: 5px 5px 5px 16px;
+    text-align: left;
+}
+
+QPushButton#themeButton:hover {
+    background-color: {{bg_hover}};
+    border: 3px solid {{border_2}};
+}
+
+QPushButton#themeButton:pressed {
+    background-color: {{bg_pressed}};
+    border: 3px solid {{border_3}};
+}
+
+QSplitter#mainSplitter::handle, QSplitter#cameraSplitter::handle {
+    background-color: transparent;
+}
+
+QSplitter#mainSplitter::handle:hover, QSplitter#mainSplitter::handle:pressed,
+QSplitter#cameraSplitter::handle:hover, QSplitter#cameraSplitter::handle:pressed {
+    background-color: transparent;
+}

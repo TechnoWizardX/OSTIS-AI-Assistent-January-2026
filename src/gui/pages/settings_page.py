@@ -4,12 +4,12 @@ from PyQt6.QtWidgets import (
     QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser, QMessageBox, QSplitter
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtGui import QFont
 
-from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
 from src.gui.widgets.settings_section import SettingsSectionLabel
 from src.gui.widgets.toggle_switch import ToggleSwitchRow, ToggleSwitchState
-from src.gui import icon_path
+from src.utils.icons import set_theme_icon
+from src.utils.theme_manager import ThemeManager
 from src.gui.signals import ui_signals
 
 from src.utils.config import load_settings_config, set_settings_config_value, get_settings_config_value
@@ -25,22 +25,22 @@ class SettingsPage(ContentPageWidget):
         self.available_voices = get_settings_config_value("available_silero_voices")
         self.available_voices_reversed = get_settings_config_value("available_silero_voices_reversed")
         self.side_panel_btn.setText("Настройки")
-        self.side_panel_btn.setIcon(QIcon(icon_path("settings.png")))
+        set_theme_icon(self.side_panel_btn, "settings.svg")
         self.main_lay = QVBoxLayout(self)
         self.main_lay.setContentsMargins(0, 0, 0, 0)
         self.main_lay.setSpacing(0)
 
         # Скролл-область для настроек
         self.scroll_area = QScrollArea()
+        self.scroll_area.setObjectName("settingsScrollArea")
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
-        self.scroll_area.setStyleSheet(THEMES[SELECTED_THEME]["scrollbar"])
         self.main_lay.addWidget(self.scroll_area)
 
         self.main_frame = QFrame()
-        self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["dialog_frame"])
+        self.main_frame.setObjectName("dialogFrame")
         # сетка-панель настроек
         self.scroll_area.setWidget(self.main_frame)
         self.grid_lay = QGridLayout(self.main_frame)
@@ -87,7 +87,7 @@ class SettingsPage(ContentPageWidget):
 
         # фрейм для выбора камеры
         self.camera_frame = QFrame()
-        self.camera_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
+        self.camera_frame.setObjectName("settingsFrame")
         self.camera_frame.setFixedHeight(40)
         self.grid_lay.addWidget(self.camera_frame, 8, 0)
         # лайаут фрейма камер
@@ -97,10 +97,10 @@ class SettingsPage(ContentPageWidget):
 
         # текстовая метка "Камера"
         self.camera_label = QLabel("Камера:")
-        self.camera_label.setStyleSheet(self.settings_text_qss)
+        self.camera_label.setObjectName("settingsText")
         # выпадающий список камер
         self.camera_dropbox = QComboBox()
-        self.camera_dropbox.setStyleSheet(self.dropbox_qss)
+        self.camera_dropbox.setObjectName("settingsComboBox")
         self.camera_dropbox.setMinimumHeight(30)
 
         available = get_available_cameras()
@@ -115,7 +115,7 @@ class SettingsPage(ContentPageWidget):
 
         
         self.microphone_frame = QFrame()
-        self.microphone_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
+        self.microphone_frame.setObjectName("settingsFrame")
         self.microphone_frame.setFixedHeight(40)
         self.grid_lay.addWidget(self.microphone_frame, 9, 0)
         # лайаут фрейма микрофона
@@ -125,10 +125,10 @@ class SettingsPage(ContentPageWidget):
 
         # текстовая метка "Микрофон"
         self.microphone_label = QLabel("Микрофон:")
-        self.microphone_label.setStyleSheet(self.settings_text_qss)
+        self.microphone_label.setObjectName("settingsText")
         # выпадающий список микрофонов
         self.microphone_dropbox = QComboBox()
-        self.microphone_dropbox.setStyleSheet(self.dropbox_qss)
+        self.microphone_dropbox.setObjectName("settingsComboBox")
         self.microphone_dropbox.setMinimumHeight(30)
 
         available_mics = get_available_microphones()
@@ -143,7 +143,7 @@ class SettingsPage(ContentPageWidget):
 
 
         self.speaker_frame = QFrame()
-        self.speaker_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
+        self.speaker_frame.setObjectName("settingsFrame")
         self.speaker_frame.setFixedHeight(40)
         self.grid_lay.addWidget(self.speaker_frame, 10, 0)
         # лайаут фрейма микрофона
@@ -153,10 +153,10 @@ class SettingsPage(ContentPageWidget):
         
         # текстовая метка "Микрофон"
         self.speaker_label = QLabel("Диктор:")
-        self.speaker_label.setStyleSheet(self.settings_text_qss)
+        self.speaker_label.setObjectName("settingsText")
         # выпадающий список микрофонов
         self.speaker_dropbox = QComboBox()
-        self.speaker_dropbox.setStyleSheet(self.dropbox_qss)
+        self.speaker_dropbox.setObjectName("settingsComboBox")
         self.speaker_dropbox.setMinimumHeight(30)
         self.speaker_dropbox.addItems(list(self.available_voices.keys()))
         self.speaker_frame_lay.addWidget(self.speaker_label, 1)
@@ -170,7 +170,7 @@ class SettingsPage(ContentPageWidget):
         self.grid_lay.addWidget(self._section_themes, 11, 0)
 
         self.theme_frame = QFrame()
-        self.theme_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
+        self.theme_frame.setObjectName("settingsFrame")
         self.theme_frame_lay = QGridLayout(self.theme_frame)
 
         themes_list = [
@@ -185,8 +185,8 @@ class SettingsPage(ContentPageWidget):
         for i, (label, theme_key) in enumerate(themes_list):
             row, col = divmod(i, 3)
             btn = QPushButton(label)
+            btn.setObjectName("themeButton")
             btn.clicked.connect(lambda checked, k=theme_key: self._on_theme_changed(k))
-            btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_theme"])
             self.theme_frame_lay.addWidget(btn, row, col)
             self._theme_buttons.append(btn)
 
@@ -197,32 +197,32 @@ class SettingsPage(ContentPageWidget):
         self.grid_lay.addWidget(self._section_api, 13, 0)
 
         self.api_frame = QFrame()
-        self.api_frame.setStyleSheet(THEMES[SELECTED_THEME]["settings_frame"])
+        self.api_frame.setObjectName("settingsFrame")
         self.api_frame_lay = QHBoxLayout(self.api_frame)
 
         self.api_label = QLabel("API Ключ")
-        self.api_label.setStyleSheet(self.settings_text_qss)
+        self.api_label.setObjectName("settingsText")
         self.api_frame_lay.addWidget(self.api_label)
 
         self.api_key_input = QLineEdit()
+        self.api_key_input.setObjectName("settingsInput")
         self.api_key_input.setText(api_key)
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_input.setPlaceholderText("Введите sk-or-v1-...")
-        self.api_key_input.setStyleSheet(THEMES[SELECTED_THEME]["settings_input"])
         self.api_frame_lay.addWidget(self.api_key_input)
         
         self.show_api_key = QPushButton()
+        self.show_api_key.setObjectName("iconButton")
         self.show_api_key.setFixedSize(30, 30)
         self.show_api_key.setCheckable(True)
-        self.show_api_key.setIcon(QIcon(icon_path("hide.png")))
+        set_theme_icon(self.show_api_key, "hide.svg")
         self.show_api_key.setIconSize(QSize(20, 20))
         self.show_api_key.clicked.connect(self._toggle_api_key_visibility)
-        self.show_api_key.setStyleSheet(THEMES[SELECTED_THEME]["btn_transparent"])
 
         self.api_frame_lay.addWidget(self.show_api_key)
 
         self.save_key_btn = QPushButton("Сохранить")
-        self.save_key_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_1"])
+        self.save_key_btn.setObjectName("primaryButton")
         self.save_key_btn.clicked.connect(self._save_api_key)
         self.api_frame_lay.addWidget(self.save_key_btn)
 
@@ -253,10 +253,10 @@ class SettingsPage(ContentPageWidget):
     def _toggle_api_key_visibility(self):
         if self.show_api_key.isChecked():
             self.api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
-            self.show_api_key.setIcon(QIcon(icon_path("show.png")))
+            set_theme_icon(self.show_api_key, "show.svg")
         else:
             self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-            self.show_api_key.setIcon(QIcon(icon_path("hide.png")))
+            set_theme_icon(self.show_api_key, "hide.svg")
 
     def _save_api_key(self):
         new_key = self.api_key_input.text().strip()
@@ -312,40 +312,10 @@ class SettingsPage(ContentPageWidget):
 
     def _on_theme_changed(self, theme_name: str):
         """Сохраняет выбранную тему."""
+        ThemeManager.apply_theme(theme_name)
+        theme_name = ThemeManager.current_theme
         set_settings_config_value("theme", theme_name)
         ui_signals.settings_changed.emit({"theme": theme_name})
-
-    def _apply_theme(self, theme: dict):
-        """Обновляет все стили страницы настроек."""
-        super()._apply_theme(theme)
-        # Получаем имя текущей темы для доступа к цветам
-        theme_name = get_settings_config_value("theme") or "light"
-        colors = _COLOR_MAP.get(theme_name, _COLOR_MAP["light"])
-        
-        self.main_frame.setStyleSheet(theme["dialog_frame"])
-        self.scroll_area.setStyleSheet(theme["scrollbar"])
-        for frame in [self.camera_frame, self.microphone_frame, self.speaker_frame, self.theme_frame, self.api_frame]:
-            frame.setStyleSheet(theme["settings_frame"])
-        for label in [self.camera_label, self.microphone_label, self.speaker_label, self.api_label]:
-            label.setStyleSheet(self.settings_text_qss)
-        for combo in [self.camera_dropbox, self.microphone_dropbox, self.speaker_dropbox]:
-            combo.setStyleSheet(self.dropbox_qss)
-        # Поле API-ключа с прозрачным фоном
-        self.api_key_input.setStyleSheet(theme["settings_input"])
-        self.toggle_row_for_voice._apply_theme(theme)
-        self.toggle_row_for_gesture._apply_theme(theme)
-        self.use_onlie_model._apply_theme(theme)
-        self.online_model_allows._apply_theme(theme)
-        self.tts_recommendation_toggle._apply_theme(theme)
-        for section in [self._section_input, self._section_ai, self._section_devices,
-                        self._section_themes, self._section_api]:
-            section._apply_theme(theme)
-        for btn in self._theme_buttons:
-            btn.setStyleSheet(theme["btn_theme"])
-        # Применяем тему к кнопкам API-ключа (без границ и фона)
-        self.show_api_key.setStyleSheet(THEMES[SELECTED_THEME]["btn_transparent"])
-        self.save_key_btn.setStyleSheet(theme["btn_1"])
-        self.auto_voice_toggle._apply_theme(theme)
    
     def get_current_camera(self):
         return self.camera_dropbox.currentText()

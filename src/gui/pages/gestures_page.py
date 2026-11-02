@@ -1,16 +1,15 @@
 # src/gui/pages/gestures_page.py
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QImage, QPixmap, QPainter, QPainterPath, QIcon
+from PyQt6.QtGui import QImage, QPixmap, QPainter, QPainterPath
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFrame,
     QPushButton, QLabel, QSplitter
 )
 from src.gui.pages.base_input_page import BaseInputPage
-from src.gui.themes import THEMES
 from src.utils.config import get_settings_config_value
 from src.GesturesInput.gestures import GestureCameraThread
-from src.gui import icon_path
+from src.utils.icons import set_theme_icon
 
 
 class GesturesPage(BaseInputPage):
@@ -21,7 +20,7 @@ class GesturesPage(BaseInputPage):
     def __init__(self):
         super().__init__()
         self.side_panel_btn.setText("Жестовый ввод")
-        self.side_panel_btn.setIcon(QIcon(icon_path("camera.png")))
+        set_theme_icon(self.side_panel_btn, "camera.svg")
 
         self.camera_thread = None
         self._gesture_processing = False
@@ -57,12 +56,9 @@ class GesturesPage(BaseInputPage):
 
         # 4. Вертикальный сплиттер: чат сверху, нижний блок снизу
         self.chat_splitter = QSplitter(Qt.Orientation.Vertical, self)
+        self.chat_splitter.setObjectName("cameraSplitter")
         self.chat_splitter.setHandleWidth(6)
         self.chat_splitter.setChildrenCollapsible(False)
-        self.chat_splitter.setStyleSheet("""
-            QSplitter::handle { background-color: transparent; border-radius: 3px; }
-            QSplitter::handle:hover { background-color: transparent; }
-        """)
 
         # 5. Нижний блок: send_box слева, камера справа
         bottom_widget = QWidget(self.chat_splitter)
@@ -76,9 +72,7 @@ class GesturesPage(BaseInputPage):
 
         # Блок камеры
         self.camera_frame = QFrame(bottom_widget)
-        self.camera_frame.setStyleSheet(
-            THEMES[get_settings_config_value("theme")]["gestures_camera_frame"]
-        )
+        self.camera_frame.setObjectName("gesturesCameraFrame")
         bottom_lay.addWidget(self.camera_frame, stretch=1)
 
         camera_lay = QVBoxLayout(self.camera_frame)
@@ -86,9 +80,7 @@ class GesturesPage(BaseInputPage):
         camera_lay.setSpacing(5)
 
         self.camera_preview_label = QLabel("Нажмите «Старт» для запуска", self.camera_frame)
-        self.camera_preview_label.setStyleSheet(
-            THEMES[get_settings_config_value("theme")]["camera_preview_label"]
-        )
+        self.camera_preview_label.setObjectName("cameraPreviewLabel")
         self.camera_preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.camera_preview_label.setMinimumSize(320, 240)
         self.camera_preview_label.setScaledContents(False)
@@ -98,11 +90,11 @@ class GesturesPage(BaseInputPage):
         btn_layout.setSpacing(10)
 
         self.start_btn = QPushButton("Старт", self.camera_frame)
-        self.start_btn.setStyleSheet(THEMES[get_settings_config_value("theme")]["btn_3"])
+        self.start_btn.setObjectName("accentButton")
         self.start_btn.clicked.connect(self.start_camera)
 
         self.stop_btn = QPushButton("Стоп", self.camera_frame)
-        self.stop_btn.setStyleSheet(THEMES[get_settings_config_value("theme")]["btn_4"])
+        self.stop_btn.setObjectName("dangerButton")
         self.stop_btn.clicked.connect(self.stop_camera)
         self.stop_btn.setEnabled(False)
 
@@ -182,13 +174,3 @@ class GesturesPage(BaseInputPage):
         painter.drawImage(0, 0, image)
         painter.end()
         return result
-
-    # ---------- Применение темы ----------
-
-    def _apply_theme(self, theme: dict):
-        super()._apply_theme(theme)
-        if hasattr(self, "camera_frame"):
-            self.camera_frame.setStyleSheet(theme["gestures_camera_frame"])
-            self.camera_preview_label.setStyleSheet(theme["camera_preview_label"])
-            self.start_btn.setStyleSheet(theme["btn_3"])
-            self.stop_btn.setStyleSheet(theme["btn_4"])

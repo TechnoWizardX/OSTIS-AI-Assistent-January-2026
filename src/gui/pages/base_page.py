@@ -2,16 +2,14 @@ from PyQt6.QtWidgets import (QWidget, QGraphicsDropShadowEffect, QPushButton
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
 from PyQt6.QtGui import QFont, QIcon, QColor
-from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
 class ContentPageWidget(QWidget):
     """Основание для панелей контента"""
     def __init__(self):
         super().__init__()
+        self.setObjectName("inputPage")
 
         self.side_panel_btn = QPushButton()
-        self.side_panel_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_2"])
-        self.settings_text_qss = THEMES[SELECTED_THEME]["settings_text"]
-        self.dropbox_qss = THEMES[SELECTED_THEME]["settings_combobox"]
+        self.side_panel_btn.setObjectName("sidePanelButton")
         self.side_panel_btn.setMinimumSize(55, 60)
 
         # состояние кнопки при нажатии
@@ -42,9 +40,3 @@ class ContentPageWidget(QWidget):
         
         self.side_panel_btn.enterEvent = on_enter
         self.side_panel_btn.leaveEvent = on_leave
-
-    def _apply_theme(self, theme: dict):
-        """Обновляет стили кнопки боковой панели."""
-        self.side_panel_btn.setStyleSheet(theme["btn_2"])
-        self.settings_text_qss = theme["settings_text"]
-        self.dropbox_qss = theme["settings_combobox"]

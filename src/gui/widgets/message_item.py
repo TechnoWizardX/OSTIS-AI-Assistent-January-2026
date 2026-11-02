@@ -1,13 +1,12 @@
 from PyQt6.QtWidgets import QLabel, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QSizePolicy, QPushButton, QApplication
-from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QSize, Qt
 from datetime import datetime
-from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
 from src.gui.signals import ui_signals
-from src.gui import icon_path
+from src.utils.icons import set_theme_icon
 class Message(QWidget):
     def __init__(self, author: str, text: str, time: str = None):
         super().__init__()
+        self.setObjectName("message")
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
 
@@ -18,7 +17,7 @@ class Message(QWidget):
 
         # Пузырёк сообщения (ширина подстраивается под текст)
         self.main_frame = QFrame()
-        self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["message_frame"])
+        self.main_frame.setObjectName("messageFrame")
         self.main_frame.setMinimumWidth(100)
         self.main_frame.setMaximumWidth(500)
         self.main_frame.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
@@ -30,25 +29,25 @@ class Message(QWidget):
         # Имя автора
         display = "Вы" if author == "user" else author
         self.author_label = QLabel(display)
-        self.author_label.setStyleSheet(THEMES[SELECTED_THEME]["message_author"])
+        self.author_label.setObjectName("messageAuthor")
         frame_layout.addWidget(self.author_label)
 
         # Текст
         self.text_label = QLabel(text)
+        self.text_label.setObjectName("messageText")
         self.text_label.setWordWrap(True)
-        self.text_label.setStyleSheet(THEMES[SELECTED_THEME]["message_text"])
         self.text_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
         frame_layout.addWidget(self.text_label)
 
         # Время
         time_str = time or datetime.now().strftime("%H:%M")
         self.time_label = QLabel(time_str)
-        self.time_label.setStyleSheet(THEMES[SELECTED_THEME]["message_time"])
+        self.time_label.setObjectName("messageTime")
         bottom_lay = QHBoxLayout()
         self.copy_btn = QPushButton()
-        self.copy_btn.setIcon(QIcon(icon_path("copy.png")))
+        self.copy_btn.setObjectName("copyButton")
+        set_theme_icon(self.copy_btn, "copy.svg")
         self.copy_btn.setIconSize(QSize(20, 20))
-        self.copy_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_1"])
         self.copy_btn.setFixedSize(30, 30)
         self.copy_btn.clicked.connect(self.copy_text)
         bottom_lay.addWidget(self.copy_btn)
@@ -58,11 +57,9 @@ class Message(QWidget):
 
         # Кнопка озвучки (динамик)
         self.voice_btn = QPushButton()
+        self.voice_btn.setObjectName("checkableButton")
         self.voice_btn.setFixedSize(40, 40)
-        accent_color = _COLOR_MAP[SELECTED_THEME].get("accent", "#4CAF50")
-        self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME].get("btn_checkable", "") +
-                                     f"QPushButton:checked {{ background-color: {accent_color}; }}")
-        self.voice_btn.setIcon(QIcon(icon_path("speaker.png")))
+        set_theme_icon(self.voice_btn, "speaker.svg")
         self.voice_btn.setIconSize(QSize(25, 25))
         
         self.text_content = text                     # сохраняем текст
@@ -105,15 +102,4 @@ class Message(QWidget):
     def _reset_button(self):
         """Возвращает кнопку в исходное неактивное состояние."""
         self.is_playing = False
-        self.voice_btn.setChecked(False)        
-        
-    def _apply_theme(self, theme: dict):
-        self.main_frame.setStyleSheet(theme["message_frame"])
-        self.author_label.setStyleSheet(theme["message_author"])
-        self.text_label.setStyleSheet(theme["message_text"])
-        self.time_label.setStyleSheet(theme["message_time"])
-        self.copy_btn.setStyleSheet(theme["btn_1"])
-        if hasattr(self, 'voice_btn'):
-            base_style = theme.get("btn_checkable", "")
-            accent_color = _COLOR_MAP[SELECTED_THEME].get("accent", "#4CAF50")
-            self.voice_btn.setStyleSheet(base_style + f"QPushButton:checked {{ background-color: {accent_color}; }}")    
+        self.voice_btn.setChecked(False)

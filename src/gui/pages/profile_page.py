@@ -2,10 +2,9 @@ from PyQt6.QtWidgets import ( QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFrame, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
-from PyQt6.QtGui import QFont, QIcon, QPixmap
+from PyQt6.QtGui import QFont
 from .base_page import ContentPageWidget
-from src.gui import icon_path
-from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
+from src.utils.icons import set_theme_icon, set_theme_pixmap
 from src.gui.signals import ui_signals
 from src.gui.widgets.options import ProfileOption, DysfunctionsProfileOption, RecommendationBadge
 from src.utils.database import DATABASE_EDITOR
@@ -15,14 +14,14 @@ class ProfilePage(ContentPageWidget):
     def __init__(self):
         super().__init__()
         self.side_panel_btn.setText("Профиль")
-        self.side_panel_btn.setIcon(QIcon(icon_path("profile.png")))
+        set_theme_icon(self.side_panel_btn, "profile.svg")
         
         
         self.profile_lay = QVBoxLayout(self)
         self.profile_lay.setContentsMargins(0, 0, 0, 0)
         # Главная рамка
         self.main_frame = QFrame()
-        self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["dialog_frame"])
+        self.main_frame.setObjectName("dialogFrame")
         self.profile_lay.addWidget(self.main_frame)
         
         # Главный лайаут
@@ -35,12 +34,13 @@ class ProfilePage(ContentPageWidget):
         self.head_data_lay.setSpacing(10)
 
         self.photo_frame = QFrame()
-        self.photo_frame.setStyleSheet(THEMES[SELECTED_THEME]["profile_photo_frame"])
+        self.photo_frame.setObjectName("profilePhotoFrame")
         self.photo_frame.setFixedSize(150, 150)
         self.photo_frame_lay = QVBoxLayout(self.photo_frame)
         self.profile_picture = QLabel()
-        self.profile_picture.setPixmap(QPixmap(icon_path("user.png")))
+        self.profile_picture.setObjectName("profilePicture")
         self.profile_picture.setFixedSize(100, 100)
+        set_theme_pixmap(self.profile_picture, "user.svg")
         self.profile_picture.setScaledContents(True)
         self.photo_frame.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         self.photo_frame_lay.addWidget(self.profile_picture, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -108,12 +108,3 @@ class ProfilePage(ContentPageWidget):
     def _on_recommendation_ready(self, methods: list, text: str):
         """Обновляет текст рекомендации (методы игнорируются, они обрабатываются в UserInterface)."""
         self.recommendation.set_recommendation(text)
-
-    def _apply_theme(self, theme: dict):
-        """Обновляет стили страницы профиля."""
-        super()._apply_theme(theme)
-        self.main_frame.setStyleSheet(theme["dialog_frame"])
-        self.photo_frame.setStyleSheet(theme["profile_photo_frame"])
-        self.recommendation._apply_theme(theme)
-        for opt in [self.sn_fn_patr, self.birthday, self.gender, self.dysfunctions]:
-            opt._apply_theme(theme)

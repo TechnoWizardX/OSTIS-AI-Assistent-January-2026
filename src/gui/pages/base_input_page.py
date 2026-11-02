@@ -20,8 +20,3 @@ class BaseInputPage(ContentPageWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.chat_splitter)
         self.setLayout(layout)
-
-    def _apply_theme(self, theme):
-        super()._apply_theme(theme)
-        self.dialog_box._apply_theme(theme)
-        self.send_box._apply_theme(theme)

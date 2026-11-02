@@ -4,9 +4,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
 from PyQt6.QtGui import QColor, QPainter, QPainterPath
-from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
 from src.utils.config import load_settings_config, set_settings_config_value
 from src.gui.signals import ui_signals
+from src.utils.theme_manager import ThemeManager
 
 class ToggleSwitch(QWidget):
     """Красивый переключатель с плавной анимацией"""
@@ -15,6 +15,7 @@ class ToggleSwitch(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("toggleSwitch")
         self.setMouseTracking(True)
         self.setMinimumWidth(52)
         self.setMinimumHeight(30)
@@ -23,11 +24,8 @@ class ToggleSwitch(QWidget):
         # Состояние
         self._checked = False
         
-        # Цвета из темы
-        _t = THEMES[SELECTED_THEME]["toggle_switch"]
-        self._bg_color_off = QColor(_t["bg_off"])
-        self._bg_color_on = QColor(_t["bg_on"])
-        self._circle_color = QColor(_t["circle"])
+        self._apply_theme()
+        ui_signals.settings_changed.connect(self._on_settings_changed)
         
         # Анимация позиции (0.0 - 1.0)
         self._anim_progress = 0.0
@@ -100,12 +98,15 @@ class ToggleSwitch(QWidget):
                                    circle_radius * 2, circle_radius * 2))
         painter.end()
 
-    def _apply_theme(self, theme: dict):
+    def _on_settings_changed(self, changes: dict):
+        if "theme" in changes:
+            self._apply_theme()
+
+    def _apply_theme(self):
         """Обновляет цвета переключателя."""
-        ts = theme["toggle_switch"]
-        self._bg_color_off = QColor(ts["bg_off"])
-        self._bg_color_on = QColor(ts["bg_on"])
-        self._circle_color = QColor(ts["circle"])
+        self._bg_color_off = QColor(str(ThemeManager.get_color("toggle_off")))
+        self._bg_color_on = QColor(str(ThemeManager.get_color("toggle_on")))
+        self._circle_color = QColor(str(ThemeManager.get_color("toggle_circle")))
         self.update()
 
 
@@ -116,6 +117,7 @@ class ToggleSwitchRow(QWidget):
 
     def __init__(self, text, parent=None, checked=False):
         super().__init__(parent)
+        self.setObjectName("toggleSwitchRow")
 
         # Основной лайаут
         main_layout = QHBoxLayout(self)
@@ -123,7 +125,7 @@ class ToggleSwitchRow(QWidget):
 
         # фрейм для переключателя
         self.toggle_frame = QFrame()
-        self.toggle_frame.setStyleSheet(THEMES[SELECTED_THEME]["toggle_switch_row"])
+        self.toggle_frame.setObjectName("toggleSwitchFrame")
         self.toggle_frame.setFixedHeight(40)
         main_layout.addWidget(self.toggle_frame)
 
@@ -134,7 +136,7 @@ class ToggleSwitchRow(QWidget):
 
         # Текстовая метка
         self.label = QLabel(text)
-        self.label.setStyleSheet(THEMES[SELECTED_THEME]["toggle_switch_row_label"])
+        self.label.setObjectName("toggleSwitchRowLabel")
         self.toggle_frame_lay.addWidget(self.label, 1)
 
         # Переключатель
@@ -149,13 +151,6 @@ class ToggleSwitchRow(QWidget):
 
     def setChecked(self, state):
         self.toggle_switch.setChecked(state)
-
-    def _apply_theme(self, theme: dict):
-        """Обновляет стили фрейма и метки."""
-        self.toggle_frame.setStyleSheet(theme["toggle_switch_row"])
-        self.label.setStyleSheet(theme["toggle_switch_row_label"])
-        self.toggle_switch._apply_theme(theme)
-
 
 class ToggleSwitchState:
     """Класс для сохранения и загрузки состояния переключателя"""

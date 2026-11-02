@@ -3,7 +3,6 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QStackedWidget, QFrame
 )
 from PyQt6.QtCore import Qt
-from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
 
 class SettingsSectionLabel(QWidget):
     """Минималистичный заголовок-разделитель для группировки настроек.
@@ -11,6 +10,7 @@ class SettingsSectionLabel(QWidget):
 
     def __init__(self, text: str, parent=None):
         super().__init__(parent)
+        self.setObjectName("settingsSection")
         self._text = text
         self.setFixedHeight(28)
 
@@ -20,23 +20,18 @@ class SettingsSectionLabel(QWidget):
 
         # Тонкий вертикальный акцент-прямоугольник
         self._accent = QFrame()
+        self._accent.setObjectName("accentFrame")
         self._accent.setFixedSize(3, 16)
-        self._accent.setStyleSheet(THEMES[SELECTED_THEME]["accent"])
         lay.addWidget(self._accent, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # Текстовая метка
         self._label = QLabel(text)
-        self._label.setStyleSheet(THEMES[SELECTED_THEME]["settings_section_label"])
+        self._label.setObjectName("settingsSectionLabel")
         lay.addWidget(self._label, 1)
 
         # Горизонтальная разделительная линия
         self._line = QFrame()
+        self._line.setObjectName("borderLine")
         self._line.setFrameShape(QFrame.Shape.HLine)
         self._line.setFixedHeight(1)
-        self._line.setStyleSheet(THEMES[SELECTED_THEME]["border"])
         lay.addWidget(self._line, 6)
-
-    def _apply_theme(self, theme: dict):
-        self._accent.setStyleSheet(theme["accent"])
-        self._label.setStyleSheet(theme["settings_section_label"])
-        self._line.setStyleSheet(theme["border"])

@@ -12,7 +12,6 @@ from src.utils.database import DataBaseEditor
 from src.utils.config import load_settings_config, set_settings_config_value, get_settings_config_value
 from src.utils.logger import logger
 from src.utils.devices import get_available_cameras, get_available_microphones
-from .themes import THEMES, _COLOR_MAP
 from .signals import ui_signals
 # Базовый путь для иконок
 from .widgets.chat_dialog import DialogBox
@@ -33,7 +32,8 @@ SELECTED_THEME = CONFIG.get("theme") or "light"
 RECOGNITION_MODEL = CONFIG.get("recognition_model")
 
 from src.GesturesInput.gestures import GestureCameraThread
-from src.gui import icon_path
+from src.utils.icons import set_theme_icon
+from src.utils.theme_manager import ThemeManager
 
 
 """
@@ -50,14 +50,15 @@ class UserInterface(QMainWindow):
         super().__init__()
         logger("UserInterface", "INFO", "Инициализация интерфейса")
 
-        self._theme = THEMES[SELECTED_THEME]
+        ThemeManager.apply_theme(SELECTED_THEME)
 
         self.setWindowTitle("IAMOS")
+        self.setObjectName("mainWindow")
         self.setGeometry(100, 100, 820, 690)
         self.setMinimumSize(700, 525)
-        self.setStyleSheet(self._theme["main_window"])
         # Основное окно
         self.main_widget = QWidget(self)
+        self.main_widget.setObjectName("mainWidget")
         self.setCentralWidget(self.main_widget)
 
         # Основной лайаут: размещает боковую панель и панель контента горизонтально
@@ -68,19 +69,9 @@ class UserInterface(QMainWindow):
 
         # Сплиттер для изменения размера боковой панели и контента
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter.setObjectName("mainSplitter")
         self.main_splitter.setHandleWidth(6)
         self.main_splitter.setChildrenCollapsible(False)
-        self.main_splitter.setStyleSheet("""
-            QSplitter::handle {
-                background-color: transparent;
-            }
-            QSplitter::handle:hover {
-                background-color: transparent;
-            }
-            QSplitter::handle:pressed {
-                background-color: transparent;
-            }
-        """)
         
         self.settings_page = SettingsPage(api_key)
         self.profile_page = ProfilePage()
@@ -100,8 +91,8 @@ class UserInterface(QMainWindow):
 
         # Боковая панель
         self.side_panel = QWidget(self.main_widget)
+        self.side_panel.setObjectName("sidePanel")
         self.side_panel.setMaximumWidth(190)
-        self.side_panel.setStyleSheet(self._theme["side_panel"])
         
 
         # Лайаут боковой панели
@@ -130,27 +121,11 @@ class UserInterface(QMainWindow):
 
         # Кнопка очистки истории – будет в самом низу
         self.clear_history_btn = QPushButton("Очистить историю")
+        self.clear_history_btn.setObjectName("clearHistoryButton")
         self.clear_history_btn.setMinimumSize(55, 40)
         self.clear_history_btn.setCheckable(False)
-        self.clear_history_btn.setIcon(QIcon(icon_path("delete.png")))
+        set_theme_icon(self.clear_history_btn, "delete.svg")
         self.clear_history_btn.setIconSize(QSize(25, 25))
-        self.clear_history_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #d32f2f;
-                border: none;
-                border-radius: 8px;
-                color: white;
-                font-weight: bold;
-                text-align: left;
-                padding-left: 15px;
-            }
-            QPushButton:hover {
-                background-color: #b71c1c;
-            }
-            QPushButton:pressed {
-                background-color: #9a0007;
-            }
-        """)
         self.clear_history_btn.clicked.connect(self._on_clear_history_clicked)
         self.clear_history_btn.setVisible(False)
         self.side_panel_lay.addWidget(self.clear_history_btn)
@@ -197,7 +172,7 @@ class UserInterface(QMainWindow):
         }
         # Сохраняем оригинальные стили кнопок и передаём текущую тему
         for method, btn in self._method_to_button.items():
-            self._glow_effects[method] = RecommendationGlowEffect(btn, SELECTED_THEME)
+            self._glow_effects[method] = RecommendationGlowEffect(btn, ThemeManager.current_theme)
             # Подключаемся на клик кнопки — останавливаем анимацию
             btn.clicked.connect(lambda checked, m=method: self._on_button_clicked(m))
 
@@ -238,30 +213,14 @@ class UserInterface(QMainWindow):
 
     def _apply_theme(self, theme_name: str):
         """Применяет тему ко всему приложению."""
-        global SELECTED_THEME
-        self._theme_name = theme_name
-        self._theme = THEMES[theme_name]
-        SELECTED_THEME = theme_name  # Обновляем глобальную переменную
-        set_settings_config_value("theme", theme_name)
-
-        # Главное окно
-        self.setStyleSheet(self._theme["main_window"])
-        self.side_panel.setStyleSheet(self._theme["side_panel"])
-
-        # Все страницы контента
-        for page in self.content_pages:
-            page._apply_theme(self._theme)
-
-        # Переключатель настроек (цвета paintEvent)
-        ts = self.settings_page.toggle_row_for_voice.toggle_switch
-        ts._apply_theme(self._theme)
-        ts2 = self.settings_page.toggle_row_for_gesture.toggle_switch
-        ts2._apply_theme(self._theme)
+        ThemeManager.apply_theme(theme_name)
+        self._theme_name = ThemeManager.current_theme
+        set_settings_config_value("theme", self._theme_name)
 
         # Обновляем тему для эффектов свечения
         for method in self._method_to_button:
             if method in self._glow_effects:
-                self._glow_effects[method].update_theme(theme_name)
+                self._glow_effects[method].update_theme(self._theme_name)
 
     def change_theme(self, theme_name: str):
         """Публичный метод для смены темы извне."""

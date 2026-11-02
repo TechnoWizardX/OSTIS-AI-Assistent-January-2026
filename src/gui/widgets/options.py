@@ -1,13 +1,10 @@
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QStackedWidget, QFrame, QTextEdit, QLineEdit, QSizePolicy
+    QPushButton, QLabel, QVBoxLayout, QHBoxLayout, QFrame, QTextEdit, QLineEdit, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
-from PyQt6.QtGui import QIcon, QTextOption
-import os
-from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
+from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
+from PyQt6.QtGui import QTextOption
 from src.gui.signals import ui_signals
-from src.gui import icon_path
+from src.utils.icons import set_theme_icon
 
 from src.utils.database import DATABASE_EDITOR
 
@@ -27,8 +24,7 @@ class ProfileOption(QFrame):
         self.columns = columns
         self.several_columns = several_columns
 
-        self.setStyleSheet(THEMES[SELECTED_THEME]["profile_option_frame"])
-        self.text_qss = THEMES[SELECTED_THEME]["profile_text"]
+        self.setObjectName("profileOptionFrame")
         self.setFixedHeight(35)
         self._name = name
         self._current_value = value
@@ -40,25 +36,25 @@ class ProfileOption(QFrame):
 
         # Название (слева)
         self.name_label = QLabel(name)
-        self.name_label.setStyleSheet(self.text_qss)
+        self.name_label.setObjectName("profileText")
         self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
         self.name_label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
         self.lay.addWidget(self.name_label, 1)
 
         # Вертикальная линия-разделитель
         self.line = QFrame()
+        self.line.setObjectName("profileLine")
         self.line.setMaximumWidth(2)
         self.line.setFrameShape(QFrame.Shape.VLine)
         self.line.setFrameShadow(QFrame.Shadow.Sunken)
-        self.line.setStyleSheet(THEMES[SELECTED_THEME]["profile_line"])
         self.lay.addWidget(self.line, Qt.AlignmentFlag.AlignLeft)
         
         # Значение (Label для отображения, QLineEdit для редактирования)
         self.value_label = QLabel(value)
-        self.value_label.setStyleSheet(self.text_qss)
+        self.value_label.setObjectName("profileText")
         self.value_label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
         self.value_edit = QLineEdit(value)
-        self.value_edit.setStyleSheet(self.text_qss + "background: transparent; border: none;")
+        self.value_edit.setObjectName("profileValueInput")
         self.value_edit.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
         self.value_edit.setVisible(False)  # Скрыто по умолчанию
         self.lay.addWidget(self.value_label, 3)
@@ -67,37 +63,19 @@ class ProfileOption(QFrame):
         # Кнопка "Редактировать" (карандаш)
         if can_edit:
             self.btn_edit = QPushButton()
-            self.btn_edit.setIcon(QIcon(icon_path("pencil.png")))
+            self.btn_edit.setObjectName("profileIconButton")
+            set_theme_icon(self.btn_edit, "pencil.svg")
             self.btn_edit.setIconSize(QSize(20, 20))
             self.btn_edit.setFixedSize(25, 25)
-            self.btn_edit.setStyleSheet("""
-                QPushButton {
-                    background-color: transparent;
-                    border-radius: 15px;
-                    color: white;
-                    font-size: 16px;
-                }
-                QPushButton:hover { background-color: transparent; }
-                QPushButton:pressed { background-color: transparent; }
-            """)
             self.btn_edit.clicked.connect(self._start_editing)
             self.lay.addWidget(self.btn_edit)
 
             # Кнопка "Завершить" (галочка) — скрыта по умолчанию
             self.btn_save = QPushButton()
-            self.btn_save.setIcon(QIcon(icon_path("accept.png")))
+            self.btn_save.setObjectName("profileIconButton")
+            set_theme_icon(self.btn_save, "accept.svg")
             self.btn_save.setIconSize(QSize(20, 20))
             self.btn_save.setFixedSize(25, 25)
-            self.btn_save.setStyleSheet("""
-                QPushButton {
-                    background-color: transparent;
-                    border-radius: 15px;
-                    color: white;
-                    font-size: 16px;
-                }
-                QPushButton:hover { background-color: transparent; }
-                QPushButton:pressed { background-color: transparent; }
-            """)
             self.btn_save.clicked.connect(self._finish_editing)
             self.btn_save.setVisible(False)
             self.lay.addWidget(self.btn_save)
@@ -147,16 +125,6 @@ class ProfileOption(QFrame):
         """Возвращает текущее значение."""
         return self._current_value
 
-    def _apply_theme(self, theme: dict):
-        """Обновляет стили строки профиля."""
-        self.setStyleSheet(theme["profile_option_frame"])
-        self.text_qss = theme["profile_text"]
-        self.name_label.setStyleSheet(theme["profile_text"])
-        self.value_label.setStyleSheet(theme["profile_text"])
-        self.value_edit.setStyleSheet(theme["profile_text"] + "background: transparent; border: none;")
-        self.line.setStyleSheet(theme["profile_line"])
-
-
 class RecommendationBadge(QFrame):
     """
     Виджет плашки рекомендаций с вертикальным расположением:
@@ -167,9 +135,7 @@ class RecommendationBadge(QFrame):
     def __init__(self, title: str = "Рекомендация по вводу/выводу", 
                  recommendation_text: str = "Не определено", parent=None):
         super().__init__(parent)
-        
-        self.setStyleSheet(THEMES[SELECTED_THEME]["profile_option_frame"])
-        self.text_qss = THEMES[SELECTED_THEME]["profile_text"]
+        self.setObjectName("profileOptionFrame")
         
         # Убираем фиксированную высоту, позволяем растягиваться
         
@@ -182,20 +148,20 @@ class RecommendationBadge(QFrame):
         
         # Заголовок сверху
         self.title_label = QLabel(title)
-        self.title_label.setStyleSheet(self.text_qss + "font-weight: bold;")
+        self.title_label.setObjectName("profileBadgeTitle")
         self.title_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         self.lay.addWidget(self.title_label)
         
         # Горизонтальная разделительная линия
         self.line = QFrame()
+        self.line.setObjectName("profileLine")
         self.line.setFrameShape(QFrame.Shape.HLine)
         self.line.setFrameShadow(QFrame.Shadow.Sunken)
-        self.line.setStyleSheet(THEMES[SELECTED_THEME]["profile_line"])
         self.lay.addWidget(self.line)
         
         # Текст рекомендации снизу
         self.recommendation_label = QLabel(recommendation_text)
-        self.recommendation_label.setStyleSheet(self.text_qss)
+        self.recommendation_label.setObjectName("profileText")
         self.recommendation_label.setWordWrap(True)
         self.recommendation_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.lay.addWidget(self.recommendation_label)
@@ -212,24 +178,9 @@ class RecommendationBadge(QFrame):
         """Возвращает текущее значение рекомендации."""
         return self._current_value
     
-    def _apply_theme(self, theme: dict):
-        """Обновляет стили плашки."""
-        self.setStyleSheet(theme["profile_option_frame"])
-        self.text_qss = theme["profile_text"]
-        self.title_label.setStyleSheet(theme["profile_text"] + "font-weight: bold;")
-        self.recommendation_label.setStyleSheet(theme["profile_text"])
-        self.line.setStyleSheet(theme["profile_line"])
-
 class DysfunctionsProfileOption(QFrame):
     value_changed = pyqtSignal(str)
     dysfunctions_saved = pyqtSignal()  # Сигнал о сохранении нарушений
-
-    # Общий стиль кнопок-иконок (карандаш, галочка, шеврон)
-    _BTN_STYLE = """
-        QPushButton { background-color: transparent; border-radius: 15px; }
-        QPushButton:hover { background-color: transparent; }
-        QPushButton:pressed { background-color: transparent; }
-    """
 
     def __init__(
         self,
@@ -252,7 +203,7 @@ class DysfunctionsProfileOption(QFrame):
         # Минимальная высота текстового поля в свёрнутом состоянии
         self._collapsed_height = 30
 
-        self.setStyleSheet(THEMES[SELECTED_THEME]["profile_option_frame"])
+        self.setObjectName("profileOptionFrame")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.main_lay = QVBoxLayout(self)
@@ -265,44 +216,41 @@ class DysfunctionsProfileOption(QFrame):
         self.header_lay.setSpacing(6)
 
         self.name_label = QLabel("Нарушения")
-        self.name_label.setStyleSheet(THEMES[SELECTED_THEME]["profile_text"])
+        self.name_label.setObjectName("profileText")
         self.header_lay.addWidget(self.name_label)
         self.header_lay.addStretch(1)
 
         # Шеврон (свернуть / развернуть)
         self.btn_chevron = QPushButton()
-        self.btn_chevron.setIcon(QIcon(icon_path("chevron-down.png")))
+        self.btn_chevron.setObjectName("profileIconButton")
+        set_theme_icon(self.btn_chevron, "chevron-down.svg")
         self.btn_chevron.setIconSize(QSize(18, 18))
         self.btn_chevron.setFixedSize(25, 25)
-        self.btn_chevron.setStyleSheet(self._BTN_STYLE)
         self.btn_chevron.clicked.connect(self._toggle_expand)
 
         # Карандаш
         self.btn_edit = QPushButton()
-        self.btn_edit.setIcon(QIcon(icon_path("pencil.png")))
+        self.btn_edit.setObjectName("profileIconButton")
+        set_theme_icon(self.btn_edit, "pencil.svg")
         self.btn_edit.setIconSize(QSize(20, 20))
         self.btn_edit.setFixedSize(25, 25)
-        self.btn_edit.setStyleSheet(self._BTN_STYLE)
         self.btn_edit.clicked.connect(self._start_editing)
 
         # Галочка (сохранить)
         self.btn_save = QPushButton()
-        self.btn_save.setIcon(QIcon(icon_path("accept.png")))
+        self.btn_save.setObjectName("profileIconButton")
+        set_theme_icon(self.btn_save, "accept.svg")
         self.btn_save.setIconSize(QSize(20, 20))
         self.btn_save.setFixedSize(25, 25)
         self.btn_save.setVisible(False)
-        self.btn_save.setStyleSheet(self._BTN_STYLE)
         self.btn_save.clicked.connect(self._finish_editing)
 
         # Отмена (крестик) — появляется только при редактировании
         self.btn_cancel = QPushButton()
-        cancel_icon = QIcon(icon_path("cancel.png")) if os.path.exists(icon_path("cancel.png")) else QIcon()
-        self.btn_cancel.setIcon(cancel_icon)
+        self.btn_cancel.setObjectName("profileCancelButton")
         self.btn_cancel.setText("✕")
-        self.btn_cancel.setIconSize(QSize(16, 16))
         self.btn_cancel.setFixedSize(25, 25)
         self.btn_cancel.setVisible(False)
-        self.btn_cancel.setStyleSheet(self._BTN_STYLE + "QPushButton { font-size: 12px; color: #e57373; }")
         self.btn_cancel.clicked.connect(self._cancel_editing)
 
         self.header_lay.addWidget(self.btn_chevron)
@@ -313,20 +261,20 @@ class DysfunctionsProfileOption(QFrame):
 
         # ── РАЗДЕЛИТЕЛЬ ────────────────────────────────────────────
         self.line = QFrame()
+        self.line.setObjectName("profileLine")
         self.line.setFrameShape(QFrame.Shape.HLine)
         self.line.setFrameShadow(QFrame.Shadow.Sunken)
-        self.line.setStyleSheet(THEMES[SELECTED_THEME]["profile_line"])
         self.main_lay.addWidget(self.line)
 
         # ── ТЕКСТОВОЕ ПОЛЕ ─────────────────────────────────────────
         self.text_edit = QTextEdit()
+        self.text_edit.setObjectName("profileTextEdit")
         self.text_edit.setPlainText(self._get_display_text())
         self.text_edit.setReadOnly(True)
         self.text_edit.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
         self.text_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.text_edit.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.text_edit.setStyleSheet(self._text_edit_style(THEMES[SELECTED_THEME]))
         self.main_lay.addWidget(self.text_edit)
 
         # Обновлять высоту при любом изменении контента
@@ -334,22 +282,6 @@ class DysfunctionsProfileOption(QFrame):
 
         # Первичная установка высоты после рендера
         QTimer.singleShot(0, self._update_text_height)
-
-    # ── СТИЛЬ ──────────────────────────────────────────────────────
-    def _text_edit_style(self, theme: dict) -> str:
-        base = """
-            QTextEdit {
-                background-color: transparent;
-                border: none;
-                border-radius: 8px;
-                padding: 4px 6px;
-                font-size: 14px;
-                font-family: "Roboto";
-            }
-            QTextEdit:focus { border: none; outline: none; }
-        """
-        color_rule = f"QTextEdit {{ {theme['profile_text']} }}"
-        return base + color_rule + theme.get("scrollbar", "")
 
     # ── ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ─────────────────────────────────────
     def _get_display_text(self) -> str:
@@ -392,11 +324,11 @@ class DysfunctionsProfileOption(QFrame):
         self._is_expanded = not self._is_expanded
 
         if self._is_expanded:
-            self.btn_chevron.setIcon(QIcon(icon_path("chevron-up.png")))
+            set_theme_icon(self.btn_chevron, "chevron-up.svg")
             self.text_edit.setPlainText(self._full_text if self._full_text else "Не указано")
             self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         else:
-            self.btn_chevron.setIcon(QIcon(icon_path("chevron-down.png")))
+            set_theme_icon(self.btn_chevron, "chevron-down.svg")
             self.text_edit.setPlainText(self._get_truncated_text())
             self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
@@ -410,7 +342,7 @@ class DysfunctionsProfileOption(QFrame):
         # Разворачиваем, если свёрнуто
         if not self._is_expanded:
             self._is_expanded = True
-            self.btn_chevron.setIcon(QIcon(icon_path("chevron-up.png")))
+            set_theme_icon(self.btn_chevron, "chevron-up.svg")
 
         self.text_edit.setPlainText(self._full_text if self._full_text else "")
         self.text_edit.setReadOnly(False)
@@ -515,9 +447,3 @@ class DysfunctionsProfileOption(QFrame):
         self._current_value = self._full_text if self._full_text else "Не указано"
         self.text_edit.setPlainText(self._get_display_text())
         self._update_text_height()
-
-    def _apply_theme(self, theme: dict):
-        self.setStyleSheet(theme["profile_option_frame"])
-        self.name_label.setStyleSheet(theme["profile_text"])
-        self.line.setStyleSheet(theme["profile_line"])
-        self.text_edit.setStyleSheet(self._text_edit_style(theme))

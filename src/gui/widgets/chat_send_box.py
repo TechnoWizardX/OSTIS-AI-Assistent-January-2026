@@ -4,10 +4,9 @@ from PyQt6.QtWidgets import (
     QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser, QMessageBox, QSplitter
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
-from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap, QTextOption, QPen
-from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME
+from PyQt6.QtGui import QFont, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap, QTextOption, QPen
 from src.gui.signals import ui_signals
-from src.gui import icon_path
+from src.utils.icons import set_theme_icon
 from src.utils.chat_history import add_message
 from src.utils.logger import logger
 from src.utils.config import set_settings_config_value
@@ -27,15 +26,13 @@ class ChatSendBox(QWidget):
 
         self.chats_send_box_lay = QVBoxLayout(self)
         self.main_frame = QFrame()
-        self.main_frame.setStyleSheet(THEMES[SELECTED_THEME]["chat_send_box_frame"])
+        self.main_frame.setObjectName("chatSendBoxFrame")
         self.chats_send_box_lay.addWidget(self.main_frame)
         self.main_frame_lay = QVBoxLayout(self.main_frame)
         self.main_frame_lay.setContentsMargins(10, 10, 10, 10)
         self.main_frame_lay.setSpacing(10)
         self.chat_send_input = QTextEdit()
-        self.chat_send_input.setStyleSheet(
-            THEMES[SELECTED_THEME]["chat_send_input"] + THEMES[SELECTED_THEME]["scrollbar"]
-        )
+        self.chat_send_input.setObjectName("chatSendInput")
         self.main_frame_lay.addWidget(self.chat_send_input, 1)
         
         # Горизонтальный layout для кнопок
@@ -44,10 +41,10 @@ class ChatSendBox(QWidget):
         
         
         self.send_btn = QPushButton("Отправить")
-        self.send_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_1"])
+        self.send_btn.setObjectName("primaryButton")
         self.send_btn.setFixedSize(130, 45)
         self.send_btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
-        self.send_btn.setIcon(QIcon(icon_path("send.png")))
+        set_theme_icon(self.send_btn, "send.svg")
         self.buttons_lay.addStretch(1)
         
         self.buttons_lay.addWidget(self.send_btn)
@@ -63,8 +60,8 @@ class ChatSendBox(QWidget):
         
     def addVoiceButton(self):
             self.voice_btn = QPushButton()
-            self.voice_btn.setStyleSheet(THEMES[SELECTED_THEME]["btn_checkable"])
-            self.voice_btn.setIcon(QIcon(icon_path("microphone.png")))
+            self.voice_btn.setObjectName("checkableButton")
+            set_theme_icon(self.voice_btn, "microphone.svg")
             self.voice_btn.setIconSize(QSize(25, 25))
             self.voice_btn.setCheckable(True)
             self.voice_btn.setFixedSize(45, 45)
@@ -177,16 +174,6 @@ class ChatSendBox(QWidget):
     # Для всех остальных событий используем стандартную обработку
         return super().eventFilter(obj, event)
 
-    def _apply_theme(self, theme: dict):
-        """Обновляет стили поля отправки."""
-        self.main_frame.setStyleSheet(theme["chat_send_box_frame"])
-        self.chat_send_input.setStyleSheet(theme["chat_send_input"] + theme["scrollbar"])
-        if hasattr(self, 'voice_btn'):
-            self.voice_btn.setStyleSheet(theme["btn_checkable"])
-        self.send_btn.setStyleSheet(theme["btn_1"])
-
-
            # прижимаем влево
     
         
-

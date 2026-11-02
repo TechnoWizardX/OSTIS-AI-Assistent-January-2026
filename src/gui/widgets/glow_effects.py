@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
 from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap, QTextOption, QPen
-from src.gui.themes import THEMES, _COLOR_MAP, SELECTED_THEME   
+from src.utils.theme_manager import ThemeManager
 import math
 
 class RunningLineOverlay(QWidget):
@@ -22,7 +22,7 @@ class RunningLineOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
 
         # Получаем параметры свечения из темы
-        colors = _COLOR_MAP.get(theme_name, _COLOR_MAP["dark"])
+        colors, _ = ThemeManager.load_theme(theme_name)
         
         # Цвет и радиус свечения из темы
         glow_color_hex = colors.get("glow", "#00FF00")
