@@ -12,9 +12,6 @@ from src.utils.config import get_settings_config_value, set_settings_config_valu
 from src.utils.logger import logger
 import os
 import ctypes
-from comtypes import CLSCTX_ALL
-from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
-import wmi
 CONFIG = get_settings_config_value("Wifi")
 class ControlSystem:
     

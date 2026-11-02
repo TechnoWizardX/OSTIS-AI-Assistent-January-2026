@@ -1,7 +1,6 @@
 import os
 import requests
 from typing import Union, List
-import traceback
 print(__file__) 
 from src.utils.logger import logger
 

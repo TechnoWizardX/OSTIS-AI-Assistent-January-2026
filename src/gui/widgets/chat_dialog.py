@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QFrame, QScrollArea
+    QWidget, QVBoxLayout, QFrame, QScrollArea
 )
 from PyQt6.QtCore import QTimer
 from src.gui.signals import ui_signals

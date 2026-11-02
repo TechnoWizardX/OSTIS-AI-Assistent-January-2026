@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (QWidget, QGraphicsDropShadowEffect, QPushButton
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
-from PyQt6.QtGui import QFont, QIcon, QColor
+from PyQt6.QtCore import QSize
+from PyQt6.QtGui import QColor
 class ContentPageWidget(QWidget):
     """Основание для панелей контента"""
     def __init__(self):

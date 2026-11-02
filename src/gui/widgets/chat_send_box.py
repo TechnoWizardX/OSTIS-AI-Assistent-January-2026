@@ -1,10 +1,8 @@
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox, QButtonGroup, QTextEdit, QLineEdit,
-    QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser, QMessageBox, QSplitter
+    QWidget, QVBoxLayout, QHBoxLayout,
+    QPushButton, QFrame, QTextEdit
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
-from PyQt6.QtGui import QFont, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap, QTextOption, QPen
+from PyQt6.QtCore import Qt, QSize, pyqtSignal
 from src.gui.signals import ui_signals
 from src.utils.icons import set_theme_icon
 from src.utils.chat_history import add_message

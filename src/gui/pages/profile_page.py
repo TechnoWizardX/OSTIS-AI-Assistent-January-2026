@@ -1,8 +1,7 @@
 from PyQt6.QtWidgets import ( QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFrame, QSizePolicy
+    QLabel, QFrame, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, QTimer
 from .base_page import ContentPageWidget
 from src.utils.icons import set_theme_icon, set_theme_pixmap
 from src.gui.signals import ui_signals

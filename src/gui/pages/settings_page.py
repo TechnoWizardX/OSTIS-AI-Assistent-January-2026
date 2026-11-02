@@ -1,10 +1,9 @@
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox, QButtonGroup, QTextEdit, QLineEdit,
-    QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser, QMessageBox, QSplitter
+    QVBoxLayout, QHBoxLayout,
+    QPushButton, QLabel, QFrame, QGridLayout, QComboBox, QLineEdit,
+    QScrollArea, QMessageBox
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, QSize
 
 from src.gui.widgets.settings_section import SettingsSectionLabel
 from src.gui.widgets.toggle_switch import ToggleSwitchRow, ToggleSwitchState
@@ -14,7 +13,6 @@ from src.gui.signals import ui_signals
 
 from src.utils.config import load_settings_config, set_settings_config_value, get_settings_config_value
 from src.utils.devices import get_available_cameras, get_available_microphones
-from src.utils.logger import logger
 from .base_input_page import ContentPageWidget
 
 class SettingsPage(ContentPageWidget):

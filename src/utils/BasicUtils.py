@@ -1,15 +1,6 @@
-import cv2
-import pyaudio
-import json
-from datetime import datetime
 from pathlib import Path
-import sqlite3
-import re 
 from PyQt6.QtCore import pyqtSignal, QObject
-from PyQt6.QtMultimedia import QMediaDevices
 import socket
-import os
-from dotenv import load_dotenv
 class Signals(QObject):
     voice_message_recognized = pyqtSignal(str)
     error_signal = pyqtSignal(str)

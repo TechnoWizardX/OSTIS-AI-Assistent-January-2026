@@ -1,28 +1,23 @@
 from src.gui.main_window import UserInterface
 from src.gui.signals import ui_signals
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import pyqtSignal, QObject
-from PyQt6.QtCore import QThread
 import sys
 import os
-from datetime import datetime
 VOICE_INPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'interface', 'VoiceInput'))
 if VOICE_INPUT_DIR not in sys.path:
     sys.path.insert(0, VOICE_INPUT_DIR)
-import threading
 from src.utils.network import has_internet
 from src.utils.database import DataBaseEditor
 from src.utils.logger import logger
 from src.utils.config import load_settings_config, get_settings_config_value, set_settings_config_value, get_env_variable
 from src.utils.chat_history import add_message, clear_chat_history, load_chat_history, format_chat_history
-from src.utils.devices import get_available_cameras, get_available_microphones
 from src.utils.BasicUtils import global_signals
 from src.utils.database import DataBaseEditor
 import src.audio.stt_engine as Whisper
 from src.audio.tts_engine import SileroTTS
 from src.core.network_monitor import NetworkChecker
 from src.core.llm_client import LocalModel
-from src.core.recommendation import AccessibilityRecommender, RecommendationParser, METHOD_LABELS
+from src.core.recommendation import AccessibilityRecommender, METHOD_LABELS
 from src.core.intent_handler import IntentHandler, IntentWorker
 from dotenv import load_dotenv
 from src.SystemControl import ControlSystem

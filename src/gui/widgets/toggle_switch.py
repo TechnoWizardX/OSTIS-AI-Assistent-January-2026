@@ -1,8 +1,8 @@
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QStackedWidget, QFrame
+    QWidget, QHBoxLayout,
+    QLabel, QFrame
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QRectF
 from PyQt6.QtGui import QColor, QPainter, QPainterPath
 from src.utils.config import load_settings_config, set_settings_config_value
 from src.gui.signals import ui_signals

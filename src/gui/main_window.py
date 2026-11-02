@@ -1,24 +1,15 @@
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QStackedWidget, QFrame, QGridLayout, QComboBox, QButtonGroup, QTextEdit, QLineEdit,
-    QGraphicsDropShadowEffect, QScrollArea, QSizePolicy, QTextBrowser, QMessageBox, QSplitter
+    QPushButton, QStackedWidget, QButtonGroup, QMessageBox, QSplitter
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer, QRectF
-from PyQt6.QtGui import QFont, QIcon, QColor, QPixmap, QImage, QPainter, QPainterPath, QBitmap, QTextOption, QPen
+from PyQt6.QtCore import Qt, QSize, QTimer
 import sys
-import os
-import math
 from src.utils.database import DataBaseEditor
 from src.utils.config import load_settings_config, set_settings_config_value, get_settings_config_value
 from src.utils.logger import logger
-from src.utils.devices import get_available_cameras, get_available_microphones
 from .signals import ui_signals
 # Базовый путь для иконок
-from .widgets.chat_dialog import DialogBox
-from .widgets.chat_send_box import ChatSendBox
 from .widgets.glow_effects import RecommendationGlowEffect 
-from .widgets.toggle_switch import ToggleSwitchRow, ToggleSwitchState
-from .widgets.settings_section import SettingsSectionLabel
 
 from .pages.gestures_page import GesturesPage
 from .pages.voice_page import VoicePage
@@ -31,7 +22,6 @@ CONFIG = load_settings_config()
 SELECTED_THEME = CONFIG.get("theme") or "light"
 RECOGNITION_MODEL = CONFIG.get("recognition_model")
 
-from src.GesturesInput.gestures import GestureCameraThread
 from src.utils.icons import set_theme_icon
 from src.utils.theme_manager import ThemeManager
 
