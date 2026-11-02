@@ -1,18 +1,19 @@
 """
 Тест для проверки работы ядра (AssistentCore из core/assistant.py)
 """
-import sys
 import os
-
+import sys
 
 # Добавляем корень проекта в sys.path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
     
-from src.utils.config import get_env_variable
-from src.core.assistant import AssistentCore, run_core
 from PyQt6.QtWidgets import QApplication
+
+from src.core.assistant import AssistentCore, run_core
+from src.utils.config_manager import get_env_variable
+
 
 def run_core():
     app = QApplication(sys.argv)
@@ -25,4 +26,3 @@ def run_core():
 
 if __name__ == "__main__":
     run_core()
-

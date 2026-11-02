@@ -19,7 +19,7 @@ from typing import List, Optional
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from src.core.llm_client import LocalModel, MedicalAPI
-from src.utils.config import get_settings_config_value
+from src.utils.config_manager import get_settings_config_value
 from src.utils.database import DataBaseEditor
 from src.utils.logger import logger
 from src.utils.network import \

@@ -12,18 +12,11 @@ from src.gui.pages.text_page import TextPage
 from src.gui.pages.voice_page import VoicePage
 from src.gui.signals import ui_signals
 from src.gui.widgets.glow_effects import RecommendationGlowEffect
-from src.utils.config import (get_settings_config_value, load_settings_config,
-                              set_settings_config_value)
-from src.utils.database import DataBaseEditor
+from src.utils.config_manager import (ConfigManager, get_settings_config_value,
+                                      set_settings_config_value)
 from src.utils.icons import set_theme_icon
 from src.utils.logger import logger
 from src.utils.theme_manager import ThemeManager
-
-DATABASE_EDITOR = DataBaseEditor()
-
-CONFIG = load_settings_config()
-SELECTED_THEME = CONFIG.get("theme") or "light"
-RECOGNITION_MODEL = CONFIG.get("recognition_model")
 
 """
 ====================================================
@@ -39,7 +32,9 @@ class UserInterface(QMainWindow):
         super().__init__()
         logger("UserInterface", "INFO", "Инициализация интерфейса")
 
-        ThemeManager.apply_theme(SELECTED_THEME)
+        ThemeManager.apply_theme(
+            get_settings_config_value("theme") or "light"
+        )
 
         self.setWindowTitle("IAMOS")
         self.setObjectName("mainWindow")
@@ -330,6 +325,8 @@ class UserInterface(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setApplicationName("IAMOS")
+    ConfigManager.init_config()
     app.setStyle("Fusion")
     window = UserInterface()
     window.show()

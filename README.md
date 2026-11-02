@@ -63,16 +63,15 @@ project-root/
 │   ├── utils/                      # служебные модули без состояния
 │   │   ├── __init__.py
 │   │   ├── logger.py               # логирование (бывший BasicUtils.logger)
-│   │   ├── config.py               # работа с JSON-конфигами (settings_config.json)
+│   │   ├── config_manager.py       # конфигурация в пользовательской папке
 │   │   ├── database.py             # DataBaseEditor (SQLite)
 │   │   ├── network.py              # проверка интернета
 │   │   ├── chat_history.py         # загрузка/сохранение/очистка истории чата
 │   │   └── devices.py              # получение списка камер, микрофонов
 │   │
-│   └── data/                       # пользовательские данные 
-│       ├── chat_history.json
-│       ├── settings_config.json
-│       ├── database.db
+│   └── data/                       # встроенные данные приложения
+│       ├── templates/
+│       │   └── data.py             # шаблон DEFAULT_CONFIG
 │       ├── basic_prompt.md
 │       ├── recommendation_prompt.md
 │       └── accessibility_cache.json
@@ -85,3 +84,10 @@ project-root/
     ├── test_system_control.py
     └── ...
 ```
+
+Пользовательские настройки, профильная база и история чата хранятся вне каталога
+проекта в стандартной пользовательской папке Qt (`AppLocalDataLocation`) для
+приложения `IAMOS`: `config.json`, `database.db` и `chat_history.sqlite3`.
+При первом запуске старые настройки, база и JSON-история переносятся туда без
+удаления исходных файлов. Повреждённая конфигурация сохраняется в резервной
+копии, после чего применяется шаблон из `src/data/templates/data.py`.

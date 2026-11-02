@@ -15,11 +15,14 @@ from src.SystemControl import ControlSystem
 from src.utils.BasicUtils import global_signals
 from src.utils.chat_history import (add_message, clear_chat_history,
                                     format_chat_history, load_chat_history)
-from src.utils.config import (get_env_variable, get_settings_config_value,
-                              load_settings_config, set_settings_config_value)
+from src.utils.config_manager import (ConfigManager, get_env_variable,
+                                      get_settings_config_value,
+                                      load_settings_config,
+                                      set_settings_config_value)
 from src.utils.database import DataBaseEditor
 from src.utils.logger import logger
 from src.utils.network import has_internet
+from src.utils.user_data import get_user_data_dir
 
 load_dotenv()
 DATABASE_EDITOR = DataBaseEditor()
@@ -381,7 +384,10 @@ class AssistentCore():
         self.user_interface.show()
 
 def run_core():
-    app = QApplication(sys.argv)
+    app = QApplication.instance() or QApplication(sys.argv)
+    app.setApplicationName("IAMOS")
+    get_user_data_dir()
+    ConfigManager.init_config()
     app.setStyle("Fusion")
     api_key = get_env_variable("OPENROUTER_API_KEY")
     assistent = AssistentCore(api_key=api_key)

@@ -12,11 +12,11 @@ import win32gui
 import win32process
 
 from src.utils.BasicUtils import global_signals
-from src.utils.config import (get_settings_config_value,
-                              set_settings_config_value)
+from src.utils.config_manager import (get_settings_config_value,
+                                      set_settings_config_value)
 from src.utils.logger import logger
 
-CONFIG = get_settings_config_value("Wifi")
+
 class ControlSystem:
     
     @staticmethod
@@ -216,9 +216,15 @@ class ControlSystem:
 
             # Команда просто заставляет адаптер забыть текущую сеть
             current_ssid = ControlSystem.get_current_wifi_name()
+            wifi_config = get_settings_config_value("Wifi")
             logger("SystemControl", f"Текущая Wi-Fi сеть: {current_ssid}")
-            if CONFIG.get("ssid") and current_ssid and current_ssid != CONFIG.get("ssid"):
-                set_settings_config_value("Wifi", "ssid", current_ssid)
+            if (
+                wifi_config.get("ssid")
+                and current_ssid
+                and current_ssid != wifi_config.get("ssid")
+            ):
+                wifi_config["ssid"] = current_ssid
+                set_settings_config_value("Wifi", wifi_config)
             result = subprocess.run("netsh wlan disconnect", shell=True, capture_output=True, text=True)
             
             if result.returncode == 0:
@@ -230,12 +236,14 @@ class ControlSystem:
             global_signals.error_signal.emit(f"Не удалось отключиться от сети")
 
     @staticmethod
-    def connect_wifi(ssid_name: str = CONFIG.get("ssid")):
+    def connect_wifi(ssid_name: str | None = None):
         """Подключается к сохраненной Wi-Fi сети по её имени (SSID)"""
         try:
             import subprocess
 
             # ssid_name — это название твоего Wi-Fi (например, "MyHome_5G")
+            if ssid_name is None:
+                ssid_name = get_settings_config_value("Wifi").get("ssid", "")
             cmd = f'netsh wlan connect name="{ssid_name}"'
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             

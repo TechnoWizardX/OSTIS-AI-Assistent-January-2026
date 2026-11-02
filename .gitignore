@@ -54,7 +54,6 @@ QWEN.md
 *.db
 *.sqlite
 *.sqlite3
-src/data/
 src/utils/data/
 interface/data/
 interface/.env

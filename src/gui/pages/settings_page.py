@@ -7,8 +7,9 @@ from src.gui.pages.base_input_page import ContentPageWidget
 from src.gui.signals import ui_signals
 from src.gui.widgets.settings_section import SettingsSectionLabel
 from src.gui.widgets.toggle_switch import ToggleSwitchRow, ToggleSwitchState
-from src.utils.config import (get_settings_config_value, load_settings_config,
-                              set_settings_config_value)
+from src.utils.config_manager import (get_settings_config_value,
+                                      load_settings_config,
+                                      set_settings_config_value)
 from src.utils.devices import get_available_cameras, get_available_microphones
 from src.utils.icons import set_theme_icon
 from src.utils.theme_manager import ThemeManager
@@ -262,7 +263,7 @@ class SettingsPage(ContentPageWidget):
             QMessageBox.information(self, "Успех", "API ключ сохранен и обновлен")
 
     def _load_settings(self):
-        """Загружает настройки из settings_config.json и применяет их к виджетам."""
+        """Загружает настройки через ConfigManager и применяет их к виджетам."""
         settings_config = load_settings_config()
 
         # Восстанавливаем состояния переключателей

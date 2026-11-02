@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QPushButton,
 
 from src.GesturesInput.gestures import GestureCameraThread
 from src.gui.pages.base_input_page import BaseInputPage
-from src.utils.config import get_settings_config_value
+from src.utils.config_manager import get_settings_config_value
 from src.utils.icons import set_theme_icon
 
 
