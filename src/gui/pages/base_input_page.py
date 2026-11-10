@@ -1,5 +1,5 @@
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QSplitter, QVBoxLayout
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QSplitter, QVBoxLayout
 
 from src.gui.pages.base_page import ContentPageWidget
 from src.gui.widgets.chat_dialog import DialogBox

@@ -1,9 +1,9 @@
 import importlib
 from pathlib import Path
 
-from PyQt6.QtCore import QSize
-from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
-from PyQt6.QtWidgets import QAbstractButton, QApplication, QLabel
+from PySide6.QtCore import QSize
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PySide6.QtWidgets import QAbstractButton, QApplication, QLabel
 
 ICONS_DIR = Path(__file__).resolve().parents[1] / "resources" / "icons"
 

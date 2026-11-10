@@ -14,8 +14,8 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import mediapipe as mp
 import numpy as np
-from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtGui import QImage
+from PySide6.QtCore import QThread, Signal
+from PySide6.QtGui import QImage
 
 try:
     import screen_brightness_control as sbc
@@ -1108,9 +1108,9 @@ class GestureProcessor:
 # ============================================================
 class GestureCameraThread(QThread):
     """Фоновый поток камеры для PyQt."""
-    frame_ready = pyqtSignal(QImage)
-    status_ready = pyqtSignal(str)
-    command_ready = pyqtSignal(str)
+    frame_ready = Signal(QImage)
+    status_ready = Signal(str)
+    command_ready = Signal(str)
 
     def __init__(self, camera_index=0):
         super().__init__()

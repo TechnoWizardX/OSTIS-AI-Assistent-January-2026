@@ -8,7 +8,7 @@ from pathlib import Path
 import openai
 import requests
 from dotenv import load_dotenv
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 
 from src.utils.BasicUtils import global_signals
 from src.utils.logger import logger
@@ -189,8 +189,8 @@ class IntentHandler:
 
 class IntentWorker(QThread):
     # Сигнал, который передаст словарь с результатом обратно в Core
-    finished = pyqtSignal(dict)
-    error = pyqtSignal(str)
+    finished = Signal(dict)
+    error = Signal(str)
 
     def __init__(self, handler, user_text, user_data="", use_online=False):
         

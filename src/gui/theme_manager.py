@@ -3,7 +3,7 @@ import logging
 import re
 from pathlib import Path
 
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 logger = logging.getLogger(__name__)
 

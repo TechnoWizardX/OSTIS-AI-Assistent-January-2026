@@ -1,12 +1,12 @@
 import socket
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 
 class Signals(QObject):
-    voice_message_recognized = pyqtSignal(str)
-    error_signal = pyqtSignal(str)
-    intent_recognized = pyqtSignal(dict)
+    voice_message_recognized = Signal(str)
+    error_signal = Signal(str)
+    intent_recognized = Signal(dict)
 global_signals = Signals()
 
 

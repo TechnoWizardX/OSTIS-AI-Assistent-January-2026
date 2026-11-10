@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PySide6.QtCore import QObject, QThread, Signal
 
 from src.services.ai_service.llm_client import LocalModel, MedicalAPI
 from src.utils.config_manager import get_settings_config_value
@@ -185,8 +185,8 @@ class RecommendationCache:
 class _RecommendationWorker(QThread):
     """Фоновый запрос к LLM (не использовать напрямую)."""
 
-    finished = pyqtSignal(str)
-    failed   = pyqtSignal(str)
+    finished = Signal(str)
+    failed   = Signal(str)
 
     def __init__(self, user_prompt: str, system_prompt: str,
                  api_key: str, model: str, online: bool, parent=None):
@@ -224,7 +224,7 @@ class AccessibilityRecommender(QObject):
         Испускается при получении результата (из кэша или от LLM).
     """
 
-    recommendation_obtained = pyqtSignal(object, str)
+    recommendation_obtained = Signal(object, str)
 
     def __init__(self,
                  api_key:      str = None,

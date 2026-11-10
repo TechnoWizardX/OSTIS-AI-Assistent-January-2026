@@ -1,5 +1,5 @@
-from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QPushButton, QTextEdit,
+from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QPushButton, QTextEdit,
                              QVBoxLayout, QWidget)
 
 from src.gui.signals import ui_signals
@@ -12,7 +12,7 @@ from src.utils.logger import logger
 class ChatSendBox(QWidget):
     """Виджет отправки сообщений."""
     # Сигналы для безопасной передачи текста из фоновых потоков
-    gesture_text_ready = pyqtSignal(str)
+    gesture_text_ready = Signal(str)
 
     def __init__(self):
         super().__init__()

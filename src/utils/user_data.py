@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PyQt6.QtCore import QCoreApplication, QStandardPaths
+from PySide6.QtCore import QCoreApplication, QStandardPaths
 
 APP_NAME = "IAMOS"
 LEGACY_DATA_DIR = Path(__file__).resolve().parent / "data"

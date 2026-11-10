@@ -1,5 +1,5 @@
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
 
 
 class SettingsSectionLabel(QWidget):

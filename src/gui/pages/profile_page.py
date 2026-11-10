@@ -1,5 +1,5 @@
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QSizePolicy,
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QSizePolicy,
                              QVBoxLayout)
 
 from src.gui.pages.base_page import ContentPageWidget

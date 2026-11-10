@@ -1,6 +1,6 @@
 import time
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 
 from src.utils.logger import logger
 from src.utils.network import has_internet
@@ -13,7 +13,7 @@ class NetworkChecker(QThread):
     Используйте ``is_online()`` для синхронного опроса текущего состояния.
     """
 
-    connection_changed = pyqtSignal(bool)
+    connection_changed = Signal(bool)
 
     def __init__(self, interval: int = 15, parent=None):
         super().__init__(parent)

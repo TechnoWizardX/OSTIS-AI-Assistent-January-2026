@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from PyQt6.QtCore import QSize, Qt
-from PyQt6.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel,
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel,
                              QPushButton, QSizePolicy, QVBoxLayout, QWidget)
 
 from src.gui.signals import ui_signals

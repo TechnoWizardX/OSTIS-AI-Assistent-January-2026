@@ -1,7 +1,7 @@
 import sys
 
-from PyQt6.QtCore import QSize, Qt, QTimer
-from PyQt6.QtWidgets import (QApplication, QButtonGroup, QHBoxLayout,
+from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtWidgets import (QApplication, QButtonGroup, QHBoxLayout,
                              QMainWindow, QMessageBox, QPushButton, QSplitter,
                              QStackedWidget, QVBoxLayout, QWidget)
 

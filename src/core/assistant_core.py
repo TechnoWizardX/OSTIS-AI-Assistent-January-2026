@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 from src.core.network_monitor import NetworkChecker
 from src.gui.main_window import UserInterface

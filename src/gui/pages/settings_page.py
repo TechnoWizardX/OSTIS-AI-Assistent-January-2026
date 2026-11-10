@@ -1,5 +1,5 @@
-from PyQt6.QtCore import QSize, Qt
-from PyQt6.QtWidgets import (QComboBox, QFrame, QGridLayout, QHBoxLayout,
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtWidgets import (QComboBox, QFrame, QGridLayout, QHBoxLayout,
                              QLabel, QLineEdit, QMessageBox, QPushButton,
                              QScrollArea, QVBoxLayout)
 

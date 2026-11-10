@@ -1,8 +1,8 @@
 # src/gui/pages/gestures_page.py
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QImage, QPainter, QPainterPath, QPixmap
-from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QPushButton,
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QImage, QPainter, QPainterPath, QPixmap
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QPushButton,
                              QSplitter, QVBoxLayout, QWidget)
 
 from src.gui.pages.base_input_page import BaseInputPage

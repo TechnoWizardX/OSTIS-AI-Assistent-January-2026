@@ -1,5 +1,5 @@
 import cv2
-from PyQt6.QtMultimedia import QMediaDevices
+from PySide6.QtMultimedia import QMediaDevices
 
 
 def get_available_cameras() -> list:

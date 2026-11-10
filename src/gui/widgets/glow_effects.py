@@ -1,8 +1,8 @@
 import math
 
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen
-from PyQt6.QtWidgets import QGraphicsDropShadowEffect, QPushButton, QWidget
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
+from PySide6.QtWidgets import QGraphicsDropShadowEffect, QPushButton, QWidget
 
 from src.gui.theme_manager import ThemeManager
 

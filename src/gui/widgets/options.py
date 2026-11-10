@@ -1,6 +1,6 @@
-from PyQt6.QtCore import QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QTextOption
-from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QLineEdit,
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QTextOption
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QLineEdit,
                              QPushButton, QSizePolicy, QTextEdit, QVBoxLayout)
 
 from src.gui.signals import ui_signals
@@ -13,7 +13,7 @@ class ProfileOption(QFrame):
     Виджет строки профиля: Название | Значение | Кнопки управления.
     Поддерживает режимы: только чтение ↔ редактирование.
     """
-    value_changed = pyqtSignal(str, str)  # name, new_value
+    value_changed = Signal(str, str)  # name, new_value
 
     def __init__(self, name: str, value: str, can_edit: bool = False, 
                  table_name: str = None, columns: list = None, several_columns: bool = False, parent=None):
@@ -179,8 +179,8 @@ class RecommendationBadge(QFrame):
         return self._current_value
     
 class DysfunctionsProfileOption(QFrame):
-    value_changed = pyqtSignal(str)
-    dysfunctions_saved = pyqtSignal()  # Сигнал о сохранении нарушений
+    value_changed = Signal(str)
+    dysfunctions_saved = Signal()  # Сигнал о сохранении нарушений
 
     def __init__(
         self,

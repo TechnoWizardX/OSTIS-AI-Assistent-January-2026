@@ -1,6 +1,6 @@
-from PyQt6.QtCore import QRectF, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QPainter, QPainterPath
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
+from PySide6.QtCore import QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPainter, QPainterPath
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
 
 from src.gui.signals import ui_signals
 from src.gui.theme_manager import ThemeManager
@@ -11,7 +11,7 @@ from src.utils.config_manager import (load_settings_config,
 class ToggleSwitch(QWidget):
     """Красивый переключатель с плавной анимацией"""
 
-    toggled = pyqtSignal(bool)
+    toggled = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -113,7 +113,7 @@ class ToggleSwitch(QWidget):
 class ToggleSwitchRow(QWidget):
     """Фрейм с меткой и переключателем для настроек"""
 
-    toggled = pyqtSignal(bool)
+    toggled = Signal(bool)
 
     def __init__(self, text, parent=None, checked=False):
         super().__init__(parent)

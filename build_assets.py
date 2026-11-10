@@ -35,11 +35,11 @@ def build() -> None:
     compiler = shutil.which("pyrcc6")
     if compiler:
         command = [compiler, str(QRC_PATH), "-o", str(PY_PATH)]
-    elif find_spec("PyQt6.pyrcc_main") is not None:
+    elif find_spec("PySide6.pyrcc_main") is not None:
         command = [
             sys.executable,
             "-m",
-            "PyQt6.pyrcc_main",
+            "PySide6.pyrcc_main",
             str(QRC_PATH),
             "-o",
             str(PY_PATH),
@@ -93,7 +93,7 @@ def build() -> None:
 
     subprocess.run(command, check=True, cwd=ROOT)
     generated = PY_PATH.read_text(encoding="utf-8")
-    generated = generated.replace("from PySide6 import QtCore", "from PyQt6 import QtCore")
+    generated = generated.replace("from PySide6 import QtCore", "from PySide6 import QtCore")
     PY_PATH.write_text(generated, encoding="utf-8")
 
 
