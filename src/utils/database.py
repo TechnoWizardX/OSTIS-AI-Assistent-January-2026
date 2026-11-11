@@ -61,9 +61,9 @@ class DataBaseEditor:
         if self._initialized:
             return
 
-        database_path = self._configured_path or get_user_data_file("database.db")
+        database_path = self._configured_path or get_user_data_file("database.sqlite3")
         database_path.parent.mkdir(parents=True, exist_ok=True)
-        legacy_path = get_legacy_data_file("database.db")
+        legacy_path = get_legacy_data_file("database.sqlite3")
         if not database_path.exists() and legacy_path.is_file():
             if _is_valid_database(legacy_path):
                 shutil.copy2(legacy_path, database_path)
@@ -105,6 +105,18 @@ class DataBaseEditor:
                     id, firstname, surname, patronymic, gender, birthday,
                     dysfunctions, adaptation_status
                 ) VALUES (0, '', '', '', '', '', '', '')
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS Users_app_usage (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    app_name TEXT NOT NULL,
+                    duration_hours REAL NOT NULL,
+                    date TEXT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES Users(id)
+                )
                 """
             )
             connection.commit()
@@ -239,5 +251,74 @@ class DataBaseEditor:
         finally:
             self._close_connection()
 
+    def log_app_usage(self, user_id: int, app_name: str, duration_hours: float, date_str: str) -> None:
+        """
+        Записывает или обновляет время использования приложения пользователем за конкретную дату.
+        Если запись для этой связки (user_id + app_name + date) уже существует, время суммируется.
+        """
+        self._open_connection()
+        try:
+            self._set_cursor()
+            logger(
+                "DataBaseEditor",
+                "INFO",
+                f"Logging usage for user_id={user_id}: {app_name} += {duration_hours}h on {date_str}",
+            )
+            
+            # Проверяем, есть ли уже запись по этому приложению за этот день
+            self.cursor.execute(
+                """
+                SELECT id, duration_hours FROM Users_app_usage 
+                WHERE user_id = ? AND app_name = ? AND date = ?
+                """,
+                (user_id, app_name, date_str)
+            )
+            row = self.cursor.fetchone()
+            
+            if row:
+                # Если запись есть, прибавляем время к существующему
+                record_id, current_hours = row
+                new_hours = current_hours + duration_hours
+                self.cursor.execute(
+                    "UPDATE Users_app_usage SET duration_hours = ? WHERE id = ?",
+                    (new_hours, record_id)
+                )
+            else:
+                # Если записи нет, создаем новую
+                self.cursor.execute(
+                    """
+                    INSERT INTO Users_app_usage (user_id, app_name, duration_hours, date)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (user_id, app_name, duration_hours, date_str)
+                )
+            self._commit()
+        finally:
+            self._close_connection()
+
+    def get_user_apps_usage_by_date(self, user_id: int, date_str: str) -> list[tuple[str, float]]:
+        """
+        Возвращает список кортежей (app_name, duration_hours) для конкретного пользователя за дату.
+        Результат идеально подходит для передачи в столбчатую диаграмму PySide6.
+        """
+        self._open_connection()
+        try:
+            self._set_cursor()
+            logger(
+                "DataBaseEditor",
+                "INFO",
+                f"Reading apps usage for user_id={user_id} on date={date_str}",
+            )
+            self.cursor.execute(
+                """
+                SELECT app_name, duration_hours FROM Users_app_usage 
+                WHERE user_id = ? AND date = ?
+                ORDER BY duration_hours DESC
+                """,
+                (user_id, date_str)
+            )
+            return self.cursor.fetchall()
+        finally:
+            self._close_connection()
 
 DATABASE_EDITOR = DataBaseEditor()
