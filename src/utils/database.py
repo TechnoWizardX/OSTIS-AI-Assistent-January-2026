@@ -119,6 +119,12 @@ class DataBaseEditor:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_users_app_usage_user_date
+                ON Users_app_usage (user_id, date)
+                """
+            )
             connection.commit()
         finally:
             connection.close()
@@ -261,7 +267,7 @@ class DataBaseEditor:
             self._set_cursor()
             logger(
                 "DataBaseEditor",
-                "INFO",
+                "DEBUG",
                 f"Logging usage for user_id={user_id}: {app_name} += {duration_hours}h on {date_str}",
             )
             
@@ -320,5 +326,58 @@ class DataBaseEditor:
             return self.cursor.fetchall()
         finally:
             self._close_connection()
+
+    def get_user_apps_usage_range(
+        self, user_id: int, start_date: str, end_date: str
+    ) -> list[tuple[str, float]]:
+        """
+        Возвращает суммарное время по каждому приложению за диапазон дат
+        (границы включительно). Формат дат — ISO (YYYY-MM-DD).
+        """
+        self._open_connection()
+        try:
+            self._set_cursor()
+            logger(
+                "DataBaseEditor",
+                "INFO",
+                f"Reading apps usage for user_id={user_id} "
+                f"from {start_date} to {end_date}",
+            )
+            self.cursor.execute(
+                """
+                SELECT app_name, SUM(duration_hours) AS total_hours
+                FROM Users_app_usage
+                WHERE user_id = ? AND date BETWEEN ? AND ?
+                GROUP BY app_name
+                ORDER BY total_hours DESC
+                """,
+                (user_id, start_date, end_date),
+            )
+            return self.cursor.fetchall()
+        finally:
+            self._close_connection()
+
+    def get_user_usage_active_days(
+        self, user_id: int, start_date: str, end_date: str
+    ) -> int:
+        """
+        Возвращает количество дней с записями об использовании приложений
+        за диапазон дат (границы включительно).
+        """
+        self._open_connection()
+        try:
+            self._set_cursor()
+            self.cursor.execute(
+                """
+                SELECT COUNT(DISTINCT date) FROM Users_app_usage
+                WHERE user_id = ? AND date BETWEEN ? AND ?
+                """,
+                (user_id, start_date, end_date),
+            )
+            row = self.cursor.fetchone()
+            return int(row[0]) if row and row[0] else 0
+        finally:
+            self._close_connection()
+
 
 DATABASE_EDITOR = DataBaseEditor()

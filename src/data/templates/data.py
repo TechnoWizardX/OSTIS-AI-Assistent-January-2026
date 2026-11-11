@@ -42,4 +42,5 @@ DEFAULT_CONFIG = {
         "tts",
     ],
     "auto_tts": False,
+    "well_being_tracking_enabled": True,
 }
