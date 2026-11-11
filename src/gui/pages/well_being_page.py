@@ -16,12 +16,7 @@ from PySide6.QtWidgets import (
 from src.gui.pages.base_page import ContentPageWidget
 from src.gui.signals import ui_signals
 from src.gui.widgets.toggle_switch import ToggleSwitchRow
-from src.gui.widgets.well_being import (
-    MetricCard,
-    WellBeingChart,
-    WellBeingLegend,
-    app_color,
-)
+from src.gui.widgets.well_being import AppUsageList, MetricCard, WellBeingChart
 from src.modules.well_being.app_names import display_name, format_duration
 from src.modules.well_being.usage_tracker import get_usage_tracker
 from src.utils.config_manager import (
@@ -56,8 +51,8 @@ class WellBeingPage(ContentPageWidget):
         self.main_lay.addWidget(self.main_frame)
 
         self.frame_lay = QVBoxLayout(self.main_frame)
-        self.frame_lay.setContentsMargins(14, 12, 14, 12)
-        self.frame_lay.setSpacing(8)
+        self.frame_lay.setContentsMargins(12, 8, 12, 8)
+        self.frame_lay.setSpacing(5)
 
         self._build_header()
         self._build_controls()
@@ -65,11 +60,11 @@ class WellBeingPage(ContentPageWidget):
         self._build_cards()
 
         self.chart = WellBeingChart()
-        self.chart.setMinimumHeight(180)
-        self.frame_lay.addWidget(self.chart, 1)
+        self.chart.setFixedHeight(140)
+        self.frame_lay.addWidget(self.chart)
 
-        self.legend = WellBeingLegend()
-        self.frame_lay.addWidget(self.legend)
+        self.app_list = AppUsageList()
+        self.frame_lay.addWidget(self.app_list, 1)
 
         self.note_label = QLabel(
             "Статистика хранится локально и привязана к профилю."
@@ -226,12 +221,22 @@ class WellBeingPage(ContentPageWidget):
             app_totals.items(), key=lambda item: item[1], reverse=True
         )
 
-        series_data = []
-        legend_items = []
-        for index, (name, total) in enumerate(ordered_apps):
-            color = app_color(index)
-            series_data.append((name, per_app[name], color))
-            legend_items.append((name, total, color))
+        today_index = date.today().weekday()
+        today_items = []
+        for name, values in per_app.items():
+            hours = values[today_index]
+            if hours > 0:
+                today_items.append((name, hours))
+        today_items.sort(key=lambda item: item[1], reverse=True)
+        today_total = sum(hours for _, hours in today_items)
+        today_rows = [
+            (
+                name,
+                hours,
+                hours / today_total if today_total else 0.0,
+            )
+            for name, hours in today_items
+        ]
 
         total_hours = sum(day_totals)
         active_days = sum(1 for total in day_totals if total > 0)
@@ -261,12 +266,10 @@ class WellBeingPage(ContentPageWidget):
             self.top_card.set_value("—", "")
 
         if total_hours > 0:
-            self.legend.setVisible(True)
-            self.chart.set_usage(_DAY_LABELS, day_totals, series_data)
-            self.legend.set_items(legend_items)
+            self.chart.set_usage(_DAY_LABELS, day_totals, today_index)
+            self.app_list.set_items(today_rows, today_total)
             return
 
-        self.legend.setVisible(False)
         if error_message:
             message = error_message
         elif self.tracking_toggle.isChecked():
@@ -274,8 +277,8 @@ class WellBeingPage(ContentPageWidget):
         else:
             message = "Учёт использования приложений выключен. Включите его выше."
         self.chart.set_empty_message(message)
-        self.chart.set_usage([], [], [])
-        self.legend.set_items([])
+        self.chart.set_usage([], [], None)
+        self.app_list.set_items([], 0.0)
 
     # --- форматирование ---
     @staticmethod

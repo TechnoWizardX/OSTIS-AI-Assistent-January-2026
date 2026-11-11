@@ -1,23 +1,16 @@
-"""Виджеты вкладки «Благополучие»: карточки, график и легенда."""
+"""Виджеты вкладки «Благополучие»: карточки, недельный график и список за сегодня."""
 
 from __future__ import annotations
 
 import math
 
-from PySide6.QtCharts import (
-    QBarCategoryAxis,
-    QBarSet,
-    QChart,
-    QChartView,
-    QStackedBarSeries,
-    QValueAxis,
-)
-from PySide6.QtCore import QMargins, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt
+from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QScrollArea,
     QSizePolicy,
     QStackedLayout,
@@ -27,27 +20,6 @@ from PySide6.QtWidgets import (
 
 from src.gui.theme_manager import ThemeManager
 from src.modules.well_being.app_names import format_axis_hours, format_duration
-
-APP_COLOR_PALETTE = (
-    "#4E79A7",
-    "#F28E2B",
-    "#E15759",
-    "#76B7B2",
-    "#59A14F",
-    "#EDC948",
-    "#B07AA1",
-    "#FF9DA7",
-    "#9C755F",
-    "#BAB0AC",
-)
-
-
-def app_color(index: int) -> QColor:
-    """Стабильный цвет приложения по его позиции в списке."""
-    if index < len(APP_COLOR_PALETTE):
-        return QColor(APP_COLOR_PALETTE[index])
-    hue = int((index * 137.508) % 360)
-    return QColor.fromHsv(hue, 190, 210)
 
 
 class MetricCard(QFrame):
@@ -86,82 +58,110 @@ class MetricCard(QFrame):
         return self.hint_label.text()
 
 
-class LegendChip(QFrame):
-    """Компактный цветной чип приложения для нижней легенды."""
+class AppUsageRow(QWidget):
+    """Строка приложения: название, полоска доли, точное время."""
 
-    def __init__(self, name: str, hours: float, color: QColor, parent=None):
+    def __init__(
+        self,
+        name: str,
+        hours: float,
+        ratio: float,
+        parent=None,
+    ):
         super().__init__(parent)
-        self.setObjectName("wellBeingLegendChip")
-        self.setFixedHeight(28)
+        self.setObjectName("wellBeingAppRow")
+        self.setFixedHeight(52)
 
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(8, 2, 10, 2)
-        lay.setSpacing(6)
-
-        self.color_dot = QLabel()
-        self.color_dot.setFixedSize(10, 10)
-        self.color_dot.setStyleSheet(
-            f"background-color: {color.name()}; border-radius: 5px;"
-        )
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 2, 0, 2)
+        lay.setSpacing(3)
 
         self.name_label = QLabel(name)
-        self.name_label.setObjectName("wellBeingLegendName")
-        self.time_label = QLabel(format_duration(hours))
-        self.time_label.setObjectName("wellBeingLegendTime")
+        self.name_label.setObjectName("wellBeingAppName")
 
-        lay.addWidget(self.color_dot)
+        self.progress = QProgressBar()
+        self.progress.setObjectName("wellBeingAppProgress")
+        self.progress.setRange(0, 1000)
+        self.progress.setValue(max(1, int(round(ratio * 1000))))
+        self.progress.setTextVisible(False)
+        self.progress.setFixedHeight(6)
+
+        self.time_label = QLabel(format_duration(hours))
+        self.time_label.setObjectName("wellBeingAppTime")
+        self.time_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+
         lay.addWidget(self.name_label)
+        lay.addWidget(self.progress)
         lay.addWidget(self.time_label)
 
         self.setToolTip(f"{name}: {format_duration(hours)}")
 
 
-class WellBeingLegend(QWidget):
-    """Горизонтальная прокручиваемая полоска со всеми приложениями."""
+class AppUsageList(QWidget):
+    """Список приложений за сегодня с полосками относительно общего времени."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
+        outer.setSpacing(4)
+
+        header = QHBoxLayout()
+        header.setSpacing(8)
+
+        self.title_label = QLabel("Сегодня по приложениям")
+        self.title_label.setObjectName("wellBeingListTitle")
+        self.total_label = QLabel("")
+        self.total_label.setObjectName("wellBeingListTotal")
+        self.total_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+
+        header.addWidget(self.title_label)
+        header.addStretch(1)
+        header.addWidget(self.total_label)
+        outer.addLayout(header)
 
         self._scroll = QScrollArea()
-        self._scroll.setObjectName("wellBeingLegendScroll")
+        self._scroll.setObjectName("wellBeingAppScroll")
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self._scroll.setVerticalScrollBarPolicy(
+        self._scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
-        self._scroll.setHorizontalScrollBarPolicy(
+        self._scroll.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
-        self._scroll.setFixedHeight(44)
+        self._scroll.setMinimumHeight(60)
 
         self._container = QWidget()
-        self._container.setObjectName("wellBeingLegendContainer")
-        self._container.setSizePolicy(
-            QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed
-        )
-        self._container.setFixedHeight(28)
-        self._lay = QHBoxLayout(self._container)
-        self._lay.setContentsMargins(0, 0, 0, 0)
-        self._lay.setSpacing(8)
+        self._container.setObjectName("wellBeingAppContainer")
+        self._lay = QVBoxLayout(self._container)
+        self._lay.setContentsMargins(0, 0, 4, 0)
+        self._lay.setSpacing(2)
         self._scroll.setWidget(self._container)
-        outer.addWidget(self._scroll)
+        outer.addWidget(self._scroll, 1)
 
-        self._empty = QLabel("Нет данных за текущую неделю")
-        self._empty.setObjectName("wellBeingLegendEmpty")
+        self._empty = QLabel("Сегодня пока нет данных")
+        self._empty.setObjectName("wellBeingAppEmpty")
         self._empty.setVisible(False)
         outer.addWidget(self._empty)
 
-    def set_items(self, items: list[tuple[str, float, QColor]]) -> None:
-        self._container.setMinimumWidth(0)
+    def set_items(
+        self,
+        items: list[tuple[str, float, float]],
+        today_total: float,
+    ) -> None:
+        self._container.setMinimumHeight(0)
         while self._lay.count():
             item = self._lay.takeAt(0)
             widget = item.widget()
             if widget is not None:
+                widget.hide()
                 widget.deleteLater()
+
+        self.total_label.setText(format_duration(today_total) if items else "")
 
         if not items:
             self._scroll.setVisible(False)
@@ -170,157 +170,245 @@ class WellBeingLegend(QWidget):
 
         self._scroll.setVisible(True)
         self._empty.setVisible(False)
-        chips = []
-        for name, hours, color in items:
-            chip = LegendChip(name, hours, color)
-            self._lay.addWidget(chip)
-            chips.append(chip)
+        rows = []
+        for name, hours, ratio in items:
+            row = AppUsageRow(name, hours, ratio)
+            self._lay.addWidget(row)
+            rows.append(row)
         self._lay.addStretch(1)
-        self._container.setMinimumWidth(
-            sum(chip.sizeHint().width() for chip in chips)
-            + self._lay.spacing() * max(len(chips) - 1, 0)
+        self._container.setMinimumHeight(
+            sum(row.height() for row in rows)
+            + self._lay.spacing() * max(len(rows) - 1, 0)
         )
-        self._scroll.horizontalScrollBar().setValue(0)
+        self._scroll.verticalScrollBar().setValue(0)
 
 
-class WellBeingChart(QWidget):
-    """Стопка часов по дням текущей недели с пустым состоянием."""
+class _WeekChartCanvas(QWidget):
+    """Рисует столбцы по дням недели; сегодняшний столбец выделен."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._day_labels: list[str] = []
         self._day_totals: list[float] = []
-        self._series_data: list[tuple[str, list[float], QColor]] = []
+        self._today_index: int | None = None
+        self.setMinimumHeight(110)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+
+        self._day_font = QFont("Roboto", 9)
+        self._value_font = QFont("Roboto", 8)
+        self._today_font = QFont("Roboto", 8)
+        self._today_font.setBold(True)
+        self._apply_theme()
+
+    def set_data(
+        self,
+        day_labels: list[str],
+        day_totals: list[float],
+        today_index: int | None,
+    ) -> None:
+        self._day_labels = list(day_labels)
+        self._day_totals = list(day_totals)
+        self._today_index = today_index
+        self.update()
+
+    def apply_theme(self) -> None:
+        self._apply_theme()
+        self.update()
+
+    def _apply_theme(self) -> None:
+        self._text_color = QColor(str(ThemeManager.get_color("text_2")))
+        self._muted_color = QColor(str(ThemeManager.get_color("text_3")))
+        self._grid_color = QColor(str(ThemeManager.get_color("border_1")))
+        self._line_color = QColor(str(ThemeManager.get_color("border_2")))
+        self._bar_color = QColor(str(ThemeManager.get_color("accent_1")))
+        self._today_color = QColor(str(ThemeManager.get_color("glow")))
+
+    def paintEvent(self, event) -> None:
+        if not self._day_totals:
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+
+        left = 46
+        right = 10
+        top = 8
+        bottom = 62
+        plot = QRectF(
+            left,
+            top,
+            max(20, self.width() - left - right),
+            max(20, self.height() - top - bottom),
+        )
+
+        max_hours = max(self._day_totals)
+        if max_hours <= 2:
+            tick_interval = 0.5
+        elif max_hours <= 12:
+            tick_interval = 2.0
+        else:
+            tick_interval = 5.0
+        axis_max = max(
+            tick_interval,
+            math.ceil(max_hours / tick_interval) * tick_interval,
+        )
+        tick_count = int(round(axis_max / tick_interval)) + 1
+
+        painter.setFont(self._value_font)
+        for tick in range(tick_count):
+            value = tick * tick_interval
+            y = plot.bottom() - (value / axis_max) * plot.height()
+            painter.setPen(self._grid_color)
+            painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
+            painter.setPen(self._muted_color)
+            painter.drawText(
+                QRectF(0, y - 8, left - 8, 16),
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                self._format_tick(value, tick_interval),
+            )
+
+        painter.setPen(QPen(self._line_color, 1))
+        painter.drawLine(plot.bottomLeft(), plot.bottomRight())
+        painter.drawLine(
+            QPointF(plot.left(), plot.top()), plot.bottomLeft()
+        )
+
+        painter.save()
+        painter.translate(12, plot.center().y())
+        painter.rotate(-90)
+        painter.setPen(self._muted_color)
+        painter.setFont(self._value_font)
+        painter.drawText(
+            QRectF(-40, -8, 80, 16),
+            Qt.AlignmentFlag.AlignCenter,
+            "часы",
+        )
+        painter.restore()
+
+        slot_width = plot.width() / 7
+        bar_width = min(slot_width * 0.55, 44)
+
+        for index, total in enumerate(self._day_totals):
+            x_center = plot.left() + slot_width * (index + 0.5)
+            bar_height = (total / axis_max) * plot.height()
+            if bar_height > 0:
+                color = (
+                    self._today_color
+                    if index == self._today_index
+                    else self._bar_color
+                )
+                rect = QRectF(
+                    x_center - bar_width / 2,
+                    plot.bottom() - bar_height,
+                    bar_width,
+                    bar_height,
+                )
+                path = QPainterPath()
+                path.addRoundedRect(rect, 4, 4)
+                painter.setBrush(color)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawPath(path)
+
+            is_today = index == self._today_index
+            painter.setFont(self._today_font if is_today else self._day_font)
+            painter.setPen(self._today_color if is_today else self._text_color)
+            painter.drawText(
+                QRectF(
+                    x_center - slot_width / 2,
+                    plot.bottom() + 4,
+                    slot_width,
+                    14,
+                ),
+                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+                self._day_labels[index],
+            )
+
+            painter.setFont(self._value_font)
+            painter.setPen(self._today_color if is_today else self._muted_color)
+            painter.drawText(
+                QRectF(
+                    x_center - slot_width / 2,
+                    plot.bottom() + 18,
+                    slot_width,
+                    14,
+                ),
+                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+                format_axis_hours(total),
+            )
+
+            if is_today:
+                painter.setFont(self._today_font)
+                painter.setPen(self._today_color)
+                painter.drawText(
+                    QRectF(
+                        x_center - slot_width / 2,
+                        plot.bottom() + 32,
+                        slot_width,
+                        14,
+                    ),
+                    Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+                    "Сегодня",
+                )
+
+    @staticmethod
+    def _format_tick(value: float, interval: float) -> str:
+        if interval < 1:
+            return f"{value:.1f}".replace(".", ",")
+        return str(int(round(value)))
+
+
+class WellBeingChart(QWidget):
+    """Недельная диаграмма с пустым состоянием."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self._empty_message = "Пока нет данных"
+        self.setMinimumHeight(140)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        )
 
         self._stack = QStackedLayout(self)
         self._stack.setContentsMargins(0, 0, 0, 0)
 
-        self._chart = QChart()
-        self._chart.setBackgroundVisible(False)
-        self._chart.setPlotAreaBackgroundVisible(False)
-        self._chart.setMargins(QMargins(2, 2, 2, 2))
-        self._chart.legend().setVisible(False)
-        self._chart.setAnimationOptions(QChart.AnimationOption.NoAnimation)
-
-        self._view = QChartView(self._chart)
-        self._view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self._view.setBackgroundBrush(QBrush(Qt.GlobalColor.transparent))
-        self._view.setFrameShape(QFrame.Shape.NoFrame)
-        self._view.setStyleSheet("background: transparent; border: none;")
-        self._view.setContentsMargins(0, 0, 0, 0)
-
+        self._canvas = _WeekChartCanvas()
         self._empty_label = QLabel(self._empty_message)
         self._empty_label.setObjectName("wellBeingEmpty")
         self._empty_label.setWordWrap(True)
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self._stack.addWidget(self._view)
+        self._stack.addWidget(self._canvas)
         self._stack.addWidget(self._empty_label)
-
-        self._apply_theme()
         self._show_empty()
+
+    def sizeHint(self) -> QSize:
+        return QSize(420, 200)
 
     def set_empty_message(self, message: str) -> None:
         self._empty_message = message
         self._empty_label.setText(message)
 
     def has_data(self) -> bool:
-        return any(total > 0 for total in self._day_totals)
+        return any(total > 0 for total in self._canvas._day_totals)
 
     def set_usage(
         self,
         day_labels: list[str],
         day_totals: list[float],
-        series_data: list[tuple[str, list[float], QColor]],
+        today_index: int | None,
     ) -> None:
-        self._day_labels = list(day_labels)
-        self._day_totals = list(day_totals)
-        self._series_data = [
-            (name, list(values), color) for name, values, color in series_data
-        ]
-        if not self.has_data():
+        self._canvas.set_data(day_labels, day_totals, today_index)
+        if self.has_data():
+            self._stack.setCurrentWidget(self._canvas)
+        else:
             self._show_empty()
-            return
-        self._render()
-        self._stack.setCurrentWidget(self._view)
 
     def apply_theme(self) -> None:
-        self._apply_theme()
-        if self.has_data():
-            self._render()
+        self._canvas.apply_theme()
 
-    # --- внутреннее ---
     def _show_empty(self) -> None:
         self._empty_label.setText(self._empty_message)
         self._stack.setCurrentWidget(self._empty_label)
-
-    def _apply_theme(self) -> None:
-        self._text_color = QColor(str(ThemeManager.get_color("text_2")))
-        self._grid_color = QColor(str(ThemeManager.get_color("border_1")))
-        self._line_color = QColor(str(ThemeManager.get_color("border_2")))
-        self._axis_font = QFont("Roboto", 9)
-
-    def _render(self) -> None:
-        chart = self._chart
-        for axis in chart.axes():
-            chart.removeAxis(axis)
-        chart.removeAllSeries()
-
-        series = QStackedBarSeries()
-        series.setBarWidth(0.72)
-        series.setLabelsVisible(False)
-
-        for name, values, color in self._series_data:
-            bar_set = QBarSet(name)
-            bar_set.append(values)
-            bar_set.setColor(color)
-            bar_set.setBorderColor(color)
-            series.append(bar_set)
-
-        chart.addSeries(series)
-
-        axis_x = QBarCategoryAxis()
-        axis_x.append(
-            [
-                f"{label}\u00a0{format_axis_hours(total)}"
-                for label, total in zip(self._day_labels, self._day_totals)
-            ]
-        )
-        axis_x.setTruncateLabels(False)
-        axis_x.setLabelsColor(self._text_color)
-        axis_x.setLabelsFont(self._axis_font)
-        axis_x.setGridLineVisible(False)
-        axis_x.setLinePenColor(self._line_color)
-        chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
-        series.attachAxis(axis_x)
-
-        max_hours = max(self._day_totals) if self._day_totals else 1.0
-        if max_hours <= 2:
-            tick_interval = 0.5
-            label_format = "%.1f"
-        elif max_hours <= 12:
-            tick_interval = 2.0
-            label_format = "%.0f"
-        else:
-            tick_interval = 5.0
-            label_format = "%.0f"
-        axis_max = max(
-            tick_interval,
-            math.ceil(max_hours / tick_interval) * tick_interval,
-        )
-
-        axis_y = QValueAxis()
-        axis_y.setRange(0, axis_max)
-        axis_y.setTickInterval(tick_interval)
-        axis_y.setTickCount(int(round(axis_max / tick_interval)) + 1)
-        axis_y.setLabelFormat(label_format)
-        axis_y.setLabelsColor(self._text_color)
-        axis_y.setLabelsFont(self._axis_font)
-        axis_y.setTitleText("часы")
-        axis_y.setTitleBrush(self._text_color)
-        axis_y.setTitleFont(QFont("Roboto", 8))
-        axis_y.setGridLineColor(self._grid_color)
-        axis_y.setLinePenColor(self._line_color)
-        chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
-        series.attachAxis(axis_y)
