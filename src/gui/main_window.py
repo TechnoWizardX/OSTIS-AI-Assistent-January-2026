@@ -10,6 +10,7 @@ from src.gui.pages.profile_page import ProfilePage
 from src.gui.pages.settings_page import SettingsPage
 from src.gui.pages.text_page import TextPage
 from src.gui.pages.voice_page import VoicePage
+from src.gui.pages.well_being_page import WellBeingPage
 from src.gui.signals import ui_signals
 from src.gui.theme_manager import ThemeManager
 from src.gui.widgets.glow_effects import RecommendationGlowEffect
@@ -59,11 +60,13 @@ class UserInterface(QMainWindow):
         
         self.settings_page = SettingsPage(api_key)
         self.profile_page = ProfilePage()
+        self.well_being_page = WellBeingPage()
         self.voice_input_page = VoicePage()
         self.text_input_page = TextPage()
         self.gestures_input_page = GesturesPage()
         self.content_pages = {self.settings_page : self.settings_page.side_panel_btn,
                             self.profile_page : self.profile_page.side_panel_btn,
+                            self.well_being_page : self.well_being_page.side_panel_btn,
                             self.voice_input_page : self.voice_input_page.side_panel_btn,
                             self.text_input_page : self.text_input_page.side_panel_btn,
                             self.gestures_input_page : self.gestures_input_page.side_panel_btn

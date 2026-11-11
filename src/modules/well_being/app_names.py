@@ -80,3 +80,14 @@ def format_duration(hours: float) -> str:
     if whole_hours:
         return f"{whole_hours} ч"
     return f"{minutes} мин"
+
+
+def format_axis_hours(hours: float) -> str:
+    """Компактное число часов для подписи под столбцом (без единицы)."""
+    if hours <= 0:
+        return "—"
+    if hours < 1:
+        return f"{int(round(hours * 60))}м"
+    rounded = round(hours, 1)
+    text = f"{rounded:.1f}".rstrip("0").rstrip(".")
+    return text.replace(".", ",")

@@ -1,6 +1,7 @@
 <!DOCTYPE RCC><RCC version="1.0">
   <qresource prefix="/icons">
     <file alias="accept.svg">icons/accept.svg</file>
+    <file alias="activity.svg">icons/activity.svg</file>
     <file alias="camera.svg">icons/camera.svg</file>
     <file alias="chevron-down.svg">icons/chevron-down.svg</file>
     <file alias="chevron-up.svg">icons/chevron-up.svg</file>

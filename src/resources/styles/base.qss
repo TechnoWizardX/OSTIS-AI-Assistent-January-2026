@@ -380,3 +380,93 @@ QSplitter#mainSplitter::handle:hover, QSplitter#mainSplitter::handle:pressed,
 QSplitter#cameraSplitter::handle:hover, QSplitter#cameraSplitter::handle:pressed {
     background-color: transparent;
 }
+
+/* --- Благополучие --- */
+QLabel#wellBeingTitle {
+    color: {{text_1}};
+    font-size: 20px;
+    font-weight: bold;
+    font-family: "Roboto";
+}
+
+QLabel#wellBeingSubtitle {
+    color: {{text_3}};
+    font-size: 11px;
+    font-family: "Roboto";
+}
+
+QLabel#wellBeingCardTitle {
+    color: {{text_2}};
+    font-size: 10px;
+    font-family: "Roboto";
+}
+
+QLabel#wellBeingCardValue {
+    color: {{text_1}};
+    font-size: 17px;
+    font-weight: bold;
+    font-family: "Roboto";
+}
+
+QLabel#wellBeingCardHint {
+    color: {{text_3}};
+    font-size: 10px;
+    font-family: "Roboto";
+}
+
+QLabel#wellBeingEmpty,
+QLabel#wellBeingLegendEmpty {
+    color: {{text_3}};
+    font-size: 13px;
+    font-family: "Roboto";
+    padding: 12px;
+}
+
+QLabel#wellBeingNote {
+    color: {{text_3}};
+    font-size: 10px;
+    font-family: "Roboto";
+}
+
+QScrollArea#wellBeingLegendScroll,
+QScrollArea#wellBeingLegendScroll > QWidget > QWidget,
+QWidget#wellBeingLegendContainer {
+    background: transparent;
+    border: none;
+}
+
+QFrame#wellBeingLegendChip {
+    background-color: {{bg_4}};
+    border: 1px solid {{border_1}};
+    border-radius: 10px;
+}
+
+QLabel#wellBeingLegendName {
+    color: {{text_1}};
+    font-size: 11px;
+    font-family: "Roboto";
+}
+
+QLabel#wellBeingLegendTime {
+    color: {{text_3}};
+    font-size: 10px;
+    font-family: "Roboto";
+}
+
+QScrollBar:horizontal {
+    border: none;
+    background-color: {{bg_scrollbar}};
+    height: 6px;
+    margin: 0;
+    border-radius: 3px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: {{bg_scrollbar_handle}};
+    border-radius: 3px;
+    min-width: 20px;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0;
+}

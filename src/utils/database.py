@@ -379,5 +379,35 @@ class DataBaseEditor:
         finally:
             self._close_connection()
 
+    def get_user_apps_usage_daily(
+        self, user_id: int, start_date: str, end_date: str
+    ) -> list[tuple[str, str, float]]:
+        """
+        Возвращает разбивку по дням и приложениям:
+        (date, app_name, duration_hours) за диапазон дат включительно.
+        """
+        self._open_connection()
+        try:
+            self._set_cursor()
+            logger(
+                "DataBaseEditor",
+                "INFO",
+                f"Reading daily apps usage for user_id={user_id} "
+                f"from {start_date} to {end_date}",
+            )
+            self.cursor.execute(
+                """
+                SELECT date, app_name, SUM(duration_hours) AS total_hours
+                FROM Users_app_usage
+                WHERE user_id = ? AND date BETWEEN ? AND ?
+                GROUP BY date, app_name
+                ORDER BY date, total_hours DESC
+                """,
+                (user_id, start_date, end_date),
+            )
+            return self.cursor.fetchall()
+        finally:
+            self._close_connection()
+
 
 DATABASE_EDITOR = DataBaseEditor()
