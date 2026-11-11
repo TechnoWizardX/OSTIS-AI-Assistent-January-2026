@@ -19,6 +19,7 @@ class Signals(QObject):
     recommendation_requested = Signal()  # Запрос на получение рекомендации (при сохранении нарушений)
     openrouter_api_key_changed = Signal(str)  # Сигнал для изменения API ключа OpenRouter
     dysfunctions_saved = Signal()  # Сигнал о сохранении нарушений
+    app_usage_updated = Signal()  # Статистика использования приложений обновилась
     typing_started  = Signal()    # нейросеть начала думать
     typing_finished = Signal()    # нейросеть ответила
 ui_signals = Signals()

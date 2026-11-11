@@ -9,6 +9,7 @@ from src.gui.main_window import UserInterface
 from src.gui.signals import ui_signals
 from src.modules.voice import stt_engine as Whisper
 from src.modules.voice.tts_engine import SileroTTS
+from src.modules.well_being.usage_tracker import get_usage_tracker
 from src.services.ai_service.intent_handler import IntentHandler, IntentWorker
 from src.services.ai_service.llm_client import LocalModel
 from src.services.ai_service.recommendation import (METHOD_LABELS,
@@ -41,6 +42,16 @@ class AssistentCore():
         logger("AssistentCore", "INFO", "Инициализация Ядра...")
         self.user_interface = UserInterface(api_key=api_key)
         self.settings_config = load_settings_config()
+
+        # Учёт использования приложений для вкладки «Благополучие»
+        self.usage_tracker = get_usage_tracker()
+        self.usage_tracker.usage_flushed.connect(self._on_usage_flushed)
+        self.usage_tracker.set_enabled(
+            bool(get_settings_config_value("well_being_tracking_enabled"))
+        )
+        application = QApplication.instance()
+        if application is not None:
+            application.aboutToQuit.connect(self.usage_tracker.stop)
 
         self.network_checker = NetworkChecker()
         self.network_checker.connection_changed.connect(self._on_network_status)
@@ -97,6 +108,10 @@ class AssistentCore():
             logger("AssistentCore", "WARNING", "Интернет отсутствует")
         else:
             logger("AssistentCore", "INFO", "Интернет подключён")
+
+    def _on_usage_flushed(self, _date_str: str):
+        """Сообщает интерфейсу, что статистика записана в БД."""
+        ui_signals.app_usage_updated.emit()
 
     def _on_dysfunctions_saved(self):
         """Обработка сигнала о сохранении нарушений."""
