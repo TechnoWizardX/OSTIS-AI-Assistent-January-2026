@@ -228,7 +228,7 @@ class AccessibilityRecommender(QObject):
 
     def __init__(self,
                  api_key:      str = None,
-                 online_model: str = "anthropic/claude-3-haiku",
+                 online_model: str = "openrouter/free",
                  offline_model: str = "qwen2.5:3b",
                  parent: QObject = None):
         super().__init__(parent)

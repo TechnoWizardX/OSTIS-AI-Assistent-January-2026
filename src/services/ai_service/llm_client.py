@@ -13,7 +13,9 @@ print(__file__)
 Prompt   = Union[str, List[str]]
 Response = Union[str, List[str]]
 
-OPENROUTER_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_CHAT_COMPLETIONS_URL = (
+    "https://openrouter.ai/api/v1/chat/completions"
+)
 
 
 class MedicalAPI:
@@ -47,7 +49,7 @@ class MedicalAPI:
         try:
             # json= сам сериализует payload и выставляет Content-Type: application/json
             resp = requests.post(
-                OPENROUTER_URL,
+                OPENROUTER_CHAT_COMPLETIONS_URL,
                 headers=self.headers,
                 timeout=30,
                 json={
@@ -64,6 +66,14 @@ class MedicalAPI:
                        .get("content", "")
                        .strip())
             return content or "⚠️ Пустой ответ"
+        except requests.HTTPError as e:
+            response_text = e.response.text[:500] if e.response is not None else ""
+            logger(
+                "MedicalAPI",
+                "ERROR",
+                f"{e}; response={response_text}",
+            )
+            return f"❌ Ошибка API: {e}"
         except Exception as e:
             logger("MedicalAPI", "ERROR", str(e))
             return f"❌ Ошибка API: {e}"
