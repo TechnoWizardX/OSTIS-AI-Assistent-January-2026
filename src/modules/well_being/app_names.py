@@ -71,9 +71,13 @@ def display_name(app_name: str) -> str:
 
 def format_duration(hours: float) -> str:
     """Форматирует часы в строку вида «2 ч 15 мин»."""
-    total_minutes = int(round(max(hours, 0.0) * 60))
-    if total_minutes <= 0:
+    if hours <= 0:
         return "0 мин"
+    if hours * 60 < 1:
+        return "<1 мин"
+    total_minutes = int(round(hours * 60))
+    if total_minutes <= 0:
+        return "<1 мин"
     whole_hours, minutes = divmod(total_minutes, 60)
     if whole_hours and minutes:
         return f"{whole_hours} ч {minutes} мин"
@@ -86,8 +90,11 @@ def format_axis_hours(hours: float) -> str:
     """Компактное число часов для подписи под столбцом (без единицы)."""
     if hours <= 0:
         return "—"
+    minutes = hours * 60
+    if minutes < 1:
+        return "<1м"
     if hours < 1:
-        return f"{int(round(hours * 60))}м"
+        return f"{int(round(minutes))}м"
     rounded = round(hours, 1)
     text = f"{rounded:.1f}".rstrip("0").rstrip(".")
     return text.replace(".", ",")

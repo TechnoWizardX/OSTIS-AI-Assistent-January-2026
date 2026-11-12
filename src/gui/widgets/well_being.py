@@ -295,6 +295,7 @@ class _WeekChartCanvas(QWidget):
             x_center = plot.left() + slot_width * (index + 0.5)
             bar_height = (total / axis_max) * plot.height()
             if bar_height > 0:
+                bar_height = max(2.0, bar_height)
                 color = (
                     self._today_color
                     if index == self._today_index
