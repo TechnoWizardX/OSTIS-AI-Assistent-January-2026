@@ -164,13 +164,14 @@ class WellBeingPage(ContentPageWidget):
         self.refresh()
 
     # --- данные ---
-    def _current_week(self) -> tuple[date, date]:
-        today = date.today()
+    @staticmethod
+    def _current_week(today: date) -> tuple[date, date]:
         start = today - timedelta(days=today.weekday())
         return start, start + timedelta(days=6)
 
     def refresh(self) -> None:
-        week_start, week_end = self._current_week()
+        today = date.today()
+        week_start, week_end = self._current_week(today)
         start_str = week_start.isoformat()
         end_str = week_end.isoformat()
 
@@ -221,7 +222,7 @@ class WellBeingPage(ContentPageWidget):
             app_totals.items(), key=lambda item: item[1], reverse=True
         )
 
-        today_index = date.today().weekday()
+        today_index = today.weekday()
         today_items = []
         for name, values in per_app.items():
             hours = values[today_index]
@@ -241,10 +242,9 @@ class WellBeingPage(ContentPageWidget):
         total_hours = sum(day_totals)
         active_days = sum(1 for total in day_totals if total > 0)
 
-        self.range_label.setText(self._format_range(week_start, week_end))
-        self.total_card.set_value(
-            format_duration(total_hours), self._format_range(week_start, week_end)
-        )
+        range_text = self._format_range(week_start, week_end)
+        self.range_label.setText(range_text)
+        self.total_card.set_value(format_duration(total_hours), range_text)
 
         if active_days:
             average_hint = f"за {active_days} {self._days_word(active_days)}"

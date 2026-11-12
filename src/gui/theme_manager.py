@@ -27,9 +27,10 @@ class ThemeManager:
 
     @classmethod
     def clear_cache(cls) -> None:
-        """Сбрасывает кэш шаблона и собранных стилей (например, в тестах)."""
+        """Сбрасывает кэш шаблона, цветов и собранных стилей."""
         cls._base_stylesheet = None
         cls._compiled_stylesheets.clear()
+        cls.colors = {}
 
     @classmethod
     def load_theme(cls, name: str) -> tuple[dict[str, str | int], str]:

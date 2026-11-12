@@ -78,6 +78,9 @@ class AppUsageRow(QWidget):
 
         self.name_label = QLabel(name)
         self.name_label.setObjectName("wellBeingAppName")
+        self.name_label.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
+        )
 
         self.progress = QProgressBar()
         self.progress.setObjectName("wellBeingAppProgress")
@@ -245,16 +248,41 @@ class _WeekChartCanvas(QWidget):
         )
 
         max_hours = max(self._day_totals)
-        if max_hours <= 2:
-            tick_interval = 0.5
-        elif max_hours <= 12:
-            tick_interval = 2.0
+        if max_hours < 1:
+            scale = 60.0
+            axis_title = "минуты"
+            max_value = max_hours * scale
+            if max_value <= 1:
+                tick_interval = 0.2
+                tick_decimals = 1
+            elif max_value <= 5:
+                tick_interval = 1.0
+                tick_decimals = 0
+            elif max_value <= 30:
+                tick_interval = 5.0
+                tick_decimals = 0
+            else:
+                tick_interval = 10.0
+                tick_decimals = 0
         else:
-            tick_interval = 5.0
+            scale = 1.0
+            axis_title = "часы"
+            max_value = max_hours
+            if max_hours <= 2:
+                tick_interval = 0.5
+                tick_decimals = 1
+            elif max_hours <= 12:
+                tick_interval = 2.0
+                tick_decimals = 0
+            else:
+                tick_interval = 5.0
+                tick_decimals = 0
+
         axis_max = max(
             tick_interval,
-            math.ceil(max_hours / tick_interval) * tick_interval,
+            math.ceil(max_value / tick_interval) * tick_interval,
         )
+        axis_max_hours = axis_max / scale
         tick_count = int(round(axis_max / tick_interval)) + 1
 
         painter.setFont(self._value_font)
@@ -267,7 +295,7 @@ class _WeekChartCanvas(QWidget):
             painter.drawText(
                 QRectF(0, y - 8, left - 8, 16),
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                self._format_tick(value, tick_interval),
+                self._format_tick(value, tick_decimals),
             )
 
         painter.setPen(QPen(self._line_color, 1))
@@ -284,16 +312,16 @@ class _WeekChartCanvas(QWidget):
         painter.drawText(
             QRectF(-40, -8, 80, 16),
             Qt.AlignmentFlag.AlignCenter,
-            "часы",
+            axis_title,
         )
         painter.restore()
 
         slot_width = plot.width() / 7
         bar_width = min(slot_width * 0.55, 44)
 
-        for index, total in enumerate(self._day_totals):
+        for index, total in enumerate(self._day_totals[:7]):
             x_center = plot.left() + slot_width * (index + 0.5)
-            bar_height = (total / axis_max) * plot.height()
+            bar_height = (total / axis_max_hours) * plot.height()
             if bar_height > 0:
                 bar_height = max(2.0, bar_height)
                 color = (
@@ -314,6 +342,11 @@ class _WeekChartCanvas(QWidget):
                 painter.drawPath(path)
 
             is_today = index == self._today_index
+            day_label = (
+                self._day_labels[index]
+                if index < len(self._day_labels)
+                else ""
+            )
             painter.setFont(self._today_font if is_today else self._day_font)
             painter.setPen(self._today_color if is_today else self._text_color)
             painter.drawText(
@@ -324,7 +357,7 @@ class _WeekChartCanvas(QWidget):
                     14,
                 ),
                 Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
-                self._day_labels[index],
+                day_label,
             )
 
             painter.setFont(self._value_font)
@@ -354,10 +387,12 @@ class _WeekChartCanvas(QWidget):
                     "Сегодня",
                 )
 
+        painter.end()
+
     @staticmethod
-    def _format_tick(value: float, interval: float) -> str:
-        if interval < 1:
-            return f"{value:.1f}".replace(".", ",")
+    def _format_tick(value: float, decimals: int) -> str:
+        if decimals:
+            return f"{value:.{decimals}f}".replace(".", ",")
         return str(int(round(value)))
 
 

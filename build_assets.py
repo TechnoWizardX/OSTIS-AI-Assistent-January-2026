@@ -32,8 +32,18 @@ def build() -> None:
     ]
     QRC_PATH.write_text("\n".join(qrc_content), encoding="utf-8")
 
+    pyside6_rcc = shutil.which("pyside6-rcc")
+    if not pyside6_rcc:
+        candidate = Path(sys.executable).with_name(
+            "pyside6-rcc.exe" if sys.platform == "win32" else "pyside6-rcc"
+        )
+        if candidate.is_file():
+            pyside6_rcc = str(candidate)
+
     compiler = shutil.which("pyrcc6")
-    if compiler:
+    if pyside6_rcc:
+        command = [pyside6_rcc, str(QRC_PATH), "-o", str(PY_PATH)]
+    elif compiler:
         command = [compiler, str(QRC_PATH), "-o", str(PY_PATH)]
     elif find_spec("PySide6.pyrcc_main") is not None:
         command = [

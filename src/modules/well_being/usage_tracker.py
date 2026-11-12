@@ -123,10 +123,16 @@ class UsageTracker(QObject):
         )
 
     def stop(self) -> None:
-        if self._timer.isActive():
+        was_running = self._timer.isActive()
+        if was_running:
             self._timer.stop()
         self._flush()
-        logger("UsageTracker", "INFO", "Учёт использования приложений остановлен")
+        if was_running:
+            logger(
+                "UsageTracker",
+                "INFO",
+                "Учёт использования приложений остановлен",
+            )
 
     def set_enabled(self, enabled: bool) -> None:
         if enabled:
