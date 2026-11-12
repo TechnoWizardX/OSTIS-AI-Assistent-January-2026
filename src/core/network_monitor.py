@@ -1,4 +1,4 @@
-import time
+import threading
 
 from PySide6.QtCore import QThread, Signal
 
@@ -19,7 +19,7 @@ class NetworkChecker(QThread):
         super().__init__(parent)
         self._interval  = interval
         self._is_online = False
-        self._running   = True
+        self._stop_event = threading.Event()
 
     # ------------------------------------------------------------------
     # Публичный API
@@ -31,21 +31,23 @@ class NetworkChecker(QThread):
 
     def stop(self):
         """Останавливает поток (безопасно вызывать из любого потока)."""
-        self._running = False
-        self.wait()
+        self._stop_event.set()
+        if self.isRunning() and QThread.currentThread() != self:
+            self.wait()
 
     # ------------------------------------------------------------------
     # Внутренняя логика
     # ------------------------------------------------------------------
 
     def run(self):
-        while self._running:
+        while not self._stop_event.is_set():
             new_status = self._check()
             if new_status != self._is_online:
                 self._is_online = new_status
                 self.connection_changed.emit(new_status)
                 logger("NetworkChecker", "INFO", f"Online: {new_status}")
-            time.sleep(self._interval)
+            if self._stop_event.wait(self._interval):
+                break
 
     @staticmethod
     def _check() -> bool:

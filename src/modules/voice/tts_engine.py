@@ -1050,10 +1050,15 @@ class SileroTTS:
         """Очистка ресурсов при завершении"""
         logger("TTSSilero", "INFO", "Очистка ресурсов...")
         self._tts_worker_running = False
-        self.stop()
+        try:
+            self.stop()
+        except Exception as error:
+            logger("TTSSilero", "ERROR", f"Ошибка остановки воспроизведения: {error}")
 
-        if self._tts_worker_thread and self._tts_worker_thread.is_alive():
-            self._tts_worker_thread.join(timeout=2.0)
+        worker = self._tts_worker_thread
+        if worker is not None and worker is not threading.current_thread():
+            worker.join()
+        self._tts_worker_thread = None
 
 
 # ============================================================

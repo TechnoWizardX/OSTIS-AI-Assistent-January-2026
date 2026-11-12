@@ -8,6 +8,7 @@ import json
 import math
 import os
 import sys
+import threading
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -1117,45 +1118,69 @@ class GestureCameraThread(QThread):
         self.camera_index = camera_index
         self.processor = None
         self.cap = None
-        self._running = False
+        self._stop_event = threading.Event()
 
     def run(self):
-        self._running = True
-        self.processor = GestureProcessor()
-        self.processor.thread = self  # Обратная ссылка для сигналов
+        processor = None
+        capture = None
+        try:
+            processor = GestureProcessor()
+            self.processor = processor
+            processor.thread = self  # Обратная ссылка для сигналов
 
-        self.cap = cv2.VideoCapture(self.camera_index)
-        if not self.cap.isOpened():
-            self.status_ready.emit("Ошибка: не удалось открыть камеру!")
-            return
+            capture = cv2.VideoCapture(self.camera_index)
+            self.cap = capture
+            if not capture.isOpened():
+                self.status_ready.emit("Ошибка: не удалось открыть камеру!")
+                return
 
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, SETTINGS["camera_width"])
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, SETTINGS["camera_height"])
+            capture.set(cv2.CAP_PROP_FRAME_WIDTH, SETTINGS["camera_width"])
+            capture.set(cv2.CAP_PROP_FRAME_HEIGHT, SETTINGS["camera_height"])
 
-        self._print_instructions()
+            self._print_instructions()
 
-        while self._running:
-            ret, frame = self.cap.read()
-            if not ret:
-                continue
+            while not self._stop_event.is_set():
+                ret, frame = capture.read()
+                if not ret:
+                    self.msleep(33)
+                    continue
 
-            processed = self.processor.process_frame(frame)
-            if processed is None or not self._running:
-                break
+                processed = processor.process_frame(frame)
+                if processed is None or self._stop_event.is_set():
+                    break
 
-            rgb = cv2.cvtColor(processed, cv2.COLOR_BGR2RGB)
-            h, w, ch = rgb.shape
-            q_image = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
-            self.frame_ready.emit(q_image)
-            self.status_ready.emit(self.processor.get_status_text())
-            self.msleep(33)
-
-        self.cap.release()
-        self.processor.shutdown()
+                rgb = cv2.cvtColor(processed, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb.shape
+                q_image = QImage(
+                    rgb.data,
+                    w,
+                    h,
+                    ch * w,
+                    QImage.Format.Format_RGB888,
+                )
+                self.frame_ready.emit(q_image)
+                self.status_ready.emit(processor.get_status_text())
+                self.msleep(33)
+        except Exception as error:
+            self.status_ready.emit(f"Ошибка потока камеры: {error}")
+        finally:
+            try:
+                if capture is not None:
+                    capture.release()
+            except Exception as error:
+                self.status_ready.emit(f"Ошибка освобождения камеры: {error}")
+            try:
+                if processor is not None:
+                    processor.shutdown()
+            except Exception as error:
+                self.status_ready.emit(f"Ошибка остановки распознавания жестов: {error}")
+            self.cap = None
+            self.processor = None
 
     def stop(self):
-        self._running = False
-        self.wait()
+        self._stop_event.set()
+        if self.isRunning() and QThread.currentThread() != self:
+            self.wait()
 
     @staticmethod
     def _print_instructions():

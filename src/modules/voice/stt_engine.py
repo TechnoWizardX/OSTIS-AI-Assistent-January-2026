@@ -42,7 +42,8 @@ class WhisperRecognition():
         self.stop_func = self.recognizer.listen_in_background(sr.Microphone(sample_rate=16000), self._callback)
 
     def stop_recognition(self):
-        if self.stop_func:
-            self.stop_func(wait_for_stop=False) # Мгновенно прекращаем прослушивание
+        stop_func = self.stop_func
+        if stop_func:
+            stop_func(wait_for_stop=True)
             self.stop_func = None
             logger("SpeechRecognition", "INFO", "Микрофон выключен")

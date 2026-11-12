@@ -185,7 +185,7 @@ class RecommendationCache:
 class _RecommendationWorker(QThread):
     """Фоновый запрос к LLM (не использовать напрямую)."""
 
-    finished = Signal(str)
+    result_ready = Signal(str)
     failed   = Signal(str)
 
     def __init__(self, user_prompt: str, system_prompt: str,
@@ -206,7 +206,7 @@ class _RecommendationWorker(QThread):
             if str(response).startswith(("⚠️", "❌")):
                 self.failed.emit(response)
             else:
-                self.finished.emit(response)
+                self.result_ready.emit(response)
         except Exception as exc:
             self.failed.emit(str(exc))
 
@@ -238,6 +238,7 @@ class AccessibilityRecommender(QObject):
         self._cache        = RecommendationCache()
         self._db           = DataBaseEditor()
         self._worker: Optional[_RecommendationWorker] = None
+        self._shutting_down = False
 
     # ------------------------------------------------------------------
     # Публичный API
@@ -253,6 +254,9 @@ class AccessibilityRecommender(QObject):
         force : bool
             Игнорировать кэш и запросить заново.
         """
+        if self._shutting_down:
+            return
+
         # 1. Читаем диагноз из БД
         rows  = self._db.get_data("Users", "dysfunctions", user_id)
         diag  = str(rows[0][0]).strip() if rows and rows[0][0] else None
@@ -287,21 +291,37 @@ class AccessibilityRecommender(QObject):
             logger("Recommender", "WARNING", "Предыдущий запрос ещё выполняется")
             return
 
+        if self._worker is not None:
+            self._worker.deleteLater()
+
         self._worker = _RecommendationWorker(
             user_prompt, sys_prompt,
             self._api_key, model, use_online,
             parent=self,
         )
-        self._worker.finished.connect(lambda raw: self._on_success(raw, diag, model))
+        self._worker.result_ready.connect(
+            lambda raw: self._on_success(raw, diag, model)
+        )
         self._worker.failed.connect(lambda err: logger("Recommender", "ERROR", err))
         self._worker.start()
         logger("Recommender", "INFO", f"Запрос отправлен (модель: {model})")
+
+    def shutdown(self) -> None:
+        self._shutting_down = True
+        worker = self._worker
+        if worker is not None:
+            if worker.isRunning():
+                worker.wait()
+            worker.deleteLater()
+            self._worker = None
 
     # ------------------------------------------------------------------
     # Приватные обработчики
     # ------------------------------------------------------------------
 
     def _on_success(self, raw: str, diagnosis: str, model: str) -> None:
+        if self._shutting_down:
+            return
         result = RecommendationParser.parse(raw)
         self._cache.set(diagnosis, result, model)
         self.recommendation_obtained.emit(result.methods, result.user_text)

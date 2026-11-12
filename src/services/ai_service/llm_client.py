@@ -13,13 +13,13 @@ print(__file__)
 Prompt   = Union[str, List[str]]
 Response = Union[str, List[str]]
 
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_URL = "https://openrouter.ai/api/v1"
 
 
 class MedicalAPI:
     """Клиент OpenRouter (облачные LLM)."""
 
-    def __init__(self, api_key: str = None, model: str = "anthropic/claude-3-haiku"):
+    def __init__(self, api_key: str = None, model: str = "openrouter/free"):
         self.model   = model
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         if not self.api_key:

@@ -133,11 +133,13 @@ class GesturesPage(BaseInputPage):
         self.stop_btn.setEnabled(True)
 
     def stop_camera(self):
-        if self.camera_thread is not None and self.camera_thread.isRunning():
-            self.camera_thread.frame_ready.disconnect()
-            self.camera_thread.status_ready.disconnect()
-            self.camera_thread.command_ready.disconnect()
+        if self.camera_thread is not None:
+            if self.camera_thread.isRunning():
+                self.camera_thread.frame_ready.disconnect()
+                self.camera_thread.status_ready.disconnect()
+                self.camera_thread.command_ready.disconnect()
             self.camera_thread.stop()
+            self.camera_thread.wait()
             self.camera_thread = None
 
         self.start_btn.setEnabled(True)

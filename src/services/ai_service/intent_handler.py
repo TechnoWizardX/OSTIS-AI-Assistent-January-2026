@@ -43,7 +43,13 @@ class IntentHandler:
         self.base_url = base_url
         self.online_model = online_model
         self._api_key = api_key or os.getenv("OPENROUTER_API_KEY")
-        self.online_client = openai.OpenAI(api_key=self._api_key, base_url=self.base_url)
+        self.online_client = openai.OpenAI(
+            api_key=self._api_key,
+            base_url=self.base_url,
+            timeout=30.0,
+            max_retries=0,
+        )
+        self._ollama_process = None
         self.basic_prompt = self._load_prompt()
         logger("IntentHandler", "INFO", f"Расположение промта: {PROMPT_PATH}")
         logger("IntentHandler", "INFO", f"Инициализирован с моделью: {self.offline_model}")
@@ -71,7 +77,12 @@ class IntentHandler:
     def update_api_key(self, new_key: str):
         """Обновляет API ключ для онлайн-запросов"""
         self._api_key = new_key
-        self.online_client = openai.OpenAI(api_key=self._api_key, base_url=self.base_url)
+        self.online_client = openai.OpenAI(
+            api_key=self._api_key,
+            base_url=self.base_url,
+            timeout=30.0,
+            max_retries=0,
+        )
         logger("IntentHandler", "INFO", "API ключ обновлен")
     
     def build_user_data(self, name: str= "", birthday: str = "", gender: str = "", 
@@ -166,33 +177,63 @@ class IntentHandler:
         return None
     
     def shutdown_ollama(self):
-        """Полная выгрузка модели из памяти"""
+        """Выгружает модель и завершает только запущенный этим приложением процесс."""
         try:
-
             unload_payload = {
                 "model": self.offline_model,
                 "keep_alive": 0
             }
-            requests.post("http://localhost:11434/api/generate", json=unload_payload)
+            requests.post(
+                "http://localhost:11434/api/generate",
+                json=unload_payload,
+                timeout=5,
+            )
             logger("CORE", "INFO", "Модель Ollama выгружена из памяти")
-            
-        except Exception as e:
-            print(f"Ошибка при закрытии Ollama: {e}")
+        except requests.RequestException as error:
+            logger("CORE", "WARNING", f"Не удалось выгрузить Ollama: {error}")
+
+        process = self._ollama_process
+        self._ollama_process = None
+        if process is not None and process.poll() is None:
+            try:
+                process.terminate()
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                logger("CORE", "WARNING", "Ollama не завершилась вовремя; принудительное завершение")
+                try:
+                    process.kill()
+                    process.wait()
+                except OSError as error:
+                    logger("CORE", "ERROR", f"Ошибка принудительного завершения Ollama: {error}")
+            except OSError as error:
+                logger("CORE", "ERROR", f"Не удалось завершить процесс Ollama: {error}")
+
+        try:
+            self.online_client.close()
+        except Exception as error:
+            logger("IntentHandler", "ERROR", f"Ошибка закрытия HTTP-клиента: {error}")
 
     def start_ollama(self):
         """Запускает Ollama, если он не запущен"""
+        if self._ollama_process is not None and self._ollama_process.poll() is None:
+            return
+
         try:
             # Проверяем, запущен ли процесс, если нет - стартуем (только для Windows)
-            subprocess.Popen(["ollama", "serve"], creationflags=subprocess.CREATE_NO_WINDOW)
+            self._ollama_process = subprocess.Popen(
+                ["ollama", "serve"],
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
             logger("CORE", "INFO", "Ollama serve запущен")
-        except: pass
+        except OSError as error:
+            logger("CORE", "WARNING", f"Не удалось запустить Ollama: {error}")
 
 class IntentWorker(QThread):
     # Сигнал, который передаст словарь с результатом обратно в Core
-    finished = Signal(dict)
+    result_ready = Signal(dict)
     error = Signal(str)
 
-    def __init__(self, handler, user_text, user_data="", use_online=False):
+    def __init__(self, handler : IntentHandler, user_text : str, user_data="" , use_online=False):
         
         super().__init__()
         self.handler = handler
@@ -205,7 +246,7 @@ class IntentWorker(QThread):
             # Вызываем твой существующий метод send_request
             result = self.handler.send_request(self.user_text, self.user_data, self.use_online)
             if result:
-                self.finished.emit(result)
+                self.result_ready.emit(result)
             else:
                 self.error.emit("Пустой ответ от ИИ")
         except Exception as e:

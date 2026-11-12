@@ -1,14 +1,17 @@
+from __future__ import annotations
+
 import sys
+import threading
 from pathlib import Path
+from typing import TYPE_CHECKING, Callable
 
 from dotenv import load_dotenv
+from PySide6.QtCore import QCoreApplication, QObject, Signal, Slot
 from PySide6.QtWidgets import QApplication
 
 from src.core.network_monitor import NetworkChecker
 from src.gui.main_window import UserInterface
 from src.gui.signals import ui_signals
-from src.modules.voice import stt_engine as Whisper
-from src.modules.voice.tts_engine import SileroTTS
 from src.modules.well_being.usage_tracker import get_usage_tracker
 from src.services.ai_service.intent_handler import IntentHandler, IntentWorker
 from src.services.ai_service.llm_client import LocalModel
@@ -16,7 +19,8 @@ from src.services.ai_service.recommendation import (METHOD_LABELS,
                                                     AccessibilityRecommender)
 from src.utils.BasicUtils import global_signals
 from src.utils.chat_history import (add_message, clear_chat_history,
-                                    format_chat_history, load_chat_history)
+                                    format_chat_history,
+                                    load_recent_chat_history)
 from src.utils.config_manager import (ConfigManager, get_env_variable,
                                       get_settings_config_value,
                                       load_settings_config,
@@ -27,21 +31,74 @@ from src.utils.network import has_internet
 from src.utils.system_control import ControlSystem
 from src.utils.user_data import get_user_data_dir
 
+if TYPE_CHECKING:
+    from src.modules.voice.stt_engine import WhisperRecognition
+    from src.modules.voice.tts_engine import SileroTTS
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 load_dotenv()
 DATABASE_EDITOR = DataBaseEditor()
-WHISPER_MODEL = Whisper.WhisperRecognition(
-    model_download_root=str(PROJECT_ROOT / "models")
-)
-TTSSILERO_MODEL = SileroTTS()
-INTENT_HANDLER = IntentHandler(online_model="poolside/laguna-xs.2:free", base_url="https://openrouter.ai/api/v1")
+INTENT_HANDLER = IntentHandler(online_model="openrouter/free", base_url="https://openrouter.ai/api/v1")
+
+
+class _ModelLoadingSignals(QObject):
+    loaded = Signal(str, object)
+    failed = Signal(str, str)
+
+    def __init__(self, owner):
+        super().__init__()
+        self._owner = owner
+        self.loaded.connect(self._on_loaded)
+        self.failed.connect(self._on_failed)
+
+    @Slot(str, object)
+    def _on_loaded(self, model_name: str, model: object) -> None:
+        self._owner._on_model_loaded(model_name, model)
+
+    @Slot(str, str)
+    def _on_failed(self, model_name: str, error: str) -> None:
+        self._owner._on_model_load_failed(model_name, error)
+
+
+class _IntentWorkerTracker(QObject):
+    _worker_finished = Signal(object)
+
+    def __init__(self):
+        super().__init__()
+        self._workers = set()
+        self._worker_finished.connect(self._forget_worker)
+
+    def track(self, worker: IntentWorker) -> None:
+        self._workers.add(worker)
+        worker.finished.connect(
+            lambda worker=worker: self._worker_finished.emit(worker)
+        )
+
+    @Slot(object)
+    def _forget_worker(self, worker: object) -> None:
+        self._workers.discard(worker)
+
+    def wait_for_all(self) -> None:
+        for worker in tuple(self._workers):
+            worker.wait()
+
 
 class AssistentCore():
     def __init__(self, api_key: str = ""):
         logger("AssistentCore", "INFO", "Инициализация Ядра...")
+
         self.user_interface = UserInterface(api_key=api_key)
         self.settings_config = load_settings_config()
+        self._shutting_down = False
+        self._intent_worker_tracker = _IntentWorkerTracker()
+
+        self.whisper_model: WhisperRecognition | None = None
+        self.ttssilero_model: SileroTTS | None = None
+        self._whisper_requested = False
+        self._pending_tts: str | None = None
+        self._model_load_threads: dict[str, threading.Thread] = {}
+        self._model_loading_signals = _ModelLoadingSignals(self)
 
         # Учёт использования приложений для вкладки «Благополучие»
         self.usage_tracker = get_usage_tracker()
@@ -49,9 +106,6 @@ class AssistentCore():
         self.usage_tracker.set_enabled(
             bool(get_settings_config_value("well_being_tracking_enabled"))
         )
-        application = QApplication.instance()
-        if application is not None:
-            application.aboutToQuit.connect(self.usage_tracker.stop)
 
         self.network_checker = NetworkChecker()
         self.network_checker.connection_changed.connect(self._on_network_status)
@@ -63,7 +117,6 @@ class AssistentCore():
         self.current_worker = None
 
         # Инициализация рекомендателя (рекомендации отправляются только в профиль)
-        self.accessibility_advisor = AccessibilityRecommender()
         self.accessibility_advisor = AccessibilityRecommender()
         # Подключаем сигнал рекомендателя к сигналу интерфейса для обновления профиля
         # accessibility_advisor передаёт (methods, text), recommendation_ready принимает то же
@@ -83,9 +136,7 @@ class AssistentCore():
 
         self.recognition_model = self.settings_config.get("recognition_model", "auto")
 
-        self.whisper_model = WHISPER_MODEL
         self.tts_voice = get_settings_config_value("tts_voice")
-        self.ttssilero_model = TTSSILERO_MODEL
 
         self.intent_handler = INTENT_HANDLER
         self.intent_handler.start_ollama()
@@ -112,6 +163,118 @@ class AssistentCore():
     def _on_usage_flushed(self, _date_str: str):
         """Сообщает интерфейсу, что статистика записана в БД."""
         ui_signals.app_usage_updated.emit()
+
+    def _load_model_in_background(
+        self,
+        model_name: str,
+        factory: Callable[[], object],
+    ) -> None:
+        if model_name in self._model_load_threads:
+            return
+
+        def load_model():
+            try:
+                model = factory()
+            except Exception as error:
+                logger(
+                    "AssistentCore",
+                    "ERROR",
+                    f"Не удалось загрузить модель {model_name}: {error}",
+                )
+                if not self._shutting_down:
+                    self._model_loading_signals.failed.emit(
+                        model_name, str(error)
+                    )
+            else:
+                if self._shutting_down:
+                    self._dispose_loaded_model(model_name, model)
+                else:
+                    self._model_loading_signals.loaded.emit(model_name, model)
+
+        thread = threading.Thread(
+            target=load_model,
+            name=f"{model_name}-model-loader",
+            daemon=True,
+        )
+        self._model_load_threads[model_name] = thread
+        thread.start()
+
+    def _on_model_loaded(self, model_name: str, model: object) -> None:
+        self._model_load_threads.pop(model_name, None)
+        if self._shutting_down:
+            self._dispose_loaded_model(model_name, model)
+            return
+
+        if model_name == "whisper":
+            from src.modules.voice.stt_engine import WhisperRecognition
+
+            if not isinstance(model, WhisperRecognition):
+                self._report_model_error(model_name, "Некорректный экземпляр модели")
+                return
+            self.whisper_model = model
+            if self._whisper_requested:
+                try:
+                    self.whisper_model.start_recognition()
+                except Exception as error:
+                    self._whisper_requested = False
+                    self._report_model_error(model_name, error)
+        elif model_name == "tts":
+            from src.modules.voice.tts_engine import SileroTTS
+
+            if not isinstance(model, SileroTTS):
+                self._report_model_error(model_name, "Некорректный экземпляр модели")
+                return
+            self.ttssilero_model = model
+            pending_text = self._pending_tts
+            self._pending_tts = None
+            if pending_text:
+                self.text_to_speech(pending_text)
+
+    def _on_model_load_failed(self, model_name: str, error: str) -> None:
+        self._model_load_threads.pop(model_name, None)
+        if self._shutting_down:
+            return
+
+        if model_name == "whisper":
+            self._whisper_requested = False
+        elif model_name == "tts":
+            self._pending_tts = None
+            ui_signals.speaker_stop_all.emit()
+        self._report_model_error(model_name, error)
+
+    @staticmethod
+    def _dispose_loaded_model(model_name: str, model: object) -> None:
+        if model_name == "tts":
+            cleanup = getattr(model, "cleanup", None)
+        else:
+            cleanup = getattr(model, "stop_recognition", None)
+        if callable(cleanup):
+            try:
+                cleanup()
+            except Exception as error:
+                logger(
+                    "AssistentCore",
+                    "ERROR",
+                    f"Ошибка освобождения модели {model_name}: {error}",
+                )
+
+    def _report_model_error(self, model_name: str, error: object) -> None:
+        message = f"Не удалось загрузить модель {model_name}: {error}"
+        logger("AssistentCore", "ERROR", message)
+        ui_signals.message_sent.emit("IAMOS", message)
+        add_message("IAMOS", message)
+
+    @staticmethod
+    def _create_whisper_model() -> WhisperRecognition:
+        from src.modules.voice.stt_engine import WhisperRecognition
+
+        return WhisperRecognition(model_download_root=str(PROJECT_ROOT / "models"))
+
+    @staticmethod
+    def _create_tts_model() -> SileroTTS:
+        from src.modules.voice.tts_engine import SileroTTS
+
+        return SileroTTS()
 
     def _on_dysfunctions_saved(self):
         """Обработка сигнала о сохранении нарушений."""
@@ -232,6 +395,8 @@ class AssistentCore():
 
     def handle_error(self, error_message: str):
         """Обработка ошибок, полученных из разных частей системы, с логированием"""
+        if self._shutting_down:
+            return
         ui_signals.typing_finished.emit()
         self.text_to_speech(error_message)
 
@@ -270,19 +435,32 @@ class AssistentCore():
 
     def control_whisper(self, new_status: bool):
         """Управление Whisper"""
+        if self._shutting_down:
+            return
+        self._whisper_requested = new_status
         if new_status:
-            self.whisper_model.start_recognition()
-        else:
+            if self.whisper_model is None:
+                self._load_model_in_background(
+                    "whisper",
+                    self._create_whisper_model,
+                )
+            else:
+                self.whisper_model.start_recognition()
+        elif self.whisper_model is not None:
             self.whisper_model.stop_recognition()
-        pass
 
     def text_to_speech(self, text: str):
         """Преобразование текста в речь с выбором модели TTS в зависимости от настроек"""
-        if not text or not text.strip():
+        if self._shutting_down or not text or not text.strip():
             return
     
         # Останавливаем предыдущее воспроизведение и сбрасываем все кнопки
         self.stop_speech()
+
+        if self.ttssilero_model is None:
+            self._pending_tts = text
+            self._load_model_in_background("tts", self._create_tts_model)
+            return
     
         # Получаем настройки
         tts_speed = get_settings_config_value("tts_speed")
@@ -319,6 +497,11 @@ class AssistentCore():
 
     def stop_speech(self):
         """Останавливает текущее воспроизведение речи и сбрасывает кнопки."""
+        self._pending_tts = None
+        if self.ttssilero_model is None:
+            ui_signals.speaker_stop_all.emit()
+            return
+
         if hasattr(self.ttssilero_model, 'stop'):
             self.ttssilero_model.stop()
             logger("CORE | TTS", "INFO", "Воспроизведение остановлено пользователем")
@@ -329,12 +512,12 @@ class AssistentCore():
 
     def on_message_sent(self, sender: str = "Unknown", message: str = "No message"):
         """Обработка сообщения пользователя: отправка в IntentHandler для анализа."""
-        if sender != "user" or message == "No message":
+        if self._shutting_down or sender != "user" or message == "No message":
             return
     
         logger("CORE", "INFO", f"Пользователь: {message}")
-        raw_history = load_chat_history()
-        formatted_history = format_chat_history(raw_history, 10)
+        recent_history = load_recent_chat_history(10)
+        formatted_history = format_chat_history(recent_history, 10)
     
         use_online = get_settings_config_value("use_online_model") and has_internet()
         if use_online:
@@ -367,14 +550,17 @@ class AssistentCore():
                     available_apps=ControlSystem.get_available_apps(),
                 )
         self.ai_thread = IntentWorker(handler=self.intent_handler, user_text=message, user_data=user_context, use_online = use_online)
+        self._intent_worker_tracker.track(self.ai_thread)
     
-        self.ai_thread.finished.connect(self.handle_ai_result)
+        self.ai_thread.result_ready.connect(self.handle_ai_result)
         self.ai_thread.error.connect(self.handle_error)
         self.ai_thread.start()
         ui_signals.typing_started.emit()
 
     def handle_ai_result(self, result):
         """Метод-обработчик успешного ответа"""
+        if self._shutting_down:
+            return
         ui_signals.typing_finished.emit()
         self.handle_intent(result)
 
@@ -404,6 +590,55 @@ class AssistentCore():
         """Запуск интерфейса"""
         self.user_interface.show()
 
+    def shutdown(self) -> None:
+        """Stop background work before the Qt application exits."""
+        if self._shutting_down:
+            return
+
+        self._shutting_down = True
+        self._whisper_requested = False
+        self._pending_tts = None
+
+        self._cleanup_step(
+            "gesture camera",
+            self.user_interface.gestures_input_page.stop_camera,
+        )
+        if self.whisper_model is not None:
+            self._cleanup_step(
+                "Whisper listener", self.whisper_model.stop_recognition
+            )
+        if self.ttssilero_model is not None:
+            self._cleanup_step("TTS worker", self.ttssilero_model.cleanup)
+
+        self._cleanup_step("network monitor", self.network_checker.stop)
+        self._cleanup_step("usage tracker", self.usage_tracker.stop)
+        self._cleanup_step(
+            "recommendation worker", self.accessibility_advisor.shutdown
+        )
+        self._cleanup_step(
+            "intent workers", self._intent_worker_tracker.wait_for_all
+        )
+
+        for thread in tuple(self._model_load_threads.values()):
+            thread.join()
+        QCoreApplication.processEvents()
+        self._model_load_threads.clear()
+
+        self._cleanup_step("Ollama", self.intent_handler.shutdown_ollama)
+        logger("AssistentCore", "INFO", "Фоновые ресурсы остановлены")
+
+    @staticmethod
+    def _cleanup_step(name: str, cleanup: Callable[[], object]) -> None:
+        try:
+            cleanup()
+        except Exception as error:
+            logger(
+                "AssistentCore",
+                "ERROR",
+                f"Ошибка при завершении {name}: {error}",
+            )
+
+
 def run_core():
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("IAMOS")
@@ -412,7 +647,7 @@ def run_core():
     app.setStyle("Fusion")
     api_key = get_env_variable("OPENROUTER_API_KEY")
     assistent = AssistentCore(api_key=api_key)
-    # app.aboutToQuit.connect(assistent.intent_handler.shutdown_ollama)
+    app.aboutToQuit.connect(assistent.shutdown)
     assistent.run()
     sys.exit(app.exec())
 
