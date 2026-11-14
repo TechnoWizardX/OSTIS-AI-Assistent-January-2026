@@ -16,7 +16,7 @@ import shutil
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from PySide6.QtCore import QObject, QThread, Signal
 
@@ -230,11 +230,15 @@ class AccessibilityRecommender(QObject):
                  api_key:      str = None,
                  online_model: str = "openrouter/free",
                  offline_model: str = "qwen2.5:3b",
+                 is_online:    Optional[Callable[[], bool]] = None,
                  parent: QObject = None):
         super().__init__(parent)
         self._api_key      = api_key or os.getenv("OPENROUTER_API_KEY")
         self._online_model = online_model
         self._offline_model = offline_model
+        # В приложении сюда передаётся NetworkChecker.is_online — чтение
+        # закэшированного статуса вместо сетевого запроса в UI-потоке.
+        self._is_online     = is_online or has_internet
         self._cache        = RecommendationCache()
         self._db           = DataBaseEditor()
         self._worker: Optional[_RecommendationWorker] = None
@@ -275,7 +279,7 @@ class AccessibilityRecommender(QObject):
                 return
 
         # 3. Выбираем модель
-        use_online = bool(get_settings_config_value("use_online_model") and has_internet())
+        use_online = bool(get_settings_config_value("use_online_model") and self._is_online())
         model      = self._online_model if use_online else self._offline_model
 
         # 4. Загружаем системный промпт

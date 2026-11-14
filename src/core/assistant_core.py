@@ -27,7 +27,6 @@ from src.utils.config_manager import (ConfigManager, get_env_variable,
                                       set_settings_config_value)
 from src.utils.database import DataBaseEditor
 from src.utils.logger import logger
-from src.utils.network import has_internet
 from src.utils.system_control import ControlSystem
 from src.utils.user_data import get_user_data_dir
 
@@ -117,7 +116,10 @@ class AssistentCore():
         self.current_worker = None
 
         # Инициализация рекомендателя (рекомендации отправляются только в профиль)
-        self.accessibility_advisor = AccessibilityRecommender()
+        # Статус сети берём из фонового монитора, чтобы не делать запрос в UI-потоке.
+        self.accessibility_advisor = AccessibilityRecommender(
+            is_online=self.network_checker.is_online
+        )
         # Подключаем сигнал рекомендателя к сигналу интерфейса для обновления профиля
         # accessibility_advisor передаёт (methods, text), recommendation_ready принимает то же
         # Форматируем текст рекомендации перед отправкой в интерфейс
@@ -519,7 +521,12 @@ class AssistentCore():
         recent_history = load_recent_chat_history(10)
         formatted_history = format_chat_history(recent_history, 10)
     
-        use_online = get_settings_config_value("use_online_model") and has_internet()
+        # NetworkChecker опрашивает сеть в своём потоке каждые 15 с, поэтому
+        # здесь только читаем последний известный статус (без блокировки UI).
+        use_online = (
+            get_settings_config_value("use_online_model")
+            and self.network_checker.is_online()
+        )
         if use_online:
             logger("CORE", "INFO", "Использование облачного ИИ для обработки запроса")
             if get_settings_config_value("allow_online_model_user_info"):
