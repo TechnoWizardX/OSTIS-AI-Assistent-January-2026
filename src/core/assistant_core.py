@@ -39,8 +39,28 @@ if TYPE_CHECKING:
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 load_dotenv()
-DATABASE_EDITOR = DataBaseEditor()
-INTENT_HANDLER = IntentHandler(online_model="openrouter/free", base_url="https://openrouter.ai/api/v1")
+
+_database_editor: DataBaseEditor | None = None
+_intent_handler: IntentHandler | None = None
+
+
+def _get_database_editor() -> DataBaseEditor:
+    """Создаёт редактор профиля при первом обращении, а не при импорте модуля."""
+    global _database_editor
+    if _database_editor is None:
+        _database_editor = DataBaseEditor()
+    return _database_editor
+
+
+def _get_intent_handler() -> IntentHandler:
+    """Создаёт обработчик намерений при старте ядра, а не при импорте модуля."""
+    global _intent_handler
+    if _intent_handler is None:
+        _intent_handler = IntentHandler(
+            online_model="openrouter/free",
+            base_url="https://openrouter.ai/api/v1",
+        )
+    return _intent_handler
 
 
 class _ModelLoadingSignals(QObject):
@@ -97,6 +117,7 @@ class AssistentCore():
 
         self.user_interface = UserInterface(api_key=api_key)
         self.settings_config = load_settings_config()
+        self.database_editor = _get_database_editor()
         self._shutting_down = False
         self._intent_worker_tracker = _IntentWorkerTracker()
         self._action_runner = BackgroundTaskRunner(
@@ -154,7 +175,7 @@ class AssistentCore():
 
         self.tts_voice = get_settings_config_value("tts_voice")
 
-        self.intent_handler = INTENT_HANDLER
+        self.intent_handler = _get_intent_handler()
         self.intent_handler.start_ollama()
 
         # Подписка на сигналы интерфейса
@@ -557,9 +578,9 @@ class AssistentCore():
             if get_settings_config_value("allow_online_model_user_info"):
                 logger("CORE", "INFO", "Разрешён доступ облачному ИИ к персональным данным")
                 user_context = self.intent_handler.build_user_data(
-                    name=DATABASE_EDITOR.get_data("Users", "firstname", 0),
-                    birthday=DATABASE_EDITOR.get_data("Users", "birthday", 0),
-                    gender=DATABASE_EDITOR.get_data("Users", "gender", 0),
+                    name=self.database_editor.get_data("Users", "firstname", 0),
+                    birthday=self.database_editor.get_data("Users", "birthday", 0),
+                    gender=self.database_editor.get_data("Users", "gender", 0),
                     chat_history=formatted_history,
                     current_app=ControlSystem.get_active_app(),
                     available_apps=ControlSystem.get_available_apps(),
@@ -574,9 +595,9 @@ class AssistentCore():
         else:
             logger("CORE", "INFO", "Использование локального ИИ для обработки запроса")
             user_context = self.intent_handler.build_user_data(
-                    name=DATABASE_EDITOR.get_data("Users", "firstname", 0),
-                    birthday=DATABASE_EDITOR.get_data("Users", "birthday", 0),
-                    gender=DATABASE_EDITOR.get_data("Users", "gender", 0),
+                    name=self.database_editor.get_data("Users", "firstname", 0),
+                    birthday=self.database_editor.get_data("Users", "birthday", 0),
+                    gender=self.database_editor.get_data("Users", "gender", 0),
                     chat_history=formatted_history,
                     current_app=ControlSystem.get_active_app(),
                     available_apps=ControlSystem.get_available_apps(),
