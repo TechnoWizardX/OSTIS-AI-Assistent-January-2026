@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import threading
 from contextlib import closing
 from datetime import datetime
 from pathlib import Path
@@ -11,15 +12,48 @@ _LEGACY_HISTORY_FILE = "chat_history.json"
 _HISTORY_DATABASE_FILE = "chat_history.sqlite3"
 _MIGRATION_MARKER_FILE = ".chat_history_migration_complete"
 
+# Одно общее соединение и одна инициализация на процесс: раньше каждый вызов
+# открывал соединение заново и гонял PRAGMA quick_check по всей истории.
+_state_lock = threading.RLock()
+_connection: sqlite3.Connection | None = None
+_connection_path: Path | None = None
+_initialized_path: Path | None = None
+
 
 def _database_path() -> Path:
     return get_user_data_file(_HISTORY_DATABASE_FILE)
 
 
 def _connect() -> sqlite3.Connection:
-    connection = sqlite3.connect(_database_path(), timeout=5)
+    """Возвращает общее соединение; вызывать под ``_state_lock``."""
+    global _connection, _connection_path
+
+    path = _database_path()
+    if _connection is not None and _connection_path == path:
+        return _connection
+
+    if _connection is not None:
+        _connection.close()
+
+    connection = sqlite3.connect(path, timeout=5, check_same_thread=False)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA journal_mode=WAL")
+    connection.execute("PRAGMA synchronous=NORMAL")
+    _connection = connection
+    _connection_path = path
     return connection
+
+
+def close_connection() -> None:
+    """Закрывает общее соединение (завершение приложения, тесты)."""
+    global _connection, _connection_path, _initialized_path
+
+    with _state_lock:
+        if _connection is not None:
+            _connection.close()
+        _connection = None
+        _connection_path = None
+        _initialized_path = None
 
 
 def _legacy_timestamp(message: dict) -> str:
@@ -137,7 +171,18 @@ def _migrate_legacy_history(connection: sqlite3.Connection) -> bool:
 
 
 def _initialize() -> None:
-    path = _database_path()
+    """Готовит БД один раз за процесс (или при смене пути к файлу)."""
+    global _initialized_path
+
+    with _state_lock:
+        path = _database_path()
+        if _initialized_path == path:
+            return
+        _prepare_database(path)
+        _initialized_path = path
+
+
+def _prepare_database(path: Path) -> None:
     migration_marker = get_user_data_file(_MIGRATION_MARKER_FILE)
 
     if path.exists():
@@ -184,7 +229,8 @@ def _initialize() -> None:
             )
 
     migration_complete = True
-    with closing(_connect()) as connection, connection:
+    connection = _connect()
+    with connection:
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS messages (
@@ -233,9 +279,9 @@ def _history_entry(row: sqlite3.Row) -> dict[str, str]:
 
 
 def load_chat_history() -> list[dict[str, str]]:
-    _initialize()
-    with closing(_connect()) as connection:
-        rows = connection.execute(
+    with _state_lock:
+        _initialize()
+        rows = _connect().execute(
             """
             SELECT author, content, display_time, display_day
             FROM messages
@@ -252,9 +298,9 @@ def load_chat_history_page(limit: int = 30, offset: int = 0) -> list[dict[str, s
     if offset < 0:
         raise ValueError("History offset must not be negative.")
 
-    _initialize()
-    with closing(_connect()) as connection:
-        rows = connection.execute(
+    with _state_lock:
+        _initialize()
+        rows = _connect().execute(
             """
             SELECT author, content, display_time, display_day
             FROM messages
@@ -282,37 +328,41 @@ def format_chat_history(history_list: list, limit: int = 5) -> str:
 
 
 def save_chat_history(chat_history: list[dict]) -> None:
-    _initialize()
-    with closing(_connect()) as connection, connection:
-        connection.execute("DELETE FROM messages")
-        for index, message in enumerate(chat_history):
-            if (
-                not isinstance(message, dict)
-                or not isinstance(message.get("author"), str)
-                or not isinstance(message.get("text"), str)
-            ):
-                raise ValueError(
-                    f"Chat history entry {index} has an invalid shape."
+    with _state_lock:
+        _initialize()
+        connection = _connect()
+        with connection:
+            connection.execute("DELETE FROM messages")
+            for index, message in enumerate(chat_history):
+                if (
+                    not isinstance(message, dict)
+                    or not isinstance(message.get("author"), str)
+                    or not isinstance(message.get("text"), str)
+                ):
+                    raise ValueError(
+                        f"Chat history entry {index} has an invalid shape."
+                    )
+                timestamp = _legacy_timestamp(message)
+                created_at = message.get("created_at", timestamp)
+                if not isinstance(created_at, str):
+                    raise TypeError("Chat history created_at must be a string.")
+                _insert_message(
+                    connection,
+                    message["author"],
+                    message["text"],
+                    created_at,
+                    str(message.get("time", "")),
+                    str(message.get("day", "")),
                 )
-            timestamp = _legacy_timestamp(message)
-            created_at = message.get("created_at", timestamp)
-            if not isinstance(created_at, str):
-                raise TypeError("Chat history created_at must be a string.")
-            _insert_message(
-                connection,
-                message["author"],
-                message["text"],
-                created_at,
-                str(message.get("time", "")),
-                str(message.get("day", "")),
-            )
 
 
 def clear_chat_history() -> None:
     """Delete all stored messages without removing the migration marker."""
-    _initialize()
-    with closing(_connect()) as connection, connection:
-        connection.execute("DELETE FROM messages")
+    with _state_lock:
+        _initialize()
+        connection = _connect()
+        with connection:
+            connection.execute("DELETE FROM messages")
 
 
 def add_message(author: str, message: str) -> None:
@@ -322,13 +372,15 @@ def add_message(author: str, message: str) -> None:
         raise TypeError("Message content must be a string.")
 
     now = datetime.now().astimezone()
-    _initialize()
-    with closing(_connect()) as connection, connection:
-        _insert_message(
-            connection,
-            author,
-            message,
-            now.isoformat(timespec="seconds"),
-            now.strftime("%H:%M"),
-            now.strftime("%D-%m-%Y"),
-        )
+    with _state_lock:
+        _initialize()
+        connection = _connect()
+        with connection:
+            _insert_message(
+                connection,
+                author,
+                message,
+                now.isoformat(timespec="seconds"),
+                now.strftime("%H:%M"),
+                now.strftime("%D-%m-%Y"),
+            )

@@ -20,6 +20,7 @@ from src.services.ai_service.recommendation import (METHOD_LABELS,
 from src.utils.BasicUtils import global_signals
 from src.utils.background_tasks import BackgroundTaskRunner
 from src.utils.chat_history import (add_message, clear_chat_history,
+                                    close_connection,
                                     format_chat_history,
                                     load_recent_chat_history)
 from src.utils.config_manager import (ConfigManager, get_env_variable,
@@ -653,6 +654,7 @@ class AssistentCore():
             "background actions",
             lambda: self._action_runner.wait_for_all(timeout=5.0),
         )
+        self._cleanup_step("chat history", close_connection)
 
         for thread in tuple(self._model_load_threads.values()):
             thread.join()
