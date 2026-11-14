@@ -110,6 +110,10 @@ class AssistentCore():
         self.network_checker.connection_changed.connect(self._on_network_status)
         self.network_checker.start()
 
+        # Список установленных приложений кэшируется в фоне заранее,
+        # чтобы первое сообщение не ждало сканирования меню «Пуск»
+        ControlSystem.warm_apps_cache_async()
+
         # Локальная модель
         self.local_model = LocalModel()
         self.active_model = self.local_model

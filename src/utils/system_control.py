@@ -1,5 +1,6 @@
 import ctypes
 import os
+import threading
 import time
 import webbrowser
 
@@ -16,8 +17,16 @@ from src.utils.config_manager import (get_settings_config_value,
                                       set_settings_config_value)
 from src.utils.logger import logger
 
+# Кэш списка установленных приложений: сканирование меню «Пуск» занимает
+# сотни миллисекунд, поэтому результат переиспользуется в течение TTL.
+_APPS_CACHE_TTL = 300.0  # секунд
+
 
 class ControlSystem:
+
+    _apps_cache: dict | None = None
+    _apps_cache_time: float = 0.0
+    _apps_cache_lock = threading.Lock()
     
     @staticmethod
     def open_site(url: str):
@@ -133,13 +142,43 @@ class ControlSystem:
             logger("SystemControl", "ERROR", f"Ошибка при определении приложения: {e}")
             return None
     
-    @staticmethod
-    def get_available_apps():
+    @classmethod
+    def get_available_apps(cls) -> dict:
+        """Возвращает словарь установленных приложений (с TTL-кэшем)."""
+        with cls._apps_cache_lock:
+            if (
+                cls._apps_cache is not None
+                and time.monotonic() - cls._apps_cache_time < _APPS_CACHE_TTL
+            ):
+                return cls._apps_cache
+
         apps_dict = AppOpener.give_appnames()
-    
-        # Нам нужны только названия (ключи) для ассистента
-        logger("SystemControl", "INFO", f"Запрошен список доступных приложений")
+
+        with cls._apps_cache_lock:
+            cls._apps_cache = apps_dict
+            cls._apps_cache_time = time.monotonic()
+
+        logger("SystemControl", "INFO", "Запрошен список доступных приложений")
         return apps_dict
+
+    @classmethod
+    def invalidate_apps_cache(cls):
+        """Сбрасывает кэш списка приложений (например, после установки программы)."""
+        with cls._apps_cache_lock:
+            cls._apps_cache = None
+            cls._apps_cache_time = 0.0
+
+    @classmethod
+    def warm_apps_cache_async(cls):
+        """Прогревает кэш приложений в фоновом потоке (для старта)."""
+
+        def _warm():
+            try:
+                cls.get_available_apps()
+            except Exception as e:
+                logger("SystemControl", "WARNING", f"Не удалось прогреть кэш приложений: {e}")
+
+        threading.Thread(target=_warm, daemon=True, name="apps-cache-warm").start()
     
     @staticmethod
     def empty_recycle_bin():
