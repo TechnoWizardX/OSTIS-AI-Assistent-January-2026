@@ -10,7 +10,15 @@ logger = logging.getLogger(__name__)
 THEMES_DIR = Path(__file__).resolve().parents[1] / "resources" / "themes"
 STYLES_DIR = Path(__file__).resolve().parents[1] / "resources" / "styles"
 BASE_STYLESHEET_PATH = STYLES_DIR / "base.qss"
-THEME_NAMES = ("light", "dark", "twilight", "vs_code", "nord", "gruvbox")
+THEME_NAMES = (
+    "light",
+    "dark",
+    "twilight",
+    "vs_code",
+    "nord",
+    "gruvbox",
+    "lavender_graphite",
+)
 
 
 class ThemeManager:

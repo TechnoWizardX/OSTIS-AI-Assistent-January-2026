@@ -178,6 +178,7 @@ class SettingsPage(ContentPageWidget):
             ("VS Code", "vs_code"),
             ("Nord", "nord"),
             ("Gruvbox", "gruvbox"),
+            ("Лаванда-графит", "lavender_graphite"),
         ]
         self._theme_buttons = []
         for i, (label, theme_key) in enumerate(themes_list):
