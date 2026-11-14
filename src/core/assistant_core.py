@@ -18,6 +18,7 @@ from src.services.ai_service.llm_client import LocalModel
 from src.services.ai_service.recommendation import (METHOD_LABELS,
                                                     AccessibilityRecommender)
 from src.utils.BasicUtils import global_signals
+from src.utils.background_tasks import BackgroundTaskRunner
 from src.utils.chat_history import (add_message, clear_chat_history,
                                     format_chat_history,
                                     load_recent_chat_history)
@@ -84,6 +85,12 @@ class _IntentWorkerTracker(QObject):
 
 
 class AssistentCore():
+    # Действия, которые блокируют поток на секунды (psutil с interval=1,
+    # time.sleep, работа с буфером обмена), выполняем вне UI-потока.
+    BLOCKING_ACTIONS = frozenset(
+        {"get_system_stats", "reload_application", "insert_text"}
+    )
+
     def __init__(self, api_key: str = ""):
         logger("AssistentCore", "INFO", "Инициализация Ядра...")
 
@@ -91,6 +98,12 @@ class AssistentCore():
         self.settings_config = load_settings_config()
         self._shutting_down = False
         self._intent_worker_tracker = _IntentWorkerTracker()
+        self._action_runner = BackgroundTaskRunner(
+            name="core-actions",
+            on_error=lambda name, error: global_signals.error_signal.emit(
+                f"Не удалось выполнить функцию {name}: {error}"
+            ),
+        )
 
         self.whisper_model: WhisperRecognition | None = None
         self.ttssilero_model: SileroTTS | None = None
@@ -379,7 +392,18 @@ class AssistentCore():
         }
         try:
             if function_name in methods:
-                methods[function_name]()
+                action = methods[function_name]
+                # Пока в очереди есть блокирующее действие, следующие команды
+                # тоже ставим в очередь, чтобы не нарушить их порядок.
+                if function_name in self.BLOCKING_ACTIONS or self._action_runner.pending:
+                    logger(
+                        "CORE | ActionsMapping",
+                        "INFO",
+                        f"Функция {function_name} выполняется в фоне",
+                    )
+                    self._action_runner.submit(function_name, action)
+                else:
+                    action()
             else:
                 logger("CORE | ActionsMapping", "WARNING", f"Неизвестная функция: {function_name}")
         except Exception as e:
@@ -624,6 +648,10 @@ class AssistentCore():
         )
         self._cleanup_step(
             "intent workers", self._intent_worker_tracker.wait_for_all
+        )
+        self._cleanup_step(
+            "background actions",
+            lambda: self._action_runner.wait_for_all(timeout=5.0),
         )
 
         for thread in tuple(self._model_load_threads.values()):
