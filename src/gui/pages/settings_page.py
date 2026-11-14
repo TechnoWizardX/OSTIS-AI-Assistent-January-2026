@@ -1,4 +1,6 @@
-from PySide6.QtCore import QSize, Qt
+import threading
+
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QFrame, QGridLayout, QHBoxLayout,
                              QLabel, QLineEdit, QMessageBox, QPushButton,
                              QScrollArea, QVBoxLayout)
@@ -13,12 +15,20 @@ from src.utils.config_manager import (get_settings_config_value,
                                       set_settings_config_value)
 from src.utils.devices import get_available_cameras, get_available_microphones
 from src.utils.icons import set_theme_icon
+from src.utils.logger import logger
 
 
 class SettingsPage(ContentPageWidget):
+    _cameras_ready = Signal(list)
+
     def __init__(self, api_key = ""):
         
         super().__init__()
+
+        self._devices_loading = False
+        self._devices_loaded = False
+        self._updating_devices = False
+        self._cameras_ready.connect(self._on_cameras_ready)
 
         self.available_voices = get_settings_config_value("available_silero_voices")
         self.available_voices_reversed = get_settings_config_value("available_silero_voices_reversed")
@@ -100,13 +110,7 @@ class SettingsPage(ContentPageWidget):
         self.camera_dropbox = QComboBox()
         self.camera_dropbox.setObjectName("settingsComboBox")
         self.camera_dropbox.setMinimumHeight(30)
-
-        available = get_available_cameras()
-        
-        if available:
-            self.camera_dropbox.addItems(available)
-        else:
-            self.camera_dropbox.addItem("Нет доступных камер")
+        self.camera_dropbox.addItem("Определение камер…")
 
         self.camera_frame_lay.addWidget(self.camera_label, 1)
         self.camera_frame_lay.addWidget(self.camera_dropbox, 1)
@@ -128,13 +132,7 @@ class SettingsPage(ContentPageWidget):
         self.microphone_dropbox = QComboBox()
         self.microphone_dropbox.setObjectName("settingsComboBox")
         self.microphone_dropbox.setMinimumHeight(30)
-
-        available_mics = get_available_microphones()
-
-        if available_mics:
-            self.microphone_dropbox.addItems(available_mics)
-        else:
-            self.microphone_dropbox.addItem("Нет доступных микрофонов")
+        self.microphone_dropbox.addItem("Определение микрофонов…")
 
         self.microphone_frame_lay.addWidget(self.microphone_label, 1)
         self.microphone_frame_lay.addWidget(self.microphone_dropbox, 1)
@@ -273,16 +271,8 @@ class SettingsPage(ContentPageWidget):
         self.online_model_allows.setChecked(self.online_model_allows_state.load())
         self.tts_recommendation_toggle.setChecked(self.tts_recommendation_state.load())
         self.auto_voice_toggle.setChecked(self.auto_voice_state.load())
-        # Камера (по индексу)
-        camera_index = settings_config.get("camera_index", 0)
-        if 0 <= camera_index < self.camera_dropbox.count():
-            self.camera_dropbox.setCurrentIndex(camera_index)
-        
-        # Микрофон (по индексу)
-        mic_index = settings_config.get("microphone_index", 0)
-        if 0 <= mic_index < self.microphone_dropbox.count():
-            self.microphone_dropbox.setCurrentIndex(mic_index)
-        
+        # Камера и микрофон выбираются в _apply_saved_device_indices()
+        # после фонового определения устройств.
         # Диктор (по индексу)
         speaker = settings_config.get("tts_voice", "xenia")
         self.speaker_dropbox.setCurrentText(self.available_voices_reversed[speaker])
@@ -291,14 +281,93 @@ class SettingsPage(ContentPageWidget):
         theme = settings_config.get("theme", "light")
         self._on_theme_changed(theme)
 
+    def showEvent(self, event):
+        """Определяет устройства при первом открытии страницы, а не при старте."""
+        super().showEvent(event)
+        self._load_devices_async()
+
+    def _load_devices_async(self):
+        """Опрашивает камеры в фоне: cv2.VideoCapture может блокировать ~2 с."""
+        if self._devices_loaded or self._devices_loading:
+            return
+
+        self._devices_loading = True
+
+        def probe_cameras():
+            try:
+                cameras = get_available_cameras()
+            except Exception as error:
+                logger(
+                    "SettingsPage",
+                    "ERROR",
+                    f"Не удалось получить список камер: {error}",
+                )
+                cameras = []
+            try:
+                self._cameras_ready.emit(cameras)
+            except RuntimeError:
+                # Страница могла быть удалена, пока шёл опрос.
+                pass
+
+        threading.Thread(
+            target=probe_cameras, name="settings-devices", daemon=True
+        ).start()
+
+    def _on_cameras_ready(self, cameras: list):
+        self._devices_loading = False
+        self._devices_loaded = True
+
+        try:
+            microphones = get_available_microphones()
+        except Exception as error:
+            logger(
+                "SettingsPage",
+                "ERROR",
+                f"Не удалось получить список микрофонов: {error}",
+            )
+            microphones = []
+
+        self._updating_devices = True
+        try:
+            self.camera_dropbox.clear()
+            if cameras:
+                self.camera_dropbox.addItems(cameras)
+            else:
+                self.camera_dropbox.addItem("Нет доступных камер")
+
+            self.microphone_dropbox.clear()
+            if microphones:
+                self.microphone_dropbox.addItems(microphones)
+            else:
+                self.microphone_dropbox.addItem("Нет доступных микрофонов")
+
+            self._apply_saved_device_indices()
+        finally:
+            self._updating_devices = False
+
+    def _apply_saved_device_indices(self):
+        settings_config = load_settings_config()
+
+        camera_index = settings_config.get("camera_index", 0)
+        if 0 <= camera_index < self.camera_dropbox.count():
+            self.camera_dropbox.setCurrentIndex(camera_index)
+
+        mic_index = settings_config.get("microphone_index", 0)
+        if 0 <= mic_index < self.microphone_dropbox.count():
+            self.microphone_dropbox.setCurrentIndex(mic_index)
+
     def _on_camera_changed(self, text):
         """Сохраняет выбранную камеру."""
+        if self._updating_devices:
+            return
         index = self.camera_dropbox.currentIndex()
         set_settings_config_value("camera_index", index)
         ui_signals.settings_changed.emit({"camera": text})
 
     def _on_microphone_changed(self, text):
         """Сохраняет выбранный микрофон."""
+        if self._updating_devices:
+            return
         index = self.microphone_dropbox.currentIndex()
         set_settings_config_value("microphone_index", index)
         ui_signals.settings_changed.emit({"microphone": text})

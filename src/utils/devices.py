@@ -7,11 +7,13 @@ def get_available_cameras() -> list:
     index = 0
     while True:
         cap = cv2.VideoCapture(index)
-        if not cap.read()[0]:
+        try:
+            available = bool(cap.read()[0])
+        finally:
+            cap.release()
+        if not available:
             break
-        else:
-            cameras.append(f"Камера {index}")
-        cap.release()
+        cameras.append(f"Камера {index}")
         index += 1
     return cameras
 
