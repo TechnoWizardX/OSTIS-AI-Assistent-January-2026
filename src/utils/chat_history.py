@@ -245,10 +245,12 @@ def load_chat_history() -> list[dict[str, str]]:
     return [_history_entry(row) for row in rows]
 
 
-def load_recent_chat_history(limit: int = 5) -> list[dict[str, str]]:
-    """Load only the most recent messages, preserving chronological order."""
+def load_chat_history_page(limit: int = 30, offset: int = 0) -> list[dict[str, str]]:
+    """Load one page of the newest messages, oldest-first within the page."""
     if limit < 0:
         raise ValueError("History limit must not be negative.")
+    if offset < 0:
+        raise ValueError("History offset must not be negative.")
 
     _initialize()
     with closing(_connect()) as connection:
@@ -257,11 +259,16 @@ def load_recent_chat_history(limit: int = 5) -> list[dict[str, str]]:
             SELECT author, content, display_time, display_day
             FROM messages
             ORDER BY id DESC
-            LIMIT ?
+            LIMIT ? OFFSET ?
             """,
-            (limit,),
+            (limit, offset),
         ).fetchall()
     return [_history_entry(row) for row in reversed(rows)]
+
+
+def load_recent_chat_history(limit: int = 5) -> list[dict[str, str]]:
+    """Load only the most recent messages, preserving chronological order."""
+    return load_chat_history_page(limit=limit)
 
 
 def format_chat_history(history_list: list, limit: int = 5) -> str:
