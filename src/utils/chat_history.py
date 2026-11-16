@@ -1,6 +1,7 @@
+import atexit
 import json
 import sqlite3
-from contextlib import closing
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -11,14 +12,136 @@ _LEGACY_HISTORY_FILE = "chat_history.json"
 _HISTORY_DATABASE_FILE = "chat_history.sqlite3"
 _MIGRATION_MARKER_FILE = ".chat_history_migration_complete"
 
+# Общее долгоживущее соединение: открывается один раз за процесс и
+# защищается блокировкой (запись идёт и из GUI-потока, и из IntentWorker).
+_connection: sqlite3.Connection | None = None
+_connection_lock = threading.Lock()
+
 
 def _database_path() -> Path:
     return get_user_data_file(_HISTORY_DATABASE_FILE)
 
 
-def _connect() -> sqlite3.Connection:
-    connection = sqlite3.connect(_database_path(), timeout=5)
+def close_connection() -> None:
+    """Закрывает общее соединение (для корректного завершения и тестов)."""
+    global _connection
+    with _connection_lock:
+        if _connection is not None:
+            try:
+                _connection.close()
+            except sqlite3.Error as error:
+                logger("ChatHistory", "WARNING", f"Ошибка закрытия соединения: {error}")
+            _connection = None
+
+
+atexit.register(close_connection)
+
+
+def _get_connection() -> sqlite3.Connection:
+    """Возвращает общее соединение, при первом обращении инициализируя БД."""
+    global _connection
+    with _connection_lock:
+        if _connection is None:
+            _connection = _open_connection()
+        return _connection
+
+
+def _new_connection() -> sqlite3.Connection:
+    connection = sqlite3.connect(_database_path(), timeout=5, check_same_thread=False)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA journal_mode=WAL")
+    return connection
+
+
+def _open_connection() -> sqlite3.Connection:
+    """Создаёт соединение и один раз за процесс проверяет целостность и схему."""
+    migration_marker = get_user_data_file(_MIGRATION_MARKER_FILE)
+
+    connection = _new_connection()
+    try:
+        check = connection.execute("PRAGMA quick_check").fetchone()
+        if check is None or check[0] != "ok":
+            raise sqlite3.DatabaseError("SQLite integrity check failed.")
+        table = connection.execute(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'table' AND name = 'messages'"
+        ).fetchone()
+        if table is not None:
+            columns = {
+                row[1]
+                for row in connection.execute(
+                    "PRAGMA table_info(messages)"
+                )
+            }
+            expected = {
+                "id",
+                "role",
+                "author",
+                "content",
+                "created_at",
+                "display_time",
+                "display_day",
+            }
+            if not expected.issubset(columns):
+                raise sqlite3.DatabaseError(
+                    "Chat history table has an incompatible schema."
+                )
+    except sqlite3.DatabaseError as error:
+        try:
+            connection.close()
+        except sqlite3.Error:
+            pass
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        path = _database_path()
+        backup_path = path.with_name(
+            f"{path.stem}.corrupt-{timestamp}{path.suffix}"
+        )
+        path.replace(backup_path)
+        logger(
+            "ChatHistory",
+            "ERROR",
+            f"Invalid history database preserved at {backup_path}; "
+            f"creating a fresh database: {error}",
+        )
+        connection = _new_connection()
+
+    migration_complete = True
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+            author TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            display_time TEXT NOT NULL,
+            display_day TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """
+    )
+    migrated = connection.execute(
+        "SELECT value FROM metadata WHERE key = 'legacy_history_migrated'"
+    ).fetchone()
+    if migrated is None:
+        has_messages = connection.execute("SELECT 1 FROM messages LIMIT 1").fetchone()
+        if migration_marker.exists() or has_messages is not None:
+            connection.execute(
+                "INSERT INTO metadata (key, value) "
+                "VALUES ('legacy_history_migrated', '1')"
+            )
+        else:
+            migration_complete = _migrate_legacy_history(connection)
+    connection.commit()
+    if migration_complete:
+        migration_marker.touch(exist_ok=True)
     return connection
 
 
@@ -136,93 +259,6 @@ def _migrate_legacy_history(connection: sqlite3.Connection) -> bool:
         return False
 
 
-def _initialize() -> None:
-    path = _database_path()
-    migration_marker = get_user_data_file(_MIGRATION_MARKER_FILE)
-
-    if path.exists():
-        try:
-            with closing(sqlite3.connect(path)) as check_connection:
-                check = check_connection.execute("PRAGMA quick_check").fetchone()
-                if check is None or check[0] != "ok":
-                    raise sqlite3.DatabaseError("SQLite integrity check failed.")
-                table = check_connection.execute(
-                    "SELECT name FROM sqlite_master "
-                    "WHERE type = 'table' AND name = 'messages'"
-                ).fetchone()
-                if table is not None:
-                    columns = {
-                        row[1]
-                        for row in check_connection.execute(
-                            "PRAGMA table_info(messages)"
-                        )
-                    }
-                    expected = {
-                        "id",
-                        "role",
-                        "author",
-                        "content",
-                        "created_at",
-                        "display_time",
-                        "display_day",
-                    }
-                    if not expected.issubset(columns):
-                        raise sqlite3.DatabaseError(
-                            "Chat history table has an incompatible schema."
-                        )
-        except sqlite3.DatabaseError as error:
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-            backup_path = path.with_name(
-                f"{path.stem}.corrupt-{timestamp}{path.suffix}"
-            )
-            path.replace(backup_path)
-            logger(
-                "ChatHistory",
-                "ERROR",
-                f"Invalid history database preserved at {backup_path}; "
-                f"creating a fresh database: {error}",
-            )
-
-    migration_complete = True
-    with closing(_connect()) as connection, connection:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
-                author TEXT NOT NULL,
-                content TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                display_time TEXT NOT NULL,
-                display_day TEXT NOT NULL
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS metadata (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            )
-            """
-        )
-        migrated = connection.execute(
-            "SELECT value FROM metadata WHERE key = 'legacy_history_migrated'"
-        ).fetchone()
-        if migrated is None:
-            has_messages = connection.execute("SELECT 1 FROM messages LIMIT 1").fetchone()
-            if migration_marker.exists() or has_messages is not None:
-                connection.execute(
-                    "INSERT INTO metadata (key, value) "
-                    "VALUES ('legacy_history_migrated', '1')"
-                )
-            else:
-                migration_complete = _migrate_legacy_history(connection)
-        connection.commit()
-    if migration_complete:
-        migration_marker.touch(exist_ok=True)
-
-
 def _history_entry(row: sqlite3.Row) -> dict[str, str]:
     return {
         "author": row["author"],
@@ -233,8 +269,8 @@ def _history_entry(row: sqlite3.Row) -> dict[str, str]:
 
 
 def load_chat_history() -> list[dict[str, str]]:
-    _initialize()
-    with closing(_connect()) as connection:
+    connection = _get_connection()
+    with _connection_lock:
         rows = connection.execute(
             """
             SELECT author, content, display_time, display_day
@@ -250,8 +286,8 @@ def load_recent_chat_history(limit: int = 5) -> list[dict[str, str]]:
     if limit < 0:
         raise ValueError("History limit must not be negative.")
 
-    _initialize()
-    with closing(_connect()) as connection:
+    connection = _get_connection()
+    with _connection_lock:
         rows = connection.execute(
             """
             SELECT author, content, display_time, display_day
@@ -274,37 +310,10 @@ def format_chat_history(history_list: list, limit: int = 5) -> str:
     return "\n".join(lines) if lines else "История пуста"
 
 
-def save_chat_history(chat_history: list[dict]) -> None:
-    _initialize()
-    with closing(_connect()) as connection, connection:
-        connection.execute("DELETE FROM messages")
-        for index, message in enumerate(chat_history):
-            if (
-                not isinstance(message, dict)
-                or not isinstance(message.get("author"), str)
-                or not isinstance(message.get("text"), str)
-            ):
-                raise ValueError(
-                    f"Chat history entry {index} has an invalid shape."
-                )
-            timestamp = _legacy_timestamp(message)
-            created_at = message.get("created_at", timestamp)
-            if not isinstance(created_at, str):
-                raise TypeError("Chat history created_at must be a string.")
-            _insert_message(
-                connection,
-                message["author"],
-                message["text"],
-                created_at,
-                str(message.get("time", "")),
-                str(message.get("day", "")),
-            )
-
-
 def clear_chat_history() -> None:
     """Delete all stored messages without removing the migration marker."""
-    _initialize()
-    with closing(_connect()) as connection, connection:
+    connection = _get_connection()
+    with _connection_lock, connection:
         connection.execute("DELETE FROM messages")
 
 
@@ -315,8 +324,8 @@ def add_message(author: str, message: str) -> None:
         raise TypeError("Message content must be a string.")
 
     now = datetime.now().astimezone()
-    _initialize()
-    with closing(_connect()) as connection, connection:
+    connection = _get_connection()
+    with _connection_lock, connection:
         _insert_message(
             connection,
             author,

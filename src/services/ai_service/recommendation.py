@@ -304,9 +304,21 @@ class AccessibilityRecommender(QObject):
         self._worker.result_ready.connect(
             lambda raw: self._on_success(raw, diag, model)
         )
-        self._worker.failed.connect(lambda err: logger("Recommender", "ERROR", err))
+        self._worker.failed.connect(self._on_worker_failed)
         self._worker.start()
         logger("Recommender", "INFO", f"Запрос отправлен (модель: {model})")
+
+    def _on_worker_failed(self, error: str) -> None:
+        """Логирует ошибку и показывает пользователю понятную причину."""
+        logger("Recommender", "ERROR", error)
+        if "Max retries" in error or "ConnectionError" in error or "10061" in error:
+            reason = (
+                "Офлайн-модель недоступна: установите или запустите Ollama, "
+                "либо включите облачный ИИ в настройках"
+            )
+        else:
+            reason = f"Не удалось получить рекомендации: {error}"
+        self.recommendation_obtained.emit([], reason)
 
     def shutdown(self) -> None:
         self._shutting_down = True

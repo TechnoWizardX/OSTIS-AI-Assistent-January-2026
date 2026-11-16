@@ -1,19 +1,14 @@
-import cv2
 from PySide6.QtMultimedia import QMediaDevices
 
 
 def get_available_cameras() -> list:
-    cameras = []
-    index = 0
-    while True:
-        cap = cv2.VideoCapture(index)
-        if not cap.read()[0]:
-            break
-        else:
-            cameras.append(f"Камера {index}")
-        cap.release()
-        index += 1
-    return cameras
+    """Возвращает список камер через QMediaDevices.
+
+    Мгновенно и без открытия устройств: не конфликтует с потоком камеры
+    жестового ввода и не блокирует GUI (в отличие от cv2.VideoCapture).
+    Порядок устройств соответствует порядку индексов cv2.VideoCapture.
+    """
+    return [device.description() for device in QMediaDevices.videoInputs()]
 
 
 def get_available_microphones() -> list:

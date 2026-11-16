@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -50,6 +51,8 @@ class IntentHandler:
             max_retries=0,
         )
         self._ollama_process = None
+        # None = статус неизвестен; True/False — результат проверки при старте
+        self._ollama_available: bool | None = None
         self.basic_prompt = self._load_prompt()
         logger("IntentHandler", "INFO", f"Расположение промта: {PROMPT_PATH}")
         logger("IntentHandler", "INFO", f"Инициализирован с моделью: {self.offline_model}")
@@ -111,6 +114,20 @@ class IntentHandler:
     
     def _send_offline_request(self, prompt, model) -> dict:
         """Отправляет запрос в Ollama"""
+        # Статус уже известен: не тратим время на запрос в мёртвый порт
+        if self._ollama_available is False:
+            logger(
+                "IntentHandler",
+                "WARNING",
+                "Ollama недоступна — офлайн-запрос пропущен",
+            )
+            return {
+                "message": (
+                    "Офлайн-модель недоступна: установите или запустите Ollama, "
+                    "либо включите облачный ИИ в настройках"
+                )
+            }
+
         payload = {
             "model": self.offline_model,
             "prompt": prompt,
@@ -123,22 +140,32 @@ class IntentHandler:
             response = requests.post(self.ollama_url, json=payload, timeout=15)
             if response.status_code == 200:
                 raw_response = response.json().get('response')
-                
+
                 # Используем безопасный парсинг
                 data = IntentHandler.parse_ai_json(raw_response)
-                
+
                 if data:
                     global_signals.intent_recognized.emit(data)
                     return data
                 else:
                     logger("IntentHandler", "ERROR", "Не удалось распарсить JSON")
                     return {"message": "Ошибка формата", "action": "error"}
-            
+
             return None
 
         except requests.exceptions.ConnectionError:
-            logger("IntentHandler", "ERROR", "Ollama не запущена! Проверьте, что она запущена")
-            return None
+            self._ollama_available = False
+            logger(
+                "IntentHandler",
+                "ERROR",
+                "Ollama не отвечает: не установлена или не запущена",
+            )
+            return {
+                "message": (
+                    "Офлайн-модель недоступна: установите или запустите Ollama, "
+                    "либо включите облачный ИИ в настройках"
+                )
+            }
         except Exception as e:
             logger("IntentHandler", "ERROR", f"Непредвиденная ошибка: {e}")
             return None
@@ -178,19 +205,24 @@ class IntentHandler:
     
     def shutdown_ollama(self):
         """Выгружает модель и завершает только запущенный этим приложением процесс."""
-        try:
-            unload_payload = {
-                "model": self.offline_model,
-                "keep_alive": 0
-            }
-            requests.post(
-                "http://localhost:11434/api/generate",
-                json=unload_payload,
-                timeout=5,
-            )
-            logger("CORE", "INFO", "Модель Ollama выгружена из памяти")
-        except requests.RequestException as error:
-            logger("CORE", "WARNING", f"Не удалось выгрузить Ollama: {error}")
+        # Не делаем запрос в мёртвый порт: на недоступном Ollama это
+        # занимало до 5 секунд при закрытии приложения
+        if self._ollama_available is False:
+            logger("CORE", "INFO", "Ollama недоступна — выгрузка модели не требуется")
+        else:
+            try:
+                unload_payload = {
+                    "model": self.offline_model,
+                    "keep_alive": 0
+                }
+                requests.post(
+                    "http://localhost:11434/api/generate",
+                    json=unload_payload,
+                    timeout=5,
+                )
+                logger("CORE", "INFO", "Модель Ollama выгружена из памяти")
+            except requests.RequestException as error:
+                logger("CORE", "WARNING", f"Не удалось выгрузить Ollama: {error}")
 
         process = self._ollama_process
         self._ollama_process = None
@@ -213,9 +245,34 @@ class IntentHandler:
         except Exception as error:
             logger("IntentHandler", "ERROR", f"Ошибка закрытия HTTP-клиента: {error}")
 
+    def _ollama_ping(self) -> bool:
+        """Проверяет, отвечает ли уже запущенный Ollama-сервер (мгновенно)."""
+        try:
+            requests.get(
+                "http://localhost:11434/api/tags", timeout=1
+            ).raise_for_status()
+            return True
+        except requests.RequestException:
+            return False
+
     def start_ollama(self):
-        """Запускает Ollama, если он не запущен"""
+        """Запускает Ollama, если он не запущен и установлен."""
         if self._ollama_process is not None and self._ollama_process.poll() is None:
+            return
+
+        if self._ollama_ping():
+            self._ollama_available = True
+            logger("CORE", "INFO", "Ollama уже запущена")
+            return
+
+        if shutil.which("ollama") is None:
+            self._ollama_available = False
+            logger(
+                "CORE",
+                "WARNING",
+                "Ollama не установлена или недоступна в PATH — "
+                "офлайн-модель недоступна",
+            )
             return
 
         try:
@@ -224,8 +281,10 @@ class IntentHandler:
                 ["ollama", "serve"],
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
+            self._ollama_available = True
             logger("CORE", "INFO", "Ollama serve запущен")
         except OSError as error:
+            self._ollama_available = False
             logger("CORE", "WARNING", f"Не удалось запустить Ollama: {error}")
 
 class IntentWorker(QThread):

@@ -161,6 +161,11 @@ class GesturesPage(BaseInputPage):
         self.camera_preview_label.setPixmap(QPixmap.fromImage(rounded))
 
     def on_status_ready(self, status: str):
+        # Ошибки камеры/потока показываем в превью, чтобы пользователь
+        # видел причину, а не только лог в консоли
+        if "Ошибка" in status:
+            self.camera_preview_label.setPixmap(QPixmap())
+            self.camera_preview_label.setText(status)
         print(f"Статус жестов: {status}")
 
     @staticmethod

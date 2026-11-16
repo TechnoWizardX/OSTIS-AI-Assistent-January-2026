@@ -1151,13 +1151,16 @@ class GestureCameraThread(QThread):
 
                 rgb = cv2.cvtColor(processed, cv2.COLOR_BGR2RGB)
                 h, w, ch = rgb.shape
+                # .copy() обязателен: QImage не владеет буфером, а numpy-массив
+                # пересоздаётся на следующей итерации — без копии кадр в GUI
+                # читает освобождённую память (мусор/чёрные кадры)
                 q_image = QImage(
                     rgb.data,
                     w,
                     h,
                     ch * w,
                     QImage.Format.Format_RGB888,
-                )
+                ).copy()
                 self.frame_ready.emit(q_image)
                 self.status_ready.emit(processor.get_status_text())
                 self.msleep(33)

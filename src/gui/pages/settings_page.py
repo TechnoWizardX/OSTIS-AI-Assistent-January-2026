@@ -101,8 +101,10 @@ class SettingsPage(ContentPageWidget):
         self.camera_dropbox.setObjectName("settingsComboBox")
         self.camera_dropbox.setMinimumHeight(30)
 
+        # Перечисление камер через QMediaDevices — мгновенное и без
+        # открытия устройств, поэтому безопасно вызывать синхронно
         available = get_available_cameras()
-        
+
         if available:
             self.camera_dropbox.addItems(available)
         else:

@@ -33,15 +33,21 @@ class ChatHistoryTests(unittest.TestCase):
                     side_effect=lambda name: data_dir / f"missing-{name}",
                 ),
             ):
-                for index in range(1, 6):
-                    chat_history.add_message("user", f"message {index}")
+                try:
+                    for index in range(1, 6):
+                        chat_history.add_message("user", f"message {index}")
 
-                recent = chat_history.load_recent_chat_history(3)
+                    recent = chat_history.load_recent_chat_history(3)
 
-                self.assertEqual(
-                    [message["text"] for message in recent],
-                    ["message 3", "message 4", "message 5"],
-                )
+                    self.assertEqual(
+                        [message["text"] for message in recent],
+                        ["message 3", "message 4", "message 5"],
+                    )
+                finally:
+                    # Общее соединение держит файл открытым: на Windows это
+                    # мешает очистке TemporaryDirectory, поэтому закрываем
+                    # до выхода из with
+                    chat_history.close_connection()
 
     def test_load_recent_chat_history_rejects_negative_limit(self):
         with self.assertRaises(ValueError):
