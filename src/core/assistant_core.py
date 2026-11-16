@@ -330,11 +330,36 @@ class AssistentCore():
             self.send_ai_message(message)
         for task in tasks:
             function = task.get("function", "")
+            if not function or not function.strip():
+                logger("CORE | IntentHandler", "WARNING", "Пустое имя функции в задаче — пропуск")
+                continue
             params = task.get("params", {})
             info = task.get("info", "")
             self.actions_mapping(function, params, info)
+    # Страховка от фантазий модели: алиасы имён функций и ключей параметров
+    _FUNCTION_ALIASES = {
+        "open": "open_application",
+        "open_app": "open_application",
+        "launch": "open_application",
+        "close_app": "close_application",
+        "close": "close_application",
+        "volume": "set_volume",
+        "brightness": "set_brightness",
+        "screenshot": "take_screenshot",
+        "media": "media_control",
+    }
+    _PARAM_ALIASES = {
+        "open_application": {"app": "app_name", "application": "app_name", "name": "app_name"},
+        "close_application": {"app": "app_name", "application": "app_name", "name": "app_name"},
+        "reload_application": {"app": "app_name", "application": "app_name", "name": "app_name"},
+    }
+
     def actions_mapping(self, function_name: str, params: dict, info: str):
         """Здесь будет логика сопоставления имен функций к реальным функциям в коде"""
+        function_name = self._FUNCTION_ALIASES.get(function_name, function_name)
+        for alias, canonical in self._PARAM_ALIASES.get(function_name, {}).items():
+            if canonical not in params and alias in params:
+                params[canonical] = params[alias]
         logger("CORE | ActionsMapping", "INFO", f"Вызов функции: {function_name} с параметрами: {params} и info: {info}")
         methods = {
             # 1. БРАУЗЕР
@@ -385,6 +410,9 @@ class AssistentCore():
                 methods[function_name]()
             else:
                 logger("CORE | ActionsMapping", "WARNING", f"Неизвестная функция: {function_name}")
+                self.send_ai_message(
+                    f"Не удалось выполнить команду: функция «{function_name}» не поддерживается."
+                )
         except Exception as e:
             logger("CORE | ActionsMapping", "ERROR", f"Ошибка при выполнении функции {function_name}: {e}")
             global_signals.error_signal.emit(f"Не удалось выполнить функцию {function_name}: {e}")

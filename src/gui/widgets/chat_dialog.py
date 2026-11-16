@@ -11,11 +11,8 @@ class DialogBox(QWidget):
     """Чат (здесь отображаются сообщения)"""
     def __init__(self):
         super().__init__()
-        # Подключение к сигналу будет сделано извне через set_message_handler
-        try:
-            ui_signals.message_sent.disconnect(self.add_message)
-        except Exception:
-            pass
+        # Экземпляр создаётся один раз и живёт всё время приложения;
+        # PySide6 сам отвязывает соединения при уничтожении объекта-приёмника
         ui_signals.message_sent.connect(self.add_message)
         ui_signals.history_cleared.connect(self.reload_history)
         ui_signals.typing_started.connect(self.show_typing_indicator)

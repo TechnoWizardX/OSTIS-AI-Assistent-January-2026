@@ -158,7 +158,7 @@ class SileroTTS:
         self._start_tts_worker()
 
         logger("TTSSilero", "INFO",
-                          f"Инициализирован {MODEL_ID}: голос={voice}, качество={quality}, "
+                          f"Инициализирован {MODEL_ID}: голос по умолчанию={voice} (передаётся при каждом вызове), качество={quality}, "
                           f"устройство={self.device}, макс. длина фрагмента={max_chunk_length}, "
                           f"путь моделей={MODELS_DIR}")
 

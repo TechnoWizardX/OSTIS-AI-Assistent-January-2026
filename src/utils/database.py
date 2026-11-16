@@ -246,7 +246,7 @@ class DataBaseEditor:
             self._set_cursor()
             logger(
                 "DataBaseEditor",
-                "INFO",
+                "DEBUG",
                 f"Reading {column_name} from {table_name} for id={id}",
             )
             self.cursor.execute(
@@ -312,7 +312,7 @@ class DataBaseEditor:
             self._set_cursor()
             logger(
                 "DataBaseEditor",
-                "INFO",
+                "DEBUG",
                 f"Reading apps usage for user_id={user_id} on date={date_str}",
             )
             self.cursor.execute(
@@ -339,7 +339,7 @@ class DataBaseEditor:
             self._set_cursor()
             logger(
                 "DataBaseEditor",
-                "INFO",
+                "DEBUG",
                 f"Reading apps usage for user_id={user_id} "
                 f"from {start_date} to {end_date}",
             )
@@ -391,7 +391,7 @@ class DataBaseEditor:
             self._set_cursor()
             logger(
                 "DataBaseEditor",
-                "INFO",
+                "DEBUG",
                 f"Reading daily apps usage for user_id={user_id} "
                 f"from {start_date} to {end_date}",
             )

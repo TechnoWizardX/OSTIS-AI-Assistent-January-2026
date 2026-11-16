@@ -21,18 +21,78 @@ PROMPT_PATH = (
     / "basic_prompt.md"
 )
 
-RESERVE_PROMPT = """Ты - ассистент для управления ОС.
-Твоя задача - распознавать намерения пользователя и выдавать структурированный JSON с действием и параметрами.
-Ты вовзращаешь:
+RESERVE_PROMPT = """Ты — IAMOS, ассистент для управления ОС Windows.
+Твоя задача — распознать намерение пользователя и вернуть ОДИН объект JSON без лишнего текста до или после.
+
+Формат ответа (строго один JSON, без markdown):
 {
-    "message": "Текст для пользователя",
+    "message": "Краткий ответ пользователю на русском",
     "tasks": [
-        {
-            "action": "название_действия",  # Например: open, close, answer, search
-            "function": "название_функции"
-            "params": {
-                "название_параметра": "значение"}  # Параметры зависят от действия
+        {"action": "действие", "function": "имя_функции", "params": {"имя_параметра": "значение"}}
+    ]
 }
+
+Правила:
+- Используй ТОЛЬКО функции из списка ниже, с ТОЧНО указанными именами функций и параметров.
+- Если для ответа не нужно никаких действий (приветствие, вопрос, болтовня), верни "tasks": [].
+- Не выдумывай имена функций и параметров.
+- Значения параметров — на латинице (названия приложений и сайтов — как в Windows/URL), кроме параметров для insert_text и create_quick_note.
+
+ДОСТУПНЫЕ ФУНКЦИИ:
+
+Браузер:
+- open_site — открыть сайт. params: {"url": "адрес"}
+- close_current_tab — закрыть текущую вкладку. params: нет
+
+Приложения и окна:
+- open_application — открыть приложение. params: {"app_name": "имя"}
+- close_application — закрыть приложение. params: {"app_name": "имя"}
+- reload_application — перезапустить приложение. params: {"app_name": "имя"}
+- minimize_all_windows — свернуть все окна. params: нет
+- toggle_always_on_top — режим «поверх всех окон». params: нет
+- set_window_state — состояние окна. params: {"action": "minimize" | "maximize" | "restore"}
+- set_window_transparency — прозрачность окна. params: {"alpha": 0-255}
+- snap_window — прижать окно к краю. params: {"side": "left" | "right"}
+
+Параметры системы:
+- set_brightness — яркость экрана. params: {"level": 0-100}
+- set_volume — громкость. params: {"level": 0-100}
+
+Питание ПК:
+- os_sleep — сон. params: нет
+- os_shutdown — выключение. params: {"delay": секунды}
+- os_restart — перезагрузка. params: {"delay": секунды}
+- cancel_shutdown — отменить выключение/перезагрузку. params: нет
+
+Сервисные:
+- insert_text — вставить текст. params: {"text": "текст", "target_word": "слово-якорь (опц.)", "target_app": "приложение (опц.)"}
+- empty_recycle_bin — очистить корзину. params: нет
+- get_system_stats — загрузка CPU и RAM. params: нет
+- disconnect_wifi — отключить Wi-Fi. params: нет
+- connect_wifi — подключиться к Wi-Fi. params: {"ssid_name": "имя сети"}
+- set_airplane_mode — режим «в самолёте». params: {"state": true | false}
+- create_quick_note — создать заметку. params: {"content": "текст", "filename": "имя файла (опц.)"}
+- open_directory — открыть папку. params: {"path_type": "desktop" | "downloads" | "documents"}
+- take_screenshot — скриншот. params: {"name": "имя файла (опц.)"}
+- media_control — управление медиа. params: {"action": "play" | "pause" | "next" | "prev"}
+
+ПРИМЕРЫ:
+
+Пользователь: открой тг
+Ответ:
+{"message": "Открываю Telegram.", "tasks": [{"action": "open", "function": "open_application", "params": {"app_name": "telegram"}}]}
+
+Пользователь: привет
+Ответ:
+{"message": "Привет! Чем могу помочь?", "tasks": []}
+
+Пользователь: выключи компьютер через час
+Ответ:
+{"message": "Выключение через 3600 секунд.", "tasks": [{"action": "shutdown", "function": "os_shutdown", "params": {"delay": 3600}}]}
+
+Пользователь: сделай громкость 30
+Ответ:
+{"message": "Громкость установлена на 30%.", "tasks": [{"action": "set", "function": "set_volume", "params": {"level": 30}}]}
 """
 
 class IntentHandler:
@@ -54,7 +114,6 @@ class IntentHandler:
         # None = статус неизвестен; True/False — результат проверки при старте
         self._ollama_available: bool | None = None
         self.basic_prompt = self._load_prompt()
-        logger("IntentHandler", "INFO", f"Расположение промта: {PROMPT_PATH}")
         logger("IntentHandler", "INFO", f"Инициализирован с моделью: {self.offline_model}")
     
     def _load_prompt(self, path=PROMPT_PATH) -> str:
@@ -149,7 +208,11 @@ class IntentHandler:
                     return data
                 else:
                     logger("IntentHandler", "ERROR", "Не удалось распарсить JSON")
-                    return {"message": "Ошибка формата", "action": "error"}
+                    return {
+                        "message": (
+                            "Модель вернула некорректный ответ. Попробуйте ещё раз."
+                        )
+                    }
 
             return None
 
@@ -171,35 +234,64 @@ class IntentHandler:
             return None
     
     def _send_online_request(self, prompt, model="openrouter/auto") -> dict:
-        """Отправляет запрос онлайн-модели"""
-        try:
-            online_model = model
-            response = self.online_client.chat.completions.create(
-                model=online_model, 
-                messages=[{"role": "user", "content": prompt}],
-                response_format={ "type": "json_object" }
-            )
-            logger("IntentHandler", "INFO", f"Онлайн-модель ответила. Модель: {online_model}")
-            return json.loads(response.choices[0].message.content)
-        except Exception as e:
-            logger("IntentHandler", "ERROR", f"Online API error: {e}")
-            logger("IntentHandler", "ERROR", "Проверьте API ключ и доступ к интернету")
-            logger("IntentHandler", "INFO", "Запускаю оффлайн модель")
-            return self._send_offline_request(prompt, self.offline_model)
+        """Отправляет запрос онлайн-модели. Один ретрай при невалидной схеме ответа."""
+        raw_content = ""
+        for attempt in (1, 2):
+            try:
+                online_model = model
+                response = self.online_client.chat.completions.create(
+                    model=online_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format={ "type": "json_object" }
+                )
+                logger("IntentHandler", "INFO", f"Онлайн-модель ответила. Модель: {online_model}")
+                raw_content = response.choices[0].message.content
+                data = self.parse_ai_json(raw_content)
+                if data is not None:
+                    global_signals.intent_recognized.emit(data)
+                    return data
+                logger(
+                    "IntentHandler",
+                    "WARNING",
+                    f"Некорректная схема ответа модели (попытка {attempt}/2): {raw_content[:200]}",
+                )
+            except Exception as e:
+                logger("IntentHandler", "ERROR", f"Online API error: {e}")
+                logger("IntentHandler", "ERROR", "Проверьте API ключ и доступ к интернету")
+                break
+
+        logger("IntentHandler", "INFO", "Запускаю оффлайн модель")
+        return self._send_offline_request(prompt, self.offline_model)
     
+    @staticmethod
+    def _validate_intent(data) -> dict | None:
+        """Проверяет схему интента: message — строка, tasks — список словарей."""
+        if not isinstance(data, dict):
+            return None
+        message = data.get("message")
+        tasks = data.get("tasks", [])
+        if not isinstance(message, str):
+            return None
+        if not isinstance(tasks, list) or not all(
+            isinstance(t, dict) for t in tasks
+        ):
+            return None
+        return data
+
+    @staticmethod
     def parse_ai_json(raw_response) -> dict:
         """
         Пытается извлечь JSON из строки, даже если модель добавила лишний текст
         """
         try:
-            return json.loads(raw_response)
+            return IntentHandler._validate_intent(json.loads(raw_response))
         except json.JSONDecodeError:
             # 2. Если ошибка, ищем блок кода через регулярку
             match = re.search(r'\{.*\}', raw_response, re.DOTALL)
             if match:
                 try:
-                    return json.loads(match.group())
-                except:
+                    return IntentHandler._validate_intent(json.loads(match.group()))
+                except (json.JSONDecodeError, ValueError):
                     return None
         return None
     

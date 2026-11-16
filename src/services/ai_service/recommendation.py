@@ -54,12 +54,17 @@ TEXT: краткое объяснение на русском
 """
 
 
-def _read_text_file(path: Path, default_content: str) -> str:
+def _read_text_file(path: Path, default_content: str) -> tuple[str, bool]:
+    """Читает файл; возвращает (содержимое, успех). При сбое — дефолт."""
     try:
         content = path.read_text(encoding="utf-8")
-        return content or default_content
+        if not content:
+            logger("Recommender", "WARNING", f"Файл промпта пуст, используется базовый: {path}")
+            return default_content, False
+        return content, True
     except OSError:
-        return default_content
+        logger("Recommender", "WARNING", f"Файл промпта не найден, используется базовый: {path}")
+        return default_content, False
 
 
 # ---------------------------------------------------------------------------
@@ -281,10 +286,7 @@ class AccessibilityRecommender(QObject):
         model      = self._online_model if use_online else self._offline_model
 
         # 4. Загружаем системный промпт
-        sys_prompt = _read_text_file(PROMPT_PATH, _DEFAULT_RECOMMENDATION_PROMPT)
-        if sys_prompt == _DEFAULT_RECOMMENDATION_PROMPT:
-            logger("Recommender", "WARNING",
-                   f"Используется базовый промпт рекомендаций: {PROMPT_PATH}")
+        sys_prompt, _ = _read_text_file(PROMPT_PATH, _DEFAULT_RECOMMENDATION_PROMPT)
 
         user_prompt = f"Особенности здоровья: {diag}. Предложи лучшие методы взаимодействия."
 
