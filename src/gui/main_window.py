@@ -13,6 +13,7 @@ from src.gui.pages.voice_page import VoicePage
 from src.gui.pages.well_being_page import WellBeingPage
 from src.gui.signals import ui_signals
 from src.gui.theme_manager import ThemeManager
+from src.gui.widgets.chat_dialog import DialogBox
 from src.gui.widgets.glow_effects import RecommendationGlowEffect
 from src.utils.config_manager import (ConfigManager, get_settings_config_value,
                                       set_settings_config_value)
@@ -64,6 +65,11 @@ class UserInterface(QMainWindow):
         self.voice_input_page = VoicePage()
         self.text_input_page = TextPage()
         self.gestures_input_page = GesturesPage()
+
+        # Один общий чат на все страницы ввода (voice/text/gestures):
+        # каждое сообщение и история рендерятся один раз
+        self.shared_chat = DialogBox()
+
         self.content_pages = {self.settings_page : self.settings_page.side_panel_btn,
                             self.profile_page : self.profile_page.side_panel_btn,
                             self.well_being_page : self.well_being_page.side_panel_btn,
@@ -221,6 +227,8 @@ class UserInterface(QMainWindow):
         # Показывать кнопку очистки только на страницах с чатом
         if isinstance(page, (VoicePage, TextPage, GesturesPage)):
             self.clear_history_btn.setVisible(True)
+            # Переносим общий чат на активную страницу ввода
+            page.attach_chat(self.shared_chat)
         else:
             self.clear_history_btn.setVisible(False)
 

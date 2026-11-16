@@ -29,11 +29,10 @@ class GesturesPage(BaseInputPage):
 
     def _rebuild_layout(self):
         """
-        Перестраивает layout: берёт уже созданные виджеты из BaseInputPage
-        (dialog_box, send_box) и добавляет к ним блок с камерой.
+        Перестраивает layout: берёт send_box из BaseInputPage, добавляет
+        блок с камерой и плейсхолдер под общий чат (придёт через attach_chat).
         """
-        # 1. Отсоединяем виджеты от текущего родителя (старый сплиттер/layout)
-        self.dialog_box.setParent(None)
+        # 1. Отсоединяем send_box от текущего родителя (старый сплиттер)
         self.send_box.setParent(None)
 
         # 2. Полностью очищаем старый layout (без удаления самих виджетов)
@@ -101,9 +100,10 @@ class GesturesPage(BaseInputPage):
         btn_layout.addWidget(self.stop_btn)
         camera_lay.addLayout(btn_layout)
 
-        # 6. Собираем сплиттер
-        self.dialog_box.setParent(self.chat_splitter)
-        self.chat_splitter.addWidget(self.dialog_box)
+        # 6. Собираем сплиттер: плейсхолдер под общий чат + нижний блок
+        self._chat_placeholder = QWidget()
+        self._chat_placeholder.setMinimumHeight(200)
+        self.chat_splitter.addWidget(self._chat_placeholder)
         self.chat_splitter.addWidget(bottom_widget)
         self.chat_splitter.setSizes([400, 250])
         self.chat_splitter.setStretchFactor(0, 1)
