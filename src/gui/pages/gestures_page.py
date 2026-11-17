@@ -1,20 +1,42 @@
 # src/gui/pages/gestures_page.py
 
-from PySide6.QtCore import Qt
+import threading
+
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QImage, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QPushButton,
                              QSplitter, QVBoxLayout, QWidget)
 
 from src.gui.pages.base_input_page import BaseInputPage
-from src.modules.gesture.gestures import GestureCameraThread
 from src.utils.config_manager import get_settings_config_value
 from src.utils.icons import set_theme_icon
+from src.utils.logger import logger
+
+_GESTURE_IMPORT_LOCK = threading.Lock()
+_gesture_camera_thread = None
+
+
+def _import_gesture_camera_thread():
+    """Импортирует mediapipe-модуль жестов один раз, при первом обращении.
+
+    Импорт занимает ~10 секунд и ~290 МБ RSS, поэтому выполняется только
+    когда пользователь открыл страницу жестов или включил камеру.
+    """
+    global _gesture_camera_thread
+    with _GESTURE_IMPORT_LOCK:
+        if _gesture_camera_thread is None:
+            from src.modules.gesture.gestures import GestureCameraThread
+
+            _gesture_camera_thread = GestureCameraThread
+    return _gesture_camera_thread
 
 
 class GesturesPage(BaseInputPage):
     """
     Страница жестового ввода: чат, поле ввода и превью камеры с распознаванием жестов.
     """
+
+    _gesture_module_loaded = Signal(bool)
 
     def __init__(self):
         super().__init__()
@@ -24,8 +46,56 @@ class GesturesPage(BaseInputPage):
         self.camera_thread = None
         self._gesture_processing = False
         self._last_gesture_text = ""
+        self._gesture_loading = False
+        self._gesture_ready = False
+        self._gesture_module_loaded.connect(self._on_gesture_module_loaded)
 
         self._rebuild_layout()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._preload_gesture_module()
+
+    def _preload_gesture_module(self):
+        """Готовит mediapipe в фоне, чтобы «Старт» не подвешивал интерфейс."""
+        if self._gesture_ready or self._gesture_loading:
+            return
+
+        self._gesture_loading = True
+        self.start_btn.setEnabled(False)
+        self.camera_preview_label.setText("Подготовка модуля жестов…")
+
+        def load_module():
+            try:
+                _import_gesture_camera_thread()
+                success = True
+            except Exception as error:
+                logger(
+                    "GesturesPage",
+                    "ERROR",
+                    f"Не удалось загрузить модуль распознавания жестов: {error}",
+                )
+                success = False
+            try:
+                self._gesture_module_loaded.emit(success)
+            except RuntimeError:
+                # Страница могла быть удалена, пока шёл импорт.
+                pass
+
+        threading.Thread(
+            target=load_module, name="gesture-import", daemon=True
+        ).start()
+
+    def _on_gesture_module_loaded(self, success: bool):
+        self._gesture_loading = False
+        self._gesture_ready = success
+        self.start_btn.setEnabled(True)
+        if success:
+            self.camera_preview_label.setText("Нажмите «Старт» для запуска")
+        else:
+            self.camera_preview_label.setText(
+                "Модуль распознавания жестов недоступен"
+            )
 
     def _rebuild_layout(self):
         """
@@ -117,11 +187,18 @@ class GesturesPage(BaseInputPage):
         if self.camera_thread is not None and self.camera_thread.isRunning():
             return
 
+        if not self._gesture_ready:
+            # Импорт mediapipe ещё идёт в фоне — не блокируем интерфейс.
+            self._preload_gesture_module()
+            return
+
         self.send_box._last_gesture_text = ""
         self.send_box._gesture_processing = False
 
         camera_index = get_settings_config_value("camera_index")
-        self.camera_thread = GestureCameraThread(camera_index=camera_index)
+        self.camera_thread = _import_gesture_camera_thread()(
+            camera_index=camera_index
+        )
         self.camera_thread.frame_ready.connect(self.on_frame_ready)
         self.camera_thread.status_ready.connect(self.on_status_ready)
         self.camera_thread.command_ready.connect(

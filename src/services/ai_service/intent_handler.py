@@ -3,16 +3,19 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 from pathlib import Path
 
-import openai
 import requests
 from dotenv import load_dotenv
 from PySide6.QtCore import QThread, Signal
 
 from src.utils.BasicUtils import global_signals
 from src.utils.logger import logger
+
+OLLAMA_HOST = "localhost"
+OLLAMA_PORT = 11434
 
 PROMPT_PATH = (
     Path(__file__).resolve().parents[2]
@@ -99,22 +102,31 @@ class IntentHandler:
     def __init__(self, offline_model="qwen2.5:3b", api_key = None, online_model = "openrouter/auto", base_url = "https://openrouter.ai/api/v1"):
         """Инициализация обработчика намерений"""
         load_dotenv()
-        self.ollama_url = "http://localhost:11434/api/generate"
+        self.ollama_url = f"http://{OLLAMA_HOST}:{OLLAMA_PORT}/api/generate"
         self.offline_model = offline_model
         self.base_url = base_url
         self.online_model = online_model
         self._api_key = api_key or os.getenv("OPENROUTER_API_KEY")
-        self.online_client = openai.OpenAI(
-            api_key=self._api_key,
-            base_url=self.base_url,
-            timeout=30.0,
-            max_retries=0,
-        )
+        # Клиент и модуль openai (~3 с импорта) создаются при первом онлайн-запросе.
+        self._online_client = None
         self._ollama_process = None
         # None = статус неизвестен; True/False — результат проверки при старте
         self._ollama_available: bool | None = None
         self.basic_prompt = self._load_prompt()
         logger("IntentHandler", "INFO", f"Инициализирован с моделью: {self.offline_model}")
+
+    def _get_online_client(self):
+        """Возвращает OpenAI-клиент, импортируя openai только при первом запросе."""
+        if self._online_client is None:
+            import openai
+
+            self._online_client = openai.OpenAI(
+                api_key=self._api_key,
+                base_url=self.base_url,
+                timeout=30.0,
+                max_retries=0,
+            )
+        return self._online_client
     
     def _load_prompt(self, path=PROMPT_PATH) -> str:
         path = Path(path)
@@ -139,12 +151,7 @@ class IntentHandler:
     def update_api_key(self, new_key: str):
         """Обновляет API ключ для онлайн-запросов"""
         self._api_key = new_key
-        self.online_client = openai.OpenAI(
-            api_key=self._api_key,
-            base_url=self.base_url,
-            timeout=30.0,
-            max_retries=0,
-        )
+        self._online_client = None
         logger("IntentHandler", "INFO", "API ключ обновлен")
     
     def build_user_data(self, name: str= "", birthday: str = "", gender: str = "", 
@@ -239,7 +246,7 @@ class IntentHandler:
         for attempt in (1, 2):
             try:
                 online_model = model
-                response = self.online_client.chat.completions.create(
+                response = self._get_online_client().chat.completions.create(
                     model=online_model,
                     messages=[{"role": "user", "content": prompt}],
                     response_format={ "type": "json_object" }
@@ -308,7 +315,7 @@ class IntentHandler:
                     "keep_alive": 0
                 }
                 requests.post(
-                    "http://localhost:11434/api/generate",
+                    f"http://{OLLAMA_HOST}:{OLLAMA_PORT}/api/generate",
                     json=unload_payload,
                     timeout=5,
                 )
@@ -332,19 +339,23 @@ class IntentHandler:
             except OSError as error:
                 logger("CORE", "ERROR", f"Не удалось завершить процесс Ollama: {error}")
 
-        try:
-            self.online_client.close()
-        except Exception as error:
-            logger("IntentHandler", "ERROR", f"Ошибка закрытия HTTP-клиента: {error}")
+        online_client = self._online_client
+        self._online_client = None
+        if online_client is not None:
+            try:
+                online_client.close()
+            except Exception as error:
+                logger("IntentHandler", "ERROR", f"Ошибка закрытия HTTP-клиента: {error}")
 
-    def _ollama_ping(self) -> bool:
-        """Проверяет, отвечает ли уже запущенный Ollama-сервер (мгновенно)."""
+    @staticmethod
+    def _is_ollama_running() -> bool:
+        """Проверяет, отвечает ли уже локальный сервер Ollama."""
         try:
-            requests.get(
-                "http://localhost:11434/api/tags", timeout=1
-            ).raise_for_status()
-            return True
-        except requests.RequestException:
+            with socket.create_connection(
+                (OLLAMA_HOST, OLLAMA_PORT), timeout=0.5
+            ):
+                return True
+        except OSError:
             return False
 
     def start_ollama(self):
@@ -352,7 +363,7 @@ class IntentHandler:
         if self._ollama_process is not None and self._ollama_process.poll() is None:
             return
 
-        if self._ollama_ping():
+        if self._is_ollama_running():
             self._ollama_available = True
             logger("CORE", "INFO", "Ollama уже запущена")
             return
@@ -368,7 +379,7 @@ class IntentHandler:
             return
 
         try:
-            # Проверяем, запущен ли процесс, если нет - стартуем (только для Windows)
+            # Сервер не отвечает — стартуем свой процесс (только для Windows)
             self._ollama_process = subprocess.Popen(
                 ["ollama", "serve"],
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),

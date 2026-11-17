@@ -235,13 +235,15 @@ class AccessibilityRecommender(QObject):
                  api_key:      str = None,
                  online_model: str = "openrouter/free",
                  offline_model: str = "qwen2.5:3b",
-                 is_online: Callable[[], bool] = None,
+                 is_online:    Optional[Callable[[], bool]] = None,
                  parent: QObject = None):
         super().__init__(parent)
         self._api_key      = api_key or os.getenv("OPENROUTER_API_KEY")
         self._online_model = online_model
         self._offline_model = offline_model
-        self._is_online    = is_online or has_internet
+        # В приложении сюда передаётся NetworkChecker.is_online — чтение
+        # закэшированного статуса вместо сетевого запроса в UI-потоке.
+        self._is_online     = is_online or has_internet
         self._cache        = RecommendationCache()
         self._db           = DataBaseEditor()
         self._worker: Optional[_RecommendationWorker] = None

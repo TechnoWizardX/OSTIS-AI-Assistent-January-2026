@@ -240,6 +240,24 @@ QPushButton#copyButton:pressed {
     background-color: {{bg_pressed}};
 }
 
+QPushButton#loadMoreButton {
+    background-color: {{bg_3}};
+    border: none;
+    border-radius: 8px;
+    color: {{text_2}};
+    font-family: "Roboto";
+    font-size: 12px;
+    padding: 6px 14px;
+}
+
+QPushButton#loadMoreButton:hover {
+    background-color: {{bg_hover}};
+}
+
+QPushButton#loadMoreButton:pressed {
+    background-color: {{bg_pressed}};
+}
+
 QPushButton#sidePanelButton {
     background-color: {{bg_3}};
     border-radius: 12px;

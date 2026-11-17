@@ -1,7 +1,7 @@
-import atexit
 import json
 import sqlite3
 import threading
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
@@ -12,137 +12,48 @@ _LEGACY_HISTORY_FILE = "chat_history.json"
 _HISTORY_DATABASE_FILE = "chat_history.sqlite3"
 _MIGRATION_MARKER_FILE = ".chat_history_migration_complete"
 
-# Общее долгоживущее соединение: открывается один раз за процесс и
-# защищается блокировкой (запись идёт и из GUI-потока, и из IntentWorker).
+# Одно общее соединение и одна инициализация на процесс: раньше каждый вызов
+# открывал соединение заново и гонял PRAGMA quick_check по всей истории.
+_state_lock = threading.RLock()
 _connection: sqlite3.Connection | None = None
-_connection_lock = threading.Lock()
+_connection_path: Path | None = None
+_initialized_path: Path | None = None
 
 
 def _database_path() -> Path:
     return get_user_data_file(_HISTORY_DATABASE_FILE)
 
 
-def close_connection() -> None:
-    """Закрывает общее соединение (для корректного завершения и тестов)."""
-    global _connection
-    with _connection_lock:
-        if _connection is not None:
-            try:
-                _connection.close()
-            except sqlite3.Error as error:
-                logger("ChatHistory", "WARNING", f"Ошибка закрытия соединения: {error}")
-            _connection = None
+def _connect() -> sqlite3.Connection:
+    """Возвращает общее соединение; вызывать под ``_state_lock``."""
+    global _connection, _connection_path
 
-
-atexit.register(close_connection)
-
-
-def _get_connection() -> sqlite3.Connection:
-    """Возвращает общее соединение, при первом обращении инициализируя БД."""
-    global _connection
-    with _connection_lock:
-        if _connection is None:
-            _connection = _open_connection()
+    path = _database_path()
+    if _connection is not None and _connection_path == path:
         return _connection
 
+    if _connection is not None:
+        _connection.close()
 
-def _new_connection() -> sqlite3.Connection:
-    connection = sqlite3.connect(_database_path(), timeout=5, check_same_thread=False)
+    connection = sqlite3.connect(path, timeout=5, check_same_thread=False)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA journal_mode=WAL")
+    connection.execute("PRAGMA synchronous=NORMAL")
+    _connection = connection
+    _connection_path = path
     return connection
 
 
-def _open_connection() -> sqlite3.Connection:
-    """Создаёт соединение и один раз за процесс проверяет целостность и схему."""
-    migration_marker = get_user_data_file(_MIGRATION_MARKER_FILE)
+def close_connection() -> None:
+    """Закрывает общее соединение (завершение приложения, тесты)."""
+    global _connection, _connection_path, _initialized_path
 
-    connection = _new_connection()
-    try:
-        check = connection.execute("PRAGMA quick_check").fetchone()
-        if check is None or check[0] != "ok":
-            raise sqlite3.DatabaseError("SQLite integrity check failed.")
-        table = connection.execute(
-            "SELECT name FROM sqlite_master "
-            "WHERE type = 'table' AND name = 'messages'"
-        ).fetchone()
-        if table is not None:
-            columns = {
-                row[1]
-                for row in connection.execute(
-                    "PRAGMA table_info(messages)"
-                )
-            }
-            expected = {
-                "id",
-                "role",
-                "author",
-                "content",
-                "created_at",
-                "display_time",
-                "display_day",
-            }
-            if not expected.issubset(columns):
-                raise sqlite3.DatabaseError(
-                    "Chat history table has an incompatible schema."
-                )
-    except sqlite3.DatabaseError as error:
-        try:
-            connection.close()
-        except sqlite3.Error:
-            pass
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-        path = _database_path()
-        backup_path = path.with_name(
-            f"{path.stem}.corrupt-{timestamp}{path.suffix}"
-        )
-        path.replace(backup_path)
-        logger(
-            "ChatHistory",
-            "ERROR",
-            f"Invalid history database preserved at {backup_path}; "
-            f"creating a fresh database: {error}",
-        )
-        connection = _new_connection()
-
-    migration_complete = True
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
-            author TEXT NOT NULL,
-            content TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            display_time TEXT NOT NULL,
-            display_day TEXT NOT NULL
-        )
-        """
-    )
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS metadata (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        )
-        """
-    )
-    migrated = connection.execute(
-        "SELECT value FROM metadata WHERE key = 'legacy_history_migrated'"
-    ).fetchone()
-    if migrated is None:
-        has_messages = connection.execute("SELECT 1 FROM messages LIMIT 1").fetchone()
-        if migration_marker.exists() or has_messages is not None:
-            connection.execute(
-                "INSERT INTO metadata (key, value) "
-                "VALUES ('legacy_history_migrated', '1')"
-            )
-        else:
-            migration_complete = _migrate_legacy_history(connection)
-    connection.commit()
-    if migration_complete:
-        migration_marker.touch(exist_ok=True)
-    return connection
+    with _state_lock:
+        if _connection is not None:
+            _connection.close()
+        _connection = None
+        _connection_path = None
+        _initialized_path = None
 
 
 def _legacy_timestamp(message: dict) -> str:
@@ -259,6 +170,105 @@ def _migrate_legacy_history(connection: sqlite3.Connection) -> bool:
         return False
 
 
+def _initialize() -> None:
+    """Готовит БД один раз за процесс (или при смене пути к файлу)."""
+    global _initialized_path
+
+    with _state_lock:
+        path = _database_path()
+        if _initialized_path == path:
+            return
+        _prepare_database(path)
+        _initialized_path = path
+
+
+def _prepare_database(path: Path) -> None:
+    migration_marker = get_user_data_file(_MIGRATION_MARKER_FILE)
+
+    if path.exists():
+        try:
+            with closing(sqlite3.connect(path)) as check_connection:
+                check = check_connection.execute("PRAGMA quick_check").fetchone()
+                if check is None or check[0] != "ok":
+                    raise sqlite3.DatabaseError("SQLite integrity check failed.")
+                table = check_connection.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type = 'table' AND name = 'messages'"
+                ).fetchone()
+                if table is not None:
+                    columns = {
+                        row[1]
+                        for row in check_connection.execute(
+                            "PRAGMA table_info(messages)"
+                        )
+                    }
+                    expected = {
+                        "id",
+                        "role",
+                        "author",
+                        "content",
+                        "created_at",
+                        "display_time",
+                        "display_day",
+                    }
+                    if not expected.issubset(columns):
+                        raise sqlite3.DatabaseError(
+                            "Chat history table has an incompatible schema."
+                        )
+        except sqlite3.DatabaseError as error:
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+            backup_path = path.with_name(
+                f"{path.stem}.corrupt-{timestamp}{path.suffix}"
+            )
+            path.replace(backup_path)
+            logger(
+                "ChatHistory",
+                "ERROR",
+                f"Invalid history database preserved at {backup_path}; "
+                f"creating a fresh database: {error}",
+            )
+
+    migration_complete = True
+    connection = _connect()
+    with connection:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+                author TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                display_time TEXT NOT NULL,
+                display_day TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """
+        )
+        migrated = connection.execute(
+            "SELECT value FROM metadata WHERE key = 'legacy_history_migrated'"
+        ).fetchone()
+        if migrated is None:
+            has_messages = connection.execute("SELECT 1 FROM messages LIMIT 1").fetchone()
+            if migration_marker.exists() or has_messages is not None:
+                connection.execute(
+                    "INSERT INTO metadata (key, value) "
+                    "VALUES ('legacy_history_migrated', '1')"
+                )
+            else:
+                migration_complete = _migrate_legacy_history(connection)
+        connection.commit()
+    if migration_complete:
+        migration_marker.touch(exist_ok=True)
+
+
 def _history_entry(row: sqlite3.Row) -> dict[str, str]:
     return {
         "author": row["author"],
@@ -269,9 +279,9 @@ def _history_entry(row: sqlite3.Row) -> dict[str, str]:
 
 
 def load_chat_history() -> list[dict[str, str]]:
-    connection = _get_connection()
-    with _connection_lock:
-        rows = connection.execute(
+    with _state_lock:
+        _initialize()
+        rows = _connect().execute(
             """
             SELECT author, content, display_time, display_day
             FROM messages
@@ -281,23 +291,30 @@ def load_chat_history() -> list[dict[str, str]]:
     return [_history_entry(row) for row in rows]
 
 
-def load_recent_chat_history(limit: int = 5) -> list[dict[str, str]]:
-    """Load only the most recent messages, preserving chronological order."""
+def load_chat_history_page(limit: int = 30, offset: int = 0) -> list[dict[str, str]]:
+    """Load one page of the newest messages, oldest-first within the page."""
     if limit < 0:
         raise ValueError("History limit must not be negative.")
+    if offset < 0:
+        raise ValueError("History offset must not be negative.")
 
-    connection = _get_connection()
-    with _connection_lock:
-        rows = connection.execute(
+    with _state_lock:
+        _initialize()
+        rows = _connect().execute(
             """
             SELECT author, content, display_time, display_day
             FROM messages
             ORDER BY id DESC
-            LIMIT ?
+            LIMIT ? OFFSET ?
             """,
-            (limit,),
+            (limit, offset),
         ).fetchall()
     return [_history_entry(row) for row in reversed(rows)]
+
+
+def load_recent_chat_history(limit: int = 5) -> list[dict[str, str]]:
+    """Load only the most recent messages, preserving chronological order."""
+    return load_chat_history_page(limit=limit)
 
 
 def format_chat_history(history_list: list, limit: int = 5) -> str:
@@ -312,9 +329,11 @@ def format_chat_history(history_list: list, limit: int = 5) -> str:
 
 def clear_chat_history() -> None:
     """Delete all stored messages without removing the migration marker."""
-    connection = _get_connection()
-    with _connection_lock, connection:
-        connection.execute("DELETE FROM messages")
+    with _state_lock:
+        _initialize()
+        connection = _connect()
+        with connection:
+            connection.execute("DELETE FROM messages")
 
 
 def add_message(author: str, message: str) -> None:
@@ -324,13 +343,15 @@ def add_message(author: str, message: str) -> None:
         raise TypeError("Message content must be a string.")
 
     now = datetime.now().astimezone()
-    connection = _get_connection()
-    with _connection_lock, connection:
-        _insert_message(
-            connection,
-            author,
-            message,
-            now.isoformat(timespec="seconds"),
-            now.strftime("%H:%M"),
-            now.strftime("%D-%m-%Y"),
-        )
+    with _state_lock:
+        _initialize()
+        connection = _connect()
+        with connection:
+            _insert_message(
+                connection,
+                author,
+                message,
+                now.isoformat(timespec="seconds"),
+                now.strftime("%H:%M"),
+                now.strftime("%D-%m-%Y"),
+            )
