@@ -11,6 +11,7 @@ import requests
 from dotenv import load_dotenv
 from PySide6.QtCore import QThread, Signal
 
+from src.services.ai_service.streaming import StreamingMessageExtractor
 from src.utils.BasicUtils import global_signals
 from src.utils.logger import logger
 
@@ -197,15 +198,40 @@ class IntentHandler:
         payload = {
             "model": self.offline_model,
             "prompt": prompt,
-            "stream": False,  # Ждем полный ответ, а не поток по буквам
+            "stream": True,  # показываем ответ в чате по мере генерации
             "format": "json"  # Просим Ollama сразу отдавать JSON
-    
+
         }
 
         try:
-            response = requests.post(self.ollama_url, json=payload, timeout=15)
-            if response.status_code == 200:
-                raw_response = response.json().get('response')
+            with requests.post(
+                self.ollama_url, json=payload, stream=True, timeout=(10, 120)
+            ) as response:
+                if response.status_code != 200:
+                    logger(
+                        "IntentHandler",
+                        "ERROR",
+                        f"Ollama вернула статус {response.status_code}",
+                    )
+                    return None
+
+                extractor = StreamingMessageExtractor()
+                raw_response = ""
+                # chunk_size=1: без буферизации, строки приходят по мере
+                # генерации (дефолтные 512 байт копили весь короткий ответ)
+                for raw_line in response.iter_lines(chunk_size=1):
+                    if not raw_line:
+                        continue
+                    try:
+                        chunk = json.loads(raw_line.decode("utf-8"))
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        continue
+                    token = chunk.get("response", "")
+                    raw_response += token
+                    if token:
+                        self._emit_stream_part(extractor, token)
+                    if chunk.get("done"):
+                        break
 
                 # Используем безопасный парсинг
                 data = IntentHandler.parse_ai_json(raw_response)
@@ -221,10 +247,9 @@ class IntentHandler:
                         )
                     }
 
-            return None
-
         except requests.exceptions.ConnectionError:
             self._ollama_available = False
+            global_signals.stream_aborted.emit()
             logger(
                 "IntentHandler",
                 "ERROR",
@@ -237,22 +262,36 @@ class IntentHandler:
                 )
             }
         except Exception as e:
+            global_signals.stream_aborted.emit()
             logger("IntentHandler", "ERROR", f"Непредвиденная ошибка: {e}")
             return None
+
+    def _emit_stream_part(self, extractor: StreamingMessageExtractor, token: str):
+        """Отдаёт новые символы message в чат по мере генерации."""
+        part = extractor.feed(token)
+        if part:
+            global_signals.stream_part.emit(part)
     
     def _send_online_request(self, prompt, model="openrouter/auto") -> dict:
         """Отправляет запрос онлайн-модели. Один ретрай при невалидной схеме ответа."""
-        raw_content = ""
         for attempt in (1, 2):
             try:
-                online_model = model
-                response = self._get_online_client().chat.completions.create(
-                    model=online_model,
+                stream = self._get_online_client().chat.completions.create(
+                    model=model,
                     messages=[{"role": "user", "content": prompt}],
-                    response_format={ "type": "json_object" }
+                    response_format={ "type": "json_object" },
+                    stream=True,
                 )
-                logger("IntentHandler", "INFO", f"Онлайн-модель ответила. Модель: {online_model}")
-                raw_content = response.choices[0].message.content
+                extractor = StreamingMessageExtractor()
+                raw_content = ""
+                for chunk in stream:
+                    if not chunk.choices:
+                        continue
+                    token = chunk.choices[0].delta.content or ""
+                    if token:
+                        raw_content += token
+                        self._emit_stream_part(extractor, token)
+                logger("IntentHandler", "INFO", f"Онлайн-модель ответила. Модель: {model}")
                 data = self.parse_ai_json(raw_content)
                 if data is not None:
                     global_signals.intent_recognized.emit(data)
@@ -263,6 +302,7 @@ class IntentHandler:
                     f"Некорректная схема ответа модели (попытка {attempt}/2): {raw_content[:200]}",
                 )
             except Exception as e:
+                global_signals.stream_aborted.emit()
                 logger("IntentHandler", "ERROR", f"Online API error: {e}")
                 logger("IntentHandler", "ERROR", "Проверьте API ключ и доступ к интернету")
                 break

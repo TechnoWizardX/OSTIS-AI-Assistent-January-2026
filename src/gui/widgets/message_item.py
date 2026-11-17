@@ -91,6 +91,11 @@ class Message(QWidget):
         clipboard = QApplication.clipboard()
         clipboard.setText(self.text_content)     
 
+    def set_text(self, text: str):
+        """Обновляет текст сообщения (используется при потоковом ответе)."""
+        self.text_content = text
+        self.text_label.setText(text)
+
     def _on_voice_clicked(self):
         """Обработчик нажатия на кнопку динамика."""
         if self.is_playing:

@@ -7,6 +7,8 @@ class Signals(QObject):
     voice_message_recognized = Signal(str)
     error_signal = Signal(str)
     intent_recognized = Signal(dict)
+    stream_part = Signal(str)    # фрагмент стримингового ответа ИИ
+    stream_aborted = Signal()    # потоковый ответ прерван ошибкой
 global_signals = Signals()
 
 
