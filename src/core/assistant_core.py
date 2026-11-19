@@ -107,9 +107,16 @@ class _IntentWorkerTracker(QObject):
 
 class AssistentCore():
     # Действия, которые блокируют поток на секунды (psutil с interval=1,
-    # time.sleep, работа с буфером обмена), выполняем вне UI-потока.
+    # time.sleep, работа с буфером обмена, чтение меню «Пуск»), выполняем
+    # вне UI-потока.
     BLOCKING_ACTIONS = frozenset(
-        {"get_system_stats", "reload_application", "insert_text"}
+        {
+            "get_system_stats",
+            "reload_application",
+            "open_application",
+            "close_application",
+            "insert_text",
+        }
     )
 
     def __init__(self, api_key: str = ""):

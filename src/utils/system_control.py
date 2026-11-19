@@ -1,5 +1,7 @@
 import ctypes
 import os
+import re
+import subprocess
 import threading
 import time
 import webbrowser
@@ -21,12 +23,41 @@ from src.utils.logger import logger
 # сотни миллисекунд, поэтому результат переиспользуется в течение TTL.
 _APPS_CACHE_TTL = 300.0  # секунд
 
+# Записи меню «Пуск», которые являются не приложениями, а деинсталляторами.
+# AppOpener путает их с самим приложением (например, «telegram» → unins000.exe),
+# поэтому такие записи отбрасываем и ищем программу по имени/исполняемому файлу.
+_UNINSTALLER_RE = re.compile(
+    r"(?:unins\d*\.exe$|uninstall|deinstall|деинстал|удалить|удаление)",
+    re.IGNORECASE,
+)
+
+_URL_RE = re.compile(r"^[a-z][a-z0-9+.-]*://", re.IGNORECASE)
+
+
+def _is_uninstaller(name: str, app_id: str) -> bool:
+    """True, если запись «Пуск» — деинсталлятор, а не приложение."""
+    return bool(
+        _UNINSTALLER_RE.search(name or "")
+        or _UNINSTALLER_RE.search(app_id or "")
+    )
+
+
+def _normalize_app_name(value: str) -> str:
+    """Приводит имя приложения к виду для сравнения: «Telegram Desktop» → «telegram desktop»."""
+    value = os.path.splitext(os.path.basename(value.replace("\\", "/")))[0]
+    value = re.sub(r"\s+", " ", value.casefold().strip())
+    return value
+
 
 class ControlSystem:
 
-    _apps_cache: dict | None = None
+    _apps_cache: list | None = None
     _apps_cache_time: float = 0.0
     _apps_cache_lock = threading.Lock()
+    # Пары (имя в меню «Пуск», AppID) — единый источник правды о приложениях
+    _start_apps_cache: list[tuple[str, str]] | None = None
+    _start_apps_cache_time: float = 0.0
+    _apps_refresh_running = False
     
     @staticmethod
     def open_site(url: str):
@@ -94,6 +125,14 @@ class ControlSystem:
     def open_application(app_name: str):
         """Открывает приложение по имени"""
         try:
+            start_app = ControlSystem._find_start_app(app_name)
+            if start_app is not None:
+                name, app_id = start_app
+                ControlSystem._launch_start_app(app_id)
+                logger("SystemControl", "INFO", f"Открыто приложение {name} ({app_id})")
+                return
+
+            # Резолвер не нашёл — оставляем запасной путь через AppOpener
             AppOpener.open(app_name, output=False, match_closest=True, throw_error=False)
             logger("SystemControl", "INFO", f"Открыто приложение {app_name}")
         except Exception as e:
@@ -104,12 +143,144 @@ class ControlSystem:
     def close_application(app_name: str):
         """Закрывает приложение по имени"""
         try:
+            start_app = ControlSystem._find_start_app(app_name)
+            if start_app is not None and ControlSystem._terminate_by_app_id(start_app[1]):
+                logger("SystemControl", "INFO", f"Закрыто приложение {start_app[0]}")
+                return
+
             AppOpener.close(app_name, output=False, match_closest=True, throw_error=False)
             logger("SystemControl", "INFO", f"Закрыто приложение {app_name}")
         except Exception as e:
             logger("SystemControl", "ERROR", f"Ошибка при закрытии приложения {app_name}: {e}")
             global_signals.error_signal.emit(f"Не удалось закрыть приложение")
-    
+
+    @classmethod
+    def _terminate_by_app_id(cls, app_id: str) -> bool:
+        """Завершает процессы по exe из AppID. True, если что-то закрыли."""
+        if not app_id.lower().endswith(".exe"):
+            return False
+        process_name = os.path.basename(app_id).casefold()
+        terminated = False
+        for process in psutil.process_iter(["name"]):
+            try:
+                if (process.info.get("name") or "").casefold() == process_name:
+                    process.terminate()
+                    terminated = True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        if terminated:
+            _, alive = psutil.wait_procs(
+                [
+                    p for p in psutil.process_iter(["name"])
+                    if (p.info.get("name") or "").casefold() == process_name
+                ],
+                timeout=5,
+            )
+            for process in alive:
+                try:
+                    process.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        return terminated
+
+    @classmethod
+    def _find_start_app(cls, app_name: str) -> tuple[str, str] | None:
+        """Ищет приложение в меню «Пуск»: точное имя важнее префикса, префикс — вхождения."""
+        query = _normalize_app_name(app_name or "")
+        if not query:
+            return None
+
+        best = None
+        best_score = 0
+        for name, app_id in cls._get_start_apps():
+            score = 0
+            for variant in (name, app_id):
+                variant = _normalize_app_name(variant)
+                if not variant:
+                    continue
+                if variant == query:
+                    score = max(score, 100)
+                elif variant.startswith(query):
+                    score = max(score, 80)
+                elif query in variant:
+                    score = max(score, 60)
+            if not score:
+                continue
+            # Ссылки (документация и т.п.) — худший кандидат, чем программа
+            if _URL_RE.match(app_id):
+                score -= 10
+            if score > best_score:
+                best, best_score = (name, app_id), score
+        return best
+
+    @staticmethod
+    def _launch_start_app(app_id: str) -> None:
+        """Запускает приложение по AppID из меню «Пуск» (Win32, UWP или ссылка)."""
+        if _URL_RE.match(app_id):
+            webbrowser.open(app_id)
+            return
+        if app_id.lower().endswith(".exe") and os.path.exists(app_id):
+            os.startfile(app_id)
+            return
+        subprocess.Popen(
+            ["explorer.exe", "shell:AppsFolder\\" + app_id],
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+
+    @classmethod
+    def _get_start_apps(cls) -> list[tuple[str, str]]:
+        """Возвращает (имя, AppID) из меню «Пуск» с TTL-кэшем, без деинсталляторов."""
+        with cls._apps_cache_lock:
+            if (
+                cls._start_apps_cache is not None
+                and time.monotonic() - cls._start_apps_cache_time < _APPS_CACHE_TTL
+            ):
+                return cls._start_apps_cache
+
+        apps = [
+            (name, app_id) for name, app_id in cls._query_start_apps()
+            if name and app_id and not _is_uninstaller(name, app_id)
+        ]
+
+        with cls._apps_cache_lock:
+            cls._start_apps_cache = apps
+            cls._start_apps_cache_time = time.monotonic()
+        return apps
+
+    @staticmethod
+    def _query_start_apps() -> list[tuple[str, str]]:
+        """Читает меню «Пуск» через Get-StartApps (PowerShell)."""
+        script = (
+            "[Console]::OutputEncoding=[Text.Encoding]::UTF8; "
+            "Get-StartApps | ForEach-Object { $_.Name + [char]9 + $_.AppID }"
+        )
+        try:
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=20,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except Exception as e:
+            logger("SystemControl", "WARNING", f"Не удалось получить список приложений: {e}")
+            return []
+
+        apps = []
+        seen = set()
+        for line in (result.stdout or "").splitlines():
+            name, sep, app_id = line.rpartition("\t")
+            name, app_id = name.strip(), app_id.strip()
+            if not sep or not name or not app_id or name in seen:
+                continue
+            if _is_uninstaller(name, app_id):
+                continue
+            seen.add(name)
+            apps.append((name, app_id))
+        return apps
+
     @staticmethod
     def reload_application(app_name: str):
         """Перезагружает приложение по имени"""
@@ -143,23 +314,57 @@ class ControlSystem:
             return None
     
     @classmethod
-    def get_available_apps(cls) -> dict:
-        """Возвращает словарь установленных приложений (с TTL-кэшем)."""
+    def get_available_apps(cls) -> list[str]:
+        """Возвращает имена приложений из меню «Пуск» (с TTL-кэшем)."""
         with cls._apps_cache_lock:
-            if (
-                cls._apps_cache is not None
+            cached = cls._apps_cache
+            is_fresh = (
+                cached is not None
                 and time.monotonic() - cls._apps_cache_time < _APPS_CACHE_TTL
-            ):
-                return cls._apps_cache
+            )
 
-        apps_dict = AppOpener.give_appnames()
+        if is_fresh:
+            return cached
+        if cached is not None:
+            # Не блокируем вызывающий поток: отдаём устаревший список,
+            # а новый читаем в фоне.
+            cls._refresh_apps_async()
+            return cached
+
+        names = [name for name, _ in cls._get_start_apps()]
+        if not names:
+            # Резолвер недоступен — запасной источник от AppOpener
+            names = [
+                name for name in AppOpener.give_appnames()
+                if name and not _is_uninstaller(name, "")
+            ]
 
         with cls._apps_cache_lock:
-            cls._apps_cache = apps_dict
+            cls._apps_cache = names
             cls._apps_cache_time = time.monotonic()
 
         logger("SystemControl", "INFO", "Запрошен список доступных приложений")
-        return apps_dict
+        return names
+
+    @classmethod
+    def _refresh_apps_async(cls):
+        """Перечитывает список приложений в фоне (stale-while-revalidate)."""
+        if cls._apps_refresh_running:
+            return
+
+        def _refresh():
+            try:
+                cls.invalidate_apps_cache()
+                cls.get_available_apps()
+            except Exception as e:
+                logger("SystemControl", "WARNING", f"Не удалось обновить список приложений: {e}")
+            finally:
+                cls._apps_refresh_running = False
+
+        cls._apps_refresh_running = True
+        threading.Thread(
+            target=_refresh, daemon=True, name="apps-cache-refresh"
+        ).start()
 
     @classmethod
     def invalidate_apps_cache(cls):
@@ -167,6 +372,8 @@ class ControlSystem:
         with cls._apps_cache_lock:
             cls._apps_cache = None
             cls._apps_cache_time = 0.0
+            cls._start_apps_cache = None
+            cls._start_apps_cache_time = 0.0
 
     @classmethod
     def warm_apps_cache_async(cls):
