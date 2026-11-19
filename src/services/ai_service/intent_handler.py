@@ -5,6 +5,7 @@ import re
 import shutil
 import socket
 import subprocess
+import threading
 from pathlib import Path
 
 import requests
@@ -113,6 +114,9 @@ class IntentHandler:
         self._ollama_process = None
         # None = статус неизвестен; True/False — результат проверки при старте
         self._ollama_available: bool | None = None
+        # Активные потоковые ответы: закрываются при отмене запроса
+        self._active_response = None
+        self._active_stream = None
         self.basic_prompt = self._load_prompt()
         logger("IntentHandler", "INFO", f"Инициализирован с моделью: {self.offline_model}")
 
@@ -166,7 +170,8 @@ class IntentHandler:
             f"ПОСЛЕДНИЕ СООБЩЕНИЯ:{chat_history}"
         )
     
-    def send_request(self, user_text: str, user_data: str = "", use_online: bool = False) -> dict:
+    def send_request(self, user_text: str, user_data: str = "", use_online: bool = False,
+                     cancel_event=None) -> dict:
         """Отправляет чистый запрос в Ollama и возвращает ответ"""
         prompt = self.basic_prompt + "\n\nСообщение пользователя: " + user_text
         if user_data:
@@ -174,13 +179,20 @@ class IntentHandler:
         
         if use_online:
             logger("IntentHandler", "INFO", "Отправлен онлайн-запрос")
-            return self._send_online_request(prompt, self.online_model)
+            return self._send_online_request(prompt, self.online_model, cancel_event)
         else:
             logger("IntentHandler", "INFO", "Отправлен офлайн-запрос")
-            return self._send_offline_request(prompt, self.offline_model )
+            return self._send_offline_request(prompt, self.offline_model, cancel_event)
+
+    @staticmethod
+    def _is_cancelled(cancel_event) -> bool:
+        return cancel_event is not None and cancel_event.is_set()
     
-    def _send_offline_request(self, prompt, model) -> dict:
+    def _send_offline_request(self, prompt, model, cancel_event=None) -> dict:
         """Отправляет запрос в Ollama"""
+        if self._is_cancelled(cancel_event):
+            return self._finish_cancelled()
+
         # Статус уже известен: не тратим время на запрос в мёртвый порт
         if self._ollama_available is False:
             logger(
@@ -207,6 +219,7 @@ class IntentHandler:
             with requests.post(
                 self.ollama_url, json=payload, stream=True, timeout=(10, 120)
             ) as response:
+                self._active_response = response
                 if response.status_code != 200:
                     logger(
                         "IntentHandler",
@@ -220,6 +233,8 @@ class IntentHandler:
                 # chunk_size=1: без буферизации, строки приходят по мере
                 # генерации (дефолтные 512 байт копили весь короткий ответ)
                 for raw_line in response.iter_lines(chunk_size=1):
+                    if self._is_cancelled(cancel_event):
+                        return self._finish_cancelled()
                     if not raw_line:
                         continue
                     try:
@@ -248,6 +263,8 @@ class IntentHandler:
                     }
 
         except requests.exceptions.ConnectionError:
+            if self._is_cancelled(cancel_event):
+                return self._finish_cancelled()
             self._ollama_available = False
             global_signals.stream_aborted.emit()
             logger(
@@ -262,9 +279,19 @@ class IntentHandler:
                 )
             }
         except Exception as e:
+            if self._is_cancelled(cancel_event):
+                return self._finish_cancelled()
             global_signals.stream_aborted.emit()
             logger("IntentHandler", "ERROR", f"Непредвиденная ошибка: {e}")
             return None
+        finally:
+            self._active_response = None
+
+    def _finish_cancelled(self):
+        """Завершает запрос по команде пользователя: чистит UI, без ошибок."""
+        logger("IntentHandler", "INFO", "Запрос отменён пользователем")
+        global_signals.stream_aborted.emit()
+        return None
 
     def _emit_stream_part(self, extractor: StreamingMessageExtractor, token: str):
         """Отдаёт новые символы message в чат по мере генерации."""
@@ -272,9 +299,11 @@ class IntentHandler:
         if part:
             global_signals.stream_part.emit(part)
     
-    def _send_online_request(self, prompt, model="openrouter/auto") -> dict:
+    def _send_online_request(self, prompt, model="openrouter/auto", cancel_event=None) -> dict:
         """Отправляет запрос онлайн-модели. Один ретрай при невалидной схеме ответа."""
         for attempt in (1, 2):
+            if self._is_cancelled(cancel_event):
+                return self._finish_cancelled()
             try:
                 stream = self._get_online_client().chat.completions.create(
                     model=model,
@@ -282,9 +311,12 @@ class IntentHandler:
                     response_format={ "type": "json_object" },
                     stream=True,
                 )
+                self._active_stream = stream
                 extractor = StreamingMessageExtractor()
                 raw_content = ""
                 for chunk in stream:
+                    if self._is_cancelled(cancel_event):
+                        return self._finish_cancelled()
                     if not chunk.choices:
                         continue
                     token = chunk.choices[0].delta.content or ""
@@ -302,13 +334,20 @@ class IntentHandler:
                     f"Некорректная схема ответа модели (попытка {attempt}/2): {raw_content[:200]}",
                 )
             except Exception as e:
+                if self._is_cancelled(cancel_event):
+                    return self._finish_cancelled()
                 global_signals.stream_aborted.emit()
                 logger("IntentHandler", "ERROR", f"Online API error: {e}")
                 logger("IntentHandler", "ERROR", "Проверьте API ключ и доступ к интернету")
                 break
+            finally:
+                self._active_stream = None
+
+        if self._is_cancelled(cancel_event):
+            return self._finish_cancelled()
 
         logger("IntentHandler", "INFO", "Запускаю оффлайн модель")
-        return self._send_offline_request(prompt, self.offline_model)
+        return self._send_offline_request(prompt, self.offline_model, cancel_event)
     
     @staticmethod
     def _validate_intent(data) -> dict | None:
@@ -442,14 +481,36 @@ class IntentWorker(QThread):
         self.user_text = user_text
         self.user_data = user_data
         self.use_online = use_online
+        # Потокобезопасный флаг отмены текущего запроса
+        self.cancel_event = threading.Event()
+
+    def cancel(self):
+        """Отменяет запрос: закрывает активный поток, чтобы чтение
+        прервалось немедленно, даже если модель ещё «думает»."""
+        self.cancel_event.set()
+        for attribute in ("_active_response", "_active_stream"):
+            stream = getattr(self.handler, attribute, None)
+            if stream is not None:
+                try:
+                    stream.close()
+                except Exception:
+                    pass
 
     def run(self):
         try:
-            # Вызываем твой существующий метод send_request
-            result = self.handler.send_request(self.user_text, self.user_data, self.use_online)
+            result = self.handler.send_request(
+                self.user_text,
+                self.user_data,
+                self.use_online,
+                self.cancel_event,
+            )
+            if self.cancel_event.is_set():
+                return  # пользователь отменил — UI уже очищен
             if result:
                 self.result_ready.emit(result)
             else:
                 self.error.emit("Пустой ответ от ИИ")
         except Exception as e:
+            if self.cancel_event.is_set():
+                return
             self.error.emit(str(e))

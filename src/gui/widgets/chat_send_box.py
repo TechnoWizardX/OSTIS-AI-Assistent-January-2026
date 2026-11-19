@@ -47,7 +47,12 @@ class ChatSendBox(QWidget):
         
         self.buttons_lay.addWidget(self.send_btn)
         self.main_frame_lay.addLayout(self.buttons_lay)
-        self.send_btn.clicked.connect(self.send_message)
+        self.send_btn.clicked.connect(self._on_primary_clicked)
+
+        # Пока ИИ отвечает, кнопка отправки превращается в «Отмена»
+        self._cancel_mode = False
+        ui_signals.typing_started.connect(self._enter_cancel_mode)
+        ui_signals.typing_finished.connect(self._leave_cancel_mode)
 
         self.chat_send_input.installEventFilter(self)
         self.gesture_text_ready.connect(self.handle_gesture_command)
@@ -148,8 +153,35 @@ class ChatSendBox(QWidget):
 
         self._gesture_processing = False
 
+    def _on_primary_clicked(self):
+        """Кнопка работает как отправка или как отмена текущего запроса."""
+        if self._cancel_mode:
+            ui_signals.cancel_requested.emit()
+            return
+        self.send_message()
+
+    def _enter_cancel_mode(self):
+        """ИИ думает/отвечает: кнопка отправки становится «Отмена»."""
+        if self._cancel_mode:
+            return
+        self._cancel_mode = True
+        self.send_btn.setText("Отмена")
+        self.send_btn.setToolTip("Отменить запрос")
+        set_theme_icon(self.send_btn, "cancel.svg")
+
+    def _leave_cancel_mode(self):
+        """Ответ получен или отменён: возвращаем кнопку отправки."""
+        if not self._cancel_mode:
+            return
+        self._cancel_mode = False
+        self.send_btn.setText("Отправить")
+        self.send_btn.setToolTip("")
+        set_theme_icon(self.send_btn, "send.svg")
+
     def send_message(self):
         """Отправка сообщения"""
+        if self._cancel_mode:
+            return
         text = self.chat_send_input.toPlainText()
         
         if not text:

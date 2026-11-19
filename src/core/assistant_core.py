@@ -153,6 +153,7 @@ class AssistentCore():
         self.local_model = LocalModel()
         self.active_model = self.local_model
         self.current_worker = None
+        self.ai_thread = None
 
         # Инициализация рекомендателя (рекомендации отправляются только в профиль)
         # Статус сети берём из фонового монитора, чтобы не делать запрос в UI-потоке.
@@ -190,6 +191,7 @@ class AssistentCore():
         ui_signals.speaker_pressed.connect(self.text_to_speech)
         ui_signals.speaker_stop_request.connect(self.stop_speech)
         ui_signals.clear_history_requested.connect(self.clear_chat_history)
+        ui_signals.cancel_requested.connect(self.cancel_current_request)
         global_signals.error_signal.connect(self.handle_error)
         ui_signals.openrouter_api_key_changed.connect(lambda key: self.intent_handler.update_api_key(key))
         ui_signals.dysfunctions_saved.connect(self._on_dysfunctions_saved)
@@ -649,6 +651,17 @@ class AssistentCore():
         ui_signals.typing_finished.emit()
         self.handle_intent(result)
 
+    def cancel_current_request(self):
+        """Отменяет текущий запрос к модели по кнопке «Отмена»."""
+        worker = self.ai_thread
+        if worker is None or not worker.isRunning():
+            return
+        logger("CORE", "INFO", "Пользователь отменил запрос")
+        worker.cancel()
+        # Возвращаем интерфейс в обычное состояние: убираем индикатор
+        # думания и стриминговый пузырь (stream_aborted пришёл из воркера)
+        ui_signals.typing_finished.emit()
+
 
     def update_voice_recognition_model(self, new_model: str):
         """Функция, перезапускающая модель в реальном времени, если та включена"""
@@ -700,6 +713,10 @@ class AssistentCore():
         self._cleanup_step(
             "recommendation worker", self.accessibility_advisor.shutdown
         )
+        # Не ждём долгий ИИ-запрос при выходе: закрываем поток и отменяем
+        worker = self.ai_thread
+        if worker is not None and worker.isRunning():
+            self._cleanup_step("cancel intent worker", worker.cancel)
         self._cleanup_step(
             "intent workers", self._intent_worker_tracker.wait_for_all
         )

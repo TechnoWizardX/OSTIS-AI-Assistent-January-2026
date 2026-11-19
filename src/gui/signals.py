@@ -22,4 +22,5 @@ class Signals(QObject):
     app_usage_updated = Signal()  # Статистика использования приложений обновилась
     typing_started  = Signal()    # нейросеть начала думать
     typing_finished = Signal()    # нейросеть ответила
+    cancel_requested = Signal()   # пользователь отменил текущий запрос
 ui_signals = Signals()
