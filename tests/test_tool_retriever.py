@@ -1,6 +1,23 @@
 """Тесты подбора релевантных тулов и динамического блока действий в промпте."""
+import pytest
+
 from src.services.ai_service.intent_handler import IntentHandler
 from src.tools.retriever import TOP_K, ToolRetriever
+
+
+@pytest.fixture(autouse=True)
+def _disable_semantic(monkeypatch):
+    """Лексические тесты не должны зависеть от наличия Ollama на машине."""
+    from src.tools import retriever as retriever_module
+
+    class UnavailableEmbedder:
+        model = "stub"
+        def is_available(self):
+            return False
+        def embed(self, text):
+            return None
+
+    monkeypatch.setattr(retriever_module, "OllamaEmbedder", UnavailableEmbedder)
 
 
 def test_shutdown_request_finds_power_tools():

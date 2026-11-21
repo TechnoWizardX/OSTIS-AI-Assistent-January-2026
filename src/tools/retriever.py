@@ -1,8 +1,8 @@
 """Подбор релевантных тулов по запросу пользователя (RAG).
 
-Промпт не раздувается каталогом всех тулов: в него подставляются
-универсальные тулы (core) плюс несколько отобранных по релевантности.
-Текущий этап — лексический скоринг; семантика подключается поверх него.
+Скоринг: лексика (ключевые слова, основы слов) всегда; семантика —
+косинус вектора запроса и векторов тулов через Ollama. Без Ollama
+работает чистая лексика.
 """
 from __future__ import annotations
 
@@ -10,9 +10,12 @@ import re
 
 from src.tools import registry
 from src.tools.base import ToolSpec
+from src.tools.embeddings import OllamaEmbedder, ToolVectorStore, cosine_similarity
 
 TOP_K = 6
 RELEVANCE_THRESHOLD = 0.5
+# Семантическая близость (0..1) добавляется к лексическому скору с этим весом.
+_SEMANTIC_WEIGHT = 1.0
 # Точное совпадение слова запроса с ключевым словом весит больше совпадения по корню.
 _EXACT_MATCH_WEIGHT = 1.0
 _STEM_MATCH_WEIGHT = 0.5
@@ -43,8 +46,10 @@ class ToolRetriever:
     """Подбирает тулы, релевантные запросу пользователя."""
 
     def __init__(self):
-        # Индекс строится один раз при первом запросе.
+        # Индекс и векторы строятся лениво, при первом score().
         self._lexical_index: dict[str, tuple[frozenset, frozenset]] | None = None
+        self._embedder = OllamaEmbedder()
+        self._vector_store = ToolVectorStore(self._embedder)
 
     def select(self, user_text: str) -> list[ToolSpec]:
         """Возвращает тулы с релевантностью выше порога, лучшие первыми."""
@@ -55,15 +60,31 @@ class ToolRetriever:
         return relevant[:TOP_K]
 
     def score(self, user_text: str) -> list[tuple[ToolSpec, float]]:
-        """Лексический скоринг всех тулов, отсортирован по убыванию."""
+        """Скоринг всех тулов (лексика + семантика), отсортирован по убыванию."""
         index = self._get_lexical_index()
         query_tokens = _normalize(user_text)
         scored = [
             (spec, self._score_tool(spec, index[spec.name], query_tokens))
             for spec in registry.get_all_tools()
         ]
-        scored.sort(key=lambda item: item[1], reverse=True)
-        return scored
+
+        query_vector = self._embedder.embed(user_text)
+        if query_vector is None:
+            scored.sort(key=lambda item: item[1], reverse=True)
+            return scored
+
+        tool_vectors = self._vector_store.tool_vectors()
+        if not tool_vectors:
+            scored.sort(key=lambda item: item[1], reverse=True)
+            return scored
+
+        combined = []
+        for spec, lexical_score in scored:
+            tool_vector = tool_vectors.get(spec.name)
+            semantic_score = cosine_similarity(query_vector, tool_vector) if tool_vector else 0.0
+            combined.append((spec, lexical_score + _SEMANTIC_WEIGHT * max(0.0, semantic_score)))
+        combined.sort(key=lambda item: item[1], reverse=True)
+        return combined
 
     def _get_lexical_index(self) -> dict[str, tuple[frozenset, frozenset]]:
         """Токены ключевых слов и описаний для каждого тула."""
