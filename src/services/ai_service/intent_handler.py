@@ -15,7 +15,7 @@ from src.tools.retriever import ToolRetriever
 from src.utils.BasicUtils import global_signals
 from src.utils.logger import logger
 
-OLLAMA_HOST = "localhost"
+OLLAMA_HOST = "127.0.0.1"
 OLLAMA_PORT = 11434
 
 PROMPT_PATH = (
