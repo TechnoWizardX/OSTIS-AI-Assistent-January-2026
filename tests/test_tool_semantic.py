@@ -15,18 +15,24 @@ class StubEmbedder:
 
     def __init__(self, available=True):
         self.available = available
-        self.calls = 0
+        self.embedded = []
 
     def is_available(self):
         return self.available
 
-    def embed(self, text):
-        self.calls += 1
-        if not self.available:
-            return None
-        # Матчинг по основе слова: «освещенности» и «освещенность» — одна основа.
+    def _vector(self, text):
         bright = "яркост" in text or "освещенност" in text or "экрана" in text
         return [1.0, 0.0] if bright else [0.0, 1.0]
+
+    def embed_batch(self, texts):
+        if not self.available:
+            return None
+        self.embedded.extend(texts)
+        return [self._vector(text) for text in texts]
+
+    def embed(self, text):
+        vectors = self.embed_batch([text])
+        return vectors[0] if vectors else None
 
 
 @pytest.fixture
@@ -61,20 +67,20 @@ def test_unavailable_embedder_is_not_polled(cache_dir):
     stub = StubEmbedder(available=False)
     store = ToolVectorStore(stub)
     assert store.tool_vectors() == {}
-    assert stub.calls == 0
+    assert stub.embedded == []
 
 
 def test_tool_vectors_cached_on_disk(cache_dir):
     """Первый расчёт идёт через эмбеддер, второй — из кеша без запросов."""
     stub = StubEmbedder()
     ToolVectorStore(stub).tool_vectors()
-    first_calls = stub.calls
-    assert first_calls > 0
+    first_count = len(stub.embedded)
+    assert first_count > 0
 
     stub2 = StubEmbedder()
     vectors = ToolVectorStore(stub2).tool_vectors()
-    assert stub2.calls == 0
-    assert len(vectors) == first_calls
+    assert stub2.embedded == []
+    assert len(vectors) == first_count
 
 
 def test_cache_invalidated_by_signature_change(cache_dir):
@@ -82,6 +88,7 @@ def test_cache_invalidated_by_signature_change(cache_dir):
     stub = StubEmbedder()
     ToolVectorStore(stub).tool_vectors()
 
+    # Правим подпись в файле кеша — как будто каталог тулов изменился.
     cache_path = cache_dir / "tool_embeddings.json"
     data = json.loads(cache_path.read_text(encoding="utf-8"))
     data["signature"] = "stale-signature"
@@ -89,7 +96,7 @@ def test_cache_invalidated_by_signature_change(cache_dir):
 
     stub2 = StubEmbedder()
     ToolVectorStore(stub2).tool_vectors()
-    assert stub2.calls > 0
+    assert stub2.embedded
 
 
 def test_catalog_signature_is_stable_and_hex():

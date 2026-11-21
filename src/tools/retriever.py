@@ -12,8 +12,10 @@ from src.tools import registry
 from src.tools.base import ToolSpec
 from src.tools.embeddings import OllamaEmbedder, ToolVectorStore, cosine_similarity
 
+# Не более стольких релевантных тулов подставляется в промпт за один запрос.
 TOP_K = 6
-RELEVANCE_THRESHOLD = 0.5
+# Порог откалиброван на реальных косинусах: релевантные ≥ 0.85, болтовня ≤ 0.3.
+RELEVANCE_THRESHOLD = 0.7
 # Семантическая близость (0..1) добавляется к лексическому скору с этим весом.
 _SEMANTIC_WEIGHT = 1.0
 # Точное совпадение слова запроса с ключевым словом весит больше совпадения по корню.

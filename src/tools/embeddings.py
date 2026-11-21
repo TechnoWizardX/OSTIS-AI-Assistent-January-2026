@@ -1,8 +1,7 @@
 """Семантический подбор тулов: эмбеддинги через локальный Ollama.
 
-Усиливает лексику косинусной близостью векторов запроса и описаний тулов.
-Векторы тулов считаются один раз и кешируются в AppLocalData; при
-недоступности Ollama семантика тихо отключается.
+Векторы тулов считаются одним батч-запросом и кешируются в AppLocalData;
+на каждый запрос считается только вектор короткой фразы.
 """
 from __future__ import annotations
 
@@ -19,10 +18,13 @@ from src.utils.user_data import get_user_data_file
 
 # Лёгкая многоязычная модель, хороша для русского. Установка: ollama pull paraphrase-multilingual
 EMBEDDING_MODEL = "paraphrase-multilingual"
-OLLAMA_EMBEDDINGS_URL = "http://localhost:11434/api/embeddings"
+# 127.0.0.1 вместо localhost: его резолв в Python на Windows стоит ~2 с.
+OLLAMA_EMBED_URL = "http://127.0.0.1:11434/api/embed"
 
-# Таймаут: при зависшей Ollama быстро откатываемся на лексику.
-_EMBED_TIMEOUT = 3
+# Таймаут вектора запроса: при зависшей Ollama быстро откатываемся на лексику.
+_QUERY_TIMEOUT_SECONDS = 10
+# Батч тулов может включать холодную загрузку модели — таймаут с запасом.
+_BATCH_TIMEOUT_SECONDS = 30
 # Столько секунд после ошибки не пытаемся получить эмбеддинги снова.
 _RETRY_COOLDOWN_SECONDS = 300
 
@@ -51,7 +53,7 @@ def tool_text(spec: ToolSpec) -> str:
 
 
 class OllamaEmbedder:
-    """Получает векторы текстов через эндпоинт эмбеддингов Ollama."""
+    """Получает векторы текстов через Ollama."""
 
     def __init__(self, model: str = EMBEDDING_MODEL):
         self.model = model
@@ -62,20 +64,26 @@ class OllamaEmbedder:
         return time.monotonic() >= self._unavailable_until
 
     def embed(self, text: str) -> list[float] | None:
-        """Вектор текста или None, если эмбеддинги сейчас недоступны."""
+        """Вектор одного текста или None, если эмбеддинги сейчас недоступны."""
+        vectors = self.embed_batch([text])
+        return vectors[0] if vectors else None
+
+    def embed_batch(self, texts: list[str]) -> list[list[float]] | None:
+        """Векторы пачки текстов одним запросом или None при недоступности."""
         if not self.is_available():
             return None
+        timeout = _BATCH_TIMEOUT_SECONDS if len(texts) > 1 else _QUERY_TIMEOUT_SECONDS
         try:
             response = requests.post(
-                OLLAMA_EMBEDDINGS_URL,
-                json={"model": self.model, "prompt": text},
-                timeout=_EMBED_TIMEOUT,
+                OLLAMA_EMBED_URL,
+                json={"model": self.model, "input": texts},
+                timeout=timeout,
             )
             if response.status_code == 200:
-                embedding = response.json().get("embedding")
-                if embedding:
-                    return embedding
-                logger("ToolEmbedder", "WARNING", f"Ollama вернула пустой эмбеддинг для модели {self.model}")
+                embeddings = response.json().get("embeddings")
+                if embeddings and len(embeddings) == len(texts):
+                    return embeddings
+                logger("ToolEmbedder", "WARNING", f"Ollama вернула эмбеддинги не в полном объёме для модели {self.model}")
             else:
                 logger(
                     "ToolEmbedder",
@@ -119,14 +127,16 @@ class ToolVectorStore:
         if cached is not None:
             return cached
 
-        vectors: dict[str, list[float]] = {}
-        for spec in registry.get_all_tools():
-            vector = self._embedder.embed(tool_text(spec))
-            if vector is None:
-                # Эмбеддинги недоступны — кеш не пишем, вернёмся после кулдауна.
-                return None
-            vectors[spec.name] = vector
+        specs = registry.get_all_tools()
+        # Весь каталог одним батч-запросом — доли секунды.
+        vectors_list = self._embedder.embed_batch([tool_text(spec) for spec in specs])
+        if vectors_list is None:
+            # Эмбеддинги недоступны — кеш не пишем, вернёмся после кулдауна.
+            return None
 
+        vectors = {
+            spec.name: vector for spec, vector in zip(specs, vectors_list)
+        }
         self._save_cache(signature, vectors)
         logger("ToolEmbedder", "INFO", f"Рассчитаны эмбеддинги для {len(vectors)} тулов")
         return vectors
