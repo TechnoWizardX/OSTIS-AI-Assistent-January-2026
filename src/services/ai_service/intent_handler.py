@@ -10,6 +10,8 @@ import requests
 from dotenv import load_dotenv
 from PySide6.QtCore import QThread, Signal
 
+from src.tools import registry
+from src.tools.retriever import ToolRetriever
 from src.utils.BasicUtils import global_signals
 from src.utils.logger import logger
 
@@ -38,6 +40,9 @@ RESERVE_PROMPT = """Ты - ассистент для управления ОС.
 """
 
 class IntentHandler:
+    # Промпт не раздуваем: ядро тулов + релевантные, но не больше этого числа.
+    _MAX_TOOLS_IN_PROMPT = 10
+
     def __init__(self, offline_model="qwen2.5:3b", api_key = None, online_model = "openrouter/auto", base_url = "https://openrouter.ai/api/v1"):
         """Инициализация обработчика намерений"""
         load_dotenv()
@@ -49,6 +54,7 @@ class IntentHandler:
         # Клиент и модуль openai (~3 с импорта) создаются при первом онлайн-запросе.
         self._online_client = None
         self._ollama_process = None
+        self._tool_retriever = ToolRetriever()
         self.basic_prompt = self._load_prompt()
         logger("IntentHandler", "INFO", f"Расположение промта: {PROMPT_PATH}")
         logger("IntentHandler", "INFO", f"Инициализирован с моделью: {self.offline_model}")
@@ -104,17 +110,48 @@ class IntentHandler:
         )
     
     def send_request(self, user_text: str, user_data: str = "", use_online: bool = False) -> dict:
-        """Отправляет чистый запрос в Ollama и возвращает ответ"""
-        prompt = self.basic_prompt + "\n\nСообщение пользователя: " + user_text
-        if user_data:
-            prompt += "\n\nДанные пользователя: " + user_data
-        
+        """Отправляет запрос с подбором релевантных тулов и возвращает ответ"""
+        prompt = self._build_prompt(user_text, user_data)
+
         if use_online:
             logger("IntentHandler", "INFO", "Отправлен онлайн-запрос")
             return self._send_online_request(prompt, self.online_model)
         else:
             logger("IntentHandler", "INFO", "Отправлен офлайн-запрос")
             return self._send_offline_request(prompt, self.offline_model )
+
+    def _build_prompt(self, user_text: str, user_data: str = "") -> str:
+        """Собирает промпт: базовые правила + релевантные тулы + контекст пользователя"""
+        prompt = self.basic_prompt + "\n\n" + self._build_tools_block(user_text)
+        prompt += "\n\nСообщение пользователя: " + user_text
+        if user_data:
+            prompt += "\n\nДанные пользователя: " + user_data
+        return prompt
+
+    def _build_tools_block(self, user_text: str) -> str:
+        """Блок доступных действий: универсальные тулы всегда, релевантные — по запросу"""
+        # Ядро идёт первым: маленькие модели склонны выбирать из начала списка.
+        merged, seen = [], set()
+        candidates = registry.get_core_tools() + self._tool_retriever.select(user_text)
+        for spec in candidates:
+            if spec.name not in seen:
+                seen.add(spec.name)
+                merged.append(spec)
+        merged = merged[: self._MAX_TOOLS_IN_PROMPT]
+
+        lines = ["ДОСТУПНЫЕ ДЕЙСТВИЯ (поле \"function\" — только из этого списка):"]
+        lines.extend(self._format_tool(spec) for spec in merged)
+        lines.append("Если подходящего действия в списке нет — верни только message без tasks.")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_tool(spec) -> str:
+        """Одна строка каталога: имя — описание; параметры"""
+        params = ", ".join(f"{name} ({description})" for name, description in spec.params)
+        line = f"- {spec.name} — {spec.description}"
+        if params:
+            line += f"; params: {params}"
+        return line
     
     def _send_offline_request(self, prompt, model) -> dict:
         """Отправляет запрос в Ollama"""
