@@ -17,6 +17,7 @@ from src.services.ai_service.intent_handler import IntentHandler, IntentWorker
 from src.services.ai_service.llm_client import LocalModel
 from src.services.ai_service.recommendation import (METHOD_LABELS,
                                                     AccessibilityRecommender)
+from src.tools import registry as tool_registry
 from src.utils.BasicUtils import global_signals
 from src.utils.background_tasks import BackgroundTaskRunner
 from src.utils.chat_history import (add_message, clear_chat_history,
@@ -106,12 +107,6 @@ class _IntentWorkerTracker(QObject):
 
 
 class AssistentCore():
-    # Действия, которые блокируют поток на секунды (psutil с interval=1,
-    # time.sleep, работа с буфером обмена), выполняем вне UI-потока.
-    BLOCKING_ACTIONS = frozenset(
-        {"get_system_stats", "reload_application", "insert_text"}
-    )
-
     def __init__(self, api_key: str = ""):
         logger("AssistentCore", "INFO", "Инициализация Ядра...")
 
@@ -366,68 +361,28 @@ class AssistentCore():
             info = task.get("info", "")
             self.actions_mapping(function, params, info)
     def actions_mapping(self, function_name: str, params: dict, info: str):
-        """Здесь будет логика сопоставления имен функций к реальным функциям в коде"""
+        """Выполняет тул, выбранный моделью, через реестр src/tools."""
         logger("CORE | ActionsMapping", "INFO", f"Вызов функции: {function_name} с параметрами: {params} и info: {info}")
-        methods = {
-            # 1. БРАУЗЕР
-            "open_site": lambda: ControlSystem.open_site(params.get("url", "")),
-            "close_current_tab": ControlSystem.close_current_tab,
-    
-            # 2. ПРИЛОЖЕНИЯ И ОКНА
-            "open_application": lambda: ControlSystem.open_application(params.get("app_name", "")),
-            "close_application": lambda: ControlSystem.close_application(params.get("app_name", "")),
-            "reload_application": lambda: ControlSystem.reload_application(params.get("app_name", "")),
-            "minimize_all_windows": ControlSystem.minimize_all_windows,
-            "toggle_always_on_top": ControlSystem.toggle_always_on_top,
-            "set_window_state": lambda: ControlSystem.set_window_state(params.get("action", "restore")),
-            "set_window_transparency": lambda: ControlSystem.set_window_transparency(params.get("alpha", 255)),
-            "snap_window": lambda: ControlSystem.snap_window(params.get("side", "left")),
-    
-            # 3. ПАРАМЕТРЫ СИСТЕМЫ
-            "set_brightness": lambda: ControlSystem.set_brightness(params.get("level", 50)),
-            "set_volume": lambda: ControlSystem.set_volume(params.get("level", 50)),
-    
-            # 4. ПИТАНИЕ ПК
-            "os_sleep": ControlSystem.os_sleep,
-            "os_shutdown": lambda: ControlSystem.os_shutdown(params.get("delay", 60)),
-            "cancel_shutdown": ControlSystem.cancel_shutdown,
-            "os_restart": lambda: ControlSystem.os_restart(params.get("delay", 0)),
-    
-            # 5. СЕРВИСНЫЕ
-            "insert_text": lambda: ControlSystem.insert_text(
-                params.get("text", ""),
-                params.get("target_word"),
-                params.get("target_app")
-            ),
-            "empty_recycle_bin": ControlSystem.empty_recycle_bin,
-            "get_system_stats": ControlSystem.get_system_stats,
-            "disconnect_wifi": ControlSystem.disconnect_wifi,
-            "connect_wifi": lambda: ControlSystem.connect_wifi(params.get("ssid_name")),
-            "set_airplane_mode": lambda: ControlSystem.set_airplane_mode(params.get("state", False)),
-            "create_quick_note": lambda: ControlSystem.create_quick_note(
-                params.get("content", ""),
-                params.get("filename", "note.txt")
-            ),
-            "open_directory": lambda: ControlSystem.open_directory(params.get("path_type", "desktop")),
-            "take_screenshot": lambda: ControlSystem.take_screenshot(params.get("name")),
-            "media_control": lambda: ControlSystem.media_control(params.get("action", "play"))
-        }
+        tool = tool_registry.get_tool(function_name)
+        if tool is None:
+            logger("CORE | ActionsMapping", "WARNING", f"Неизвестная функция: {function_name}")
+            return
+
+        # Пока в очереди есть блокирующее действие, следующие команды
+        # тоже ставим в очередь, чтобы не нарушить их порядок.
+        def run_tool():
+            tool.func(params)
+
         try:
-            if function_name in methods:
-                action = methods[function_name]
-                # Пока в очереди есть блокирующее действие, следующие команды
-                # тоже ставим в очередь, чтобы не нарушить их порядок.
-                if function_name in self.BLOCKING_ACTIONS or self._action_runner.pending:
-                    logger(
-                        "CORE | ActionsMapping",
-                        "INFO",
-                        f"Функция {function_name} выполняется в фоне",
-                    )
-                    self._action_runner.submit(function_name, action)
-                else:
-                    action()
+            if tool.blocking or self._action_runner.pending:
+                logger(
+                    "CORE | ActionsMapping",
+                    "INFO",
+                    f"Функция {function_name} выполняется в фоне",
+                )
+                self._action_runner.submit(function_name, run_tool)
             else:
-                logger("CORE | ActionsMapping", "WARNING", f"Неизвестная функция: {function_name}")
+                run_tool()
         except Exception as e:
             logger("CORE | ActionsMapping", "ERROR", f"Ошибка при выполнении функции {function_name}: {e}")
             global_signals.error_signal.emit(f"Не удалось выполнить функцию {function_name}: {e}")
