@@ -448,6 +448,21 @@ class ControlSystem:
             logger("SystemControl", "INFO", f"Заметка создана: {file_path}")
         except Exception as e:
             logger("SystemControl", "ERROR", f"Ошибка создания заметки: {e}")
+            
+    @staticmethod
+    def delete_quick_note(filename: str = "note.txt"):
+        """Удаляет текстовый файл с рабочего стола"""
+        try:
+            desktop = ControlSystem._get_valid_path("Desktop")
+            file_path = os.path.join(desktop, filename)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                logger("SystemControl", "INFO", f"Заметка удалена: {file_path}")
+            else:
+                logger("SystemControl", "WARNING", f"Файл не найден: {file_path}")
+        except Exception as e:
+            logger("SystemControl", "ERROR", f"Ошибка удаления заметки: {e}")
+
 
     @staticmethod
     def get_windows_shell_path(folder_guid: str):

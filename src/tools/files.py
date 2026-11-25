@@ -27,6 +27,18 @@ def create_quick_note(params: dict):
         params.get("filename", "note.txt"),
     )
 
+@tool(
+    name="delete_quick_note",
+    description="Удаляет текстовый файл-заметку с рабочего стола",
+    params={"filename": "имя файла, по умолчанию note.txt"},
+    keywords=["удали", "заметка", "заметку", "файл", "очисти", "убери"],
+    examples=["удали заметку", "удали файл note.txt с рабочего стола"],
+)
+def delete_quick_note(params: dict):
+    ControlSystem.delete_quick_note(
+        params.get("filename", "note.txt"),
+    )
+
 
 @tool(
     name="take_screenshot",
