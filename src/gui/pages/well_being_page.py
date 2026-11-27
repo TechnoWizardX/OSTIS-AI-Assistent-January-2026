@@ -4,20 +4,26 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QPushButton,
+    QStyle,
     QVBoxLayout,
+    QWidget,
+    QWidgetAction,
 )
 
 from src.gui.pages.base_page import ContentPageWidget
 from src.gui.signals import ui_signals
-from src.gui.widgets.toggle_switch import ToggleSwitchRow
+from src.gui.widgets.toggle_switch import ToggleSwitch
 from src.gui.widgets.well_being import AppUsageList, MetricCard, WellBeingChart
 from src.modules.well_being.app_names import display_name, format_duration
+from src.modules.well_being.demo_data import load_demo_week
 from src.modules.well_being.usage_tracker import get_usage_tracker
 from src.utils.config_manager import (
     get_settings_config_value,
@@ -51,17 +57,11 @@ class WellBeingPage(ContentPageWidget):
         self.main_lay.addWidget(self.main_frame)
 
         self.frame_lay = QVBoxLayout(self.main_frame)
-        self.frame_lay.setContentsMargins(12, 8, 12, 8)
-        self.frame_lay.setSpacing(5)
+        self.frame_lay.setContentsMargins(14, 12, 14, 12)
+        self.frame_lay.setSpacing(10)
 
         self._build_header()
-        self._build_controls()
-        self._build_tracking()
-        self._build_cards()
-
-        self.chart = WellBeingChart()
-        self.chart.setFixedHeight(140)
-        self.frame_lay.addWidget(self.chart)
+        self._build_dashboard()
 
         self.app_list = AppUsageList()
         self.frame_lay.addWidget(self.app_list, 1)
@@ -72,6 +72,9 @@ class WellBeingPage(ContentPageWidget):
         self.note_label.setObjectName("wellBeingNote")
         self.frame_lay.addWidget(self.note_label)
 
+        self._week_offset = 0
+        self._day_offset = 0
+        self._period_mode = "week"
         ui_signals.settings_changed.connect(self._on_settings_changed)
         ui_signals.app_usage_updated.connect(self._on_usage_updated)
 
@@ -85,60 +88,153 @@ class WellBeingPage(ContentPageWidget):
 
         self.title_label = QLabel("Благополучие")
         self.title_label.setObjectName("wellBeingTitle")
-        self.subtitle_label = QLabel(
-            "Использование приложений за текущую неделю"
-        )
+        self.subtitle_label = QLabel("Использование приложений")
         self.subtitle_label.setObjectName("wellBeingSubtitle")
 
         text_lay.addWidget(self.title_label)
         text_lay.addWidget(self.subtitle_label)
 
-        self.range_label = QLabel("")
-        self.range_label.setObjectName("wellBeingSubtitle")
-        self.range_label.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom
-        )
-
         header.addLayout(text_lay)
         header.addStretch(1)
-        header.addWidget(self.range_label)
-        self.frame_lay.addLayout(header)
-
-    def _build_controls(self) -> None:
-        controls = QHBoxLayout()
-        controls.setSpacing(8)
-
-        self.refresh_btn = QPushButton("Обновить")
-        self.refresh_btn.setObjectName("primaryButton")
-        self.refresh_btn.setMinimumHeight(30)
-        self.refresh_btn.clicked.connect(self.refresh)
-
-        controls.addWidget(self.refresh_btn)
-        controls.addStretch(1)
-        self.frame_lay.addLayout(controls)
-
-    def _build_tracking(self) -> None:
-        self.tracking_toggle = ToggleSwitchRow(
-            "Учитывать использование приложений"
+        self.period_group = QButtonGroup(self)
+        self.period_group.setExclusive(True)
+        self.day_btn = QPushButton("День")
+        self.day_btn.setObjectName("wellBeingModeButton")
+        self.day_btn.setCheckable(True)
+        self.week_btn = QPushButton("Неделя")
+        self.week_btn.setObjectName("wellBeingModeButton")
+        self.week_btn.setCheckable(True)
+        self.period_group.addButton(self.day_btn)
+        self.period_group.addButton(self.week_btn)
+        self.week_btn.setChecked(True)
+        self.day_btn.toggled.connect(
+            lambda checked: self._set_period_mode("day") if checked else None
         )
+        self.week_btn.toggled.connect(
+            lambda checked: self._set_period_mode("week") if checked else None
+        )
+
+        self.previous_btn = QPushButton()
+        self.previous_btn.setObjectName("wellBeingNavButton")
+        self.previous_btn.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowLeft)
+        )
+        self.previous_btn.setIconSize(QSize(16, 16))
+        self.previous_btn.setToolTip("Предыдущий период")
+        self.previous_btn.clicked.connect(self._show_previous_period)
+
+        self.range_label = QLabel("")
+        self.range_label.setObjectName("wellBeingRange")
+        self.range_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.next_btn = QPushButton()
+        self.next_btn.setObjectName("wellBeingNavButton")
+        self.next_btn.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowRight)
+        )
+        self.next_btn.setIconSize(QSize(16, 16))
+        self.next_btn.setToolTip("Следующий период")
+        self.next_btn.clicked.connect(self._show_next_period)
+
+        self.today_btn = QPushButton("Сегодня")
+        self.today_btn.setObjectName("wellBeingNavButton")
+        self.today_btn.clicked.connect(self._show_today)
+
+        self.settings_btn = QPushButton()
+        self.settings_btn.setObjectName("wellBeingNavButton")
+        set_theme_icon(self.settings_btn, "settings.svg")
+        self.settings_btn.setIconSize(QSize(16, 16))
+        self.settings_btn.setToolTip("Настройки учёта")
+        settings_menu = QMenu(self.settings_btn)
+        settings_menu.setObjectName("wellBeingSettingsMenu")
+        settings_panel = QFrame()
+        settings_panel.setObjectName("wellBeingSettingsPanel")
+        settings_panel.setFixedWidth(272)
+        settings_layout = QVBoxLayout(settings_panel)
+        settings_layout.setContentsMargins(12, 10, 12, 12)
+        settings_layout.setSpacing(8)
+
+        settings_title = QLabel("Учёт приложений")
+        settings_title.setObjectName("wellBeingSettingsTitle")
+        settings_description = QLabel(
+            "Статистика хранится локально. Демо-загрузка заменяет только "
+            "тестовые записи за текущую неделю."
+        )
+        settings_description.setObjectName("wellBeingSettingsDescription")
+        settings_description.setWordWrap(True)
+
+        tracking_row = QFrame()
+        tracking_row.setObjectName("wellBeingSettingsRow")
+        tracking_layout = QHBoxLayout(tracking_row)
+        tracking_layout.setContentsMargins(10, 6, 10, 6)
+        tracking_layout.setSpacing(8)
+        tracking_label = QLabel("Вести учёт")
+        tracking_label.setObjectName("wellBeingTrackingLabel")
+        self.tracking_toggle = ToggleSwitch()
         self.tracking_toggle.setChecked(
             bool(get_settings_config_value("well_being_tracking_enabled"))
         )
-        self.frame_lay.addWidget(self.tracking_toggle)
-        # Подключаемся после setChecked, чтобы не запускать трекер при создании.
+        tracking_layout.addWidget(tracking_label, 1)
+        tracking_layout.addWidget(self.tracking_toggle)
         self.tracking_toggle.toggled.connect(self._on_tracking_toggled)
 
-    def _build_cards(self) -> None:
-        cards = QHBoxLayout()
-        cards.setSpacing(8)
+        self.demo_button = QPushButton("Загрузить демо-неделю")
+        self.demo_button.setObjectName("wellBeingDemoButton")
+        self.demo_button.clicked.connect(self._load_demo_week)
+        self.demo_status = QLabel("")
+        self.demo_status.setObjectName("wellBeingDemoStatus")
+        self.demo_status.setWordWrap(True)
 
-        self.total_card = MetricCard("Всего за неделю")
+        settings_layout.addWidget(settings_title)
+        settings_layout.addWidget(settings_description)
+        settings_layout.addWidget(tracking_row)
+        settings_layout.addWidget(self.demo_button)
+        settings_layout.addWidget(self.demo_status)
+        settings_action = QWidgetAction(settings_menu)
+        settings_action.setDefaultWidget(settings_panel)
+        settings_menu.addAction(settings_action)
+        self.settings_btn.setMenu(settings_menu)
+
+        header.addWidget(self.day_btn)
+        header.addWidget(self.week_btn)
+        header.addWidget(self.previous_btn)
+        header.addWidget(self.range_label)
+        header.addWidget(self.next_btn)
+        header.addWidget(self.today_btn)
+        header.addWidget(self.settings_btn)
+        self.frame_lay.addLayout(header)
+
+    def _build_dashboard(self) -> None:
+        self.dashboard_panel = QWidget()
+        self.dashboard_panel.setObjectName("wellBeingDashboard")
+        dashboard = QHBoxLayout(self.dashboard_panel)
+        dashboard.setSpacing(10)
+
+        self.chart_panel = QFrame()
+        self.chart_panel.setObjectName("wellBeingPanel")
+        chart_layout = QVBoxLayout(self.chart_panel)
+        chart_layout.setContentsMargins(12, 10, 12, 8)
+        chart_layout.setSpacing(4)
+
+        self.chart_title = QLabel("Использование по дням")
+        self.chart_title.setObjectName("wellBeingPanelTitle")
+        chart_layout.addWidget(self.chart_title)
+
+        self.chart = WellBeingChart()
+        self.chart.setMinimumHeight(175)
+        chart_layout.addWidget(self.chart, 1)
+        dashboard.addWidget(self.chart_panel, 3)
+
+        metrics = QVBoxLayout()
+        metrics.setSpacing(8)
+        self.total_card = MetricCard("Итого за неделю")
         self.average_card = MetricCard("В среднем за день")
-        self.top_card = MetricCard("Больше всего времени")
-
+        self.top_card = MetricCard("Самое используемое")
         for card in (self.total_card, self.average_card, self.top_card):
-            cards.addWidget(card, 1)
-        self.frame_lay.addLayout(cards)
+            metrics.addWidget(card, 1)
+        dashboard.addLayout(metrics, 2)
+
+        self.frame_lay.addWidget(self.dashboard_panel, 2)
 
     # --- события ---
     def showEvent(self, event) -> None:
@@ -163,17 +259,92 @@ class WellBeingPage(ContentPageWidget):
         get_usage_tracker().set_enabled(bool(enabled))
         self.refresh()
 
+    def _load_demo_week(self) -> None:
+        today = date.today()
+        week_start, _ = self._current_week(today)
+        try:
+            row_count = load_demo_week(self._user_id, week_start)
+        except Exception as error:
+            logger(
+                "WellBeingPage",
+                "ERROR",
+                f"Не удалось загрузить демо-неделю: {error}",
+            )
+            self.demo_status.setText(
+                "Не удалось загрузить демо-данные. Проверьте журнал ошибок."
+            )
+            return
+
+        self.demo_status.setText(
+            f"Загружено тестовых записей: {row_count}"
+        )
+        self._week_offset = 0
+        self._day_offset = 0
+        if self._period_mode == "day":
+            self.week_btn.setChecked(True)
+        else:
+            self.refresh()
+
     # --- данные ---
     @staticmethod
     def _current_week(today: date) -> tuple[date, date]:
         start = today - timedelta(days=today.weekday())
         return start, start + timedelta(days=6)
 
+    @classmethod
+    def _week_for_offset(
+        cls, today: date, offset: int
+    ) -> tuple[date, date]:
+        start, end = cls._current_week(today)
+        delta = timedelta(weeks=offset)
+        return start + delta, end + delta
+
+    def _set_period_mode(self, mode: str) -> None:
+        self._period_mode = mode
+        self._week_offset = 0
+        self._day_offset = 0
+        self.refresh()
+
+    def _show_previous_period(self) -> None:
+        if self._period_mode == "day":
+            self._day_offset -= 1
+        else:
+            self._week_offset -= 1
+        self.refresh()
+
+    def _show_next_period(self) -> None:
+        if self._period_mode == "day":
+            self._day_offset += 1
+        else:
+            self._week_offset += 1
+        self.refresh()
+
+    def _show_today(self) -> None:
+        self._week_offset = 0
+        self._day_offset = 0
+        self.refresh()
+
     def refresh(self) -> None:
         today = date.today()
-        week_start, week_end = self._current_week(today)
+        selected_date = (
+            today + timedelta(days=self._day_offset)
+            if self._period_mode == "day"
+            else today + timedelta(weeks=self._week_offset)
+        )
+        if self._period_mode == "day":
+            week_start, week_end = self._current_week(selected_date)
+        else:
+            week_start, week_end = self._week_for_offset(
+                today, self._week_offset
+            )
         start_str = week_start.isoformat()
         end_str = week_end.isoformat()
+        period_offset = (
+            self._day_offset
+            if self._period_mode == "day"
+            else self._week_offset
+        )
+        self.today_btn.setEnabled(period_offset != 0)
 
         error_message = None
         try:
@@ -222,63 +393,112 @@ class WellBeingPage(ContentPageWidget):
             app_totals.items(), key=lambda item: item[1], reverse=True
         )
 
-        today_index = today.weekday()
-        today_items = []
-        for name, values in per_app.items():
-            hours = values[today_index]
-            if hours > 0:
-                today_items.append((name, hours))
-        today_items.sort(key=lambda item: item[1], reverse=True)
-        today_total = sum(hours for _, hours in today_items)
-        today_rows = [
-            (
-                name,
-                hours,
-                hours / today_total if today_total else 0.0,
-            )
-            for name, hours in today_items
-        ]
-
         total_hours = sum(day_totals)
         active_days = sum(1 for total in day_totals if total > 0)
+        selected_items = [
+            (name, values[selected_date.weekday()])
+            for name, values in per_app.items()
+            if values[selected_date.weekday()] > 0
+        ]
+        selected_items.sort(key=lambda item: item[1], reverse=True)
+        selected_total = sum(hours for _, hours in selected_items)
 
-        range_text = self._format_range(week_start, week_end)
-        self.range_label.setText(range_text)
-        self.total_card.set_value(format_duration(total_hours), range_text)
-
-        if active_days:
-            average_hint = f"за {active_days} {self._days_word(active_days)}"
-        else:
-            average_hint = "нет данных"
-        self.average_card.set_value(
-            format_duration(total_hours / active_days if active_days else 0.0),
-            average_hint,
+        range_text = (
+            self._format_range(selected_date, selected_date)
+            if self._period_mode == "day"
+            else self._format_range(week_start, week_end)
         )
+        self.range_label.setText(range_text)
 
-        if ordered_apps:
-            top_name, top_hours = ordered_apps[0]
-            percent = top_hours / total_hours * 100 if total_hours else 0
-            self.top_card.set_value(
-                top_name,
-                f"{format_duration(top_hours)} · {percent:.0f}%",
+        if self._period_mode == "day":
+            self.chart_title.setText("Неделя по дням")
+            self.total_card.title_label.setText("Итого за день")
+            self.total_card.set_animated_value(
+                selected_total, format_duration
             )
+            self.average_card.title_label.setText("Приложений")
+            self.average_card.set_animated_value(
+                float(len(selected_items)),
+                lambda value: str(int(round(value))),
+                "за день",
+            )
+            if selected_items:
+                top_name, top_hours = selected_items[0]
+                percent = top_hours / selected_total * 100
+                self.top_card.title_label.setText("Самое используемое")
+                self.top_card.set_value(
+                    top_name,
+                    f"{format_duration(top_hours)} · {percent:.0f}%",
+                )
+            else:
+                self.top_card.set_value("—", "")
         else:
-            self.top_card.set_value("—", "")
+            self.chart_title.setText("Использование по дням")
+            self.total_card.title_label.setText("Итого за неделю")
+            self.total_card.set_animated_value(
+                total_hours, format_duration
+            )
+            self.average_card.title_label.setText("В среднем за день")
+            self.top_card.title_label.setText("Самое используемое")
+            if active_days:
+                average_hint = f"за {active_days} {self._days_word(active_days)}"
+            else:
+                average_hint = "нет данных"
+            self.average_card.set_animated_value(
+                total_hours / active_days if active_days else 0.0,
+                format_duration,
+                average_hint,
+            )
+            if ordered_apps:
+                top_name, top_hours = ordered_apps[0]
+                percent = top_hours / total_hours * 100 if total_hours else 0
+                self.top_card.set_value(
+                    top_name,
+                    f"{format_duration(top_hours)} · {percent:.0f}%",
+                )
+            else:
+                self.top_card.set_value("—", "")
 
         if total_hours > 0:
-            self.chart.set_usage(_DAY_LABELS, day_totals, today_index)
-            self.app_list.set_items(today_rows, today_total)
-            return
-
-        if error_message:
-            message = error_message
-        elif self.tracking_toggle.isChecked():
-            message = "Данные появятся через несколько минут после включения учёта."
+            if self._period_mode == "day":
+                chart_index = selected_date.weekday()
+                highlight_label = (
+                    "Сегодня" if selected_date == today else "Выбрано"
+                )
+            else:
+                chart_index = (
+                    selected_date.weekday()
+                    if self._week_offset == 0
+                    else None
+                )
+                highlight_label = "Сегодня" if chart_index is not None else ""
+            self.chart.set_usage(
+                _DAY_LABELS, day_totals, chart_index, highlight_label
+            )
         else:
-            message = "Учёт использования приложений выключен. Включите его выше."
-        self.chart.set_empty_message(message)
-        self.chart.set_usage([], [], None)
-        self.app_list.set_items([], 0.0)
+            if error_message:
+                message = error_message
+            elif self.tracking_toggle.isChecked():
+                message = "Данные появятся через несколько минут после включения учёта."
+            else:
+                message = "Учёт использования приложений выключен. Включите его в настройках."
+            self.chart.set_empty_message(message)
+            self.chart.set_usage([], [], None)
+
+        if self._period_mode == "day":
+            self.app_list.title_label.setText("Приложения за день")
+            period_rows = [
+                (name, hours, hours / selected_total if selected_total else 0.0)
+                for name, hours in selected_items
+            ]
+            self.app_list.set_items(period_rows, selected_total)
+        else:
+            self.app_list.title_label.setText("Приложения за неделю")
+            weekly_rows = [
+                (name, hours, hours / total_hours if total_hours else 0.0)
+                for name, hours in ordered_apps
+            ]
+            self.app_list.set_items(weekly_rows, total_hours)
 
     # --- форматирование ---
     @staticmethod

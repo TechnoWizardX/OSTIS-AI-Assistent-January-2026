@@ -1,8 +1,9 @@
+import math
 import re
 import shutil
 import sqlite3
 from contextlib import closing
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from src.utils.logger import logger
@@ -301,6 +302,67 @@ class DataBaseEditor:
             self._commit()
         finally:
             self._close_connection()
+
+    def replace_demo_app_usage_week(
+        self,
+        user_id: int,
+        week_start: date,
+        entries: list[tuple[int, str, float]],
+    ) -> int:
+        """Replace only demo_ rows for one week with the supplied fixture."""
+        if week_start.weekday() != 0:
+            raise ValueError("week_start must be a Monday")
+        if not entries:
+            raise ValueError("Demo usage entries cannot be empty")
+
+        start_str = week_start.isoformat()
+        end_str = (week_start + timedelta(days=6)).isoformat()
+        rows = []
+        for day_offset, app_name, duration_hours in entries:
+            if not 0 <= day_offset <= 6:
+                raise ValueError("Demo usage day offsets must be from 0 to 6")
+            if not app_name.startswith("demo_"):
+                raise ValueError("Demo app names must start with 'demo_'")
+            if not math.isfinite(duration_hours) or duration_hours <= 0:
+                raise ValueError(
+                    "Demo usage durations must be positive and finite"
+                )
+            usage_date = (week_start + timedelta(days=day_offset)).isoformat()
+            rows.append((user_id, app_name, duration_hours, usage_date))
+
+        self._open_connection()
+        try:
+            self._set_cursor()
+            self.cursor.execute(
+                """
+                DELETE FROM Users_app_usage
+                WHERE user_id = ? AND date BETWEEN ? AND ?
+                    AND substr(app_name, 1, 5) = 'demo_'
+                """,
+                (user_id, start_str, end_str),
+            )
+            self.cursor.executemany(
+                """
+                INSERT INTO Users_app_usage
+                    (user_id, app_name, duration_hours, date)
+                VALUES (?, ?, ?, ?)
+                """,
+                rows,
+            )
+            self._commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+        finally:
+            self._close_connection()
+
+        logger(
+            "DataBaseEditor",
+            "INFO",
+            f"Loaded {len(rows)} demo usage rows for user_id={user_id} "
+            f"from {start_str} to {end_str}",
+        )
+        return len(rows)
 
     def get_user_apps_usage_by_date(self, user_id: int, date_str: str) -> list[tuple[str, float]]:
         """

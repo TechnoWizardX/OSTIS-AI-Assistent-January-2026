@@ -52,6 +52,12 @@ APP_DISPLAY_NAMES: dict[str, str] = {
     "illustrator": "Adobe Illustrator",
     "figma": "Figma",
     "iamos": "IAMOS",
+    "demo_code": "Visual Studio Code · демо",
+    "demo_firefox": "Firefox · демо",
+    "demo_telegram": "Telegram · демо",
+    "demo_spotify": "Spotify · демо",
+    "demo_kb_studio": "KB Studio · демо",
+    "demo_onlyoffice": "ONLYOFFICE · демо",
 }
 
 

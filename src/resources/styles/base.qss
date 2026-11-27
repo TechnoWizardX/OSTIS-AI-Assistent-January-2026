@@ -413,6 +413,136 @@ QLabel#wellBeingSubtitle {
     font-family: "Roboto";
 }
 
+QLabel#wellBeingRange {
+    color: {{text_1}};
+    font-size: 12px;
+    font-weight: bold;
+    font-family: "Roboto";
+    min-width: 150px;
+}
+
+QLabel#wellBeingPanelTitle {
+    color: {{text_2}};
+    font-size: 11px;
+    font-weight: bold;
+    font-family: "Roboto";
+}
+
+QMenu#wellBeingSettingsMenu {
+    background-color: {{bg_2}};
+    border: 1px solid {{border_1}};
+    border-radius: 12px;
+    padding: 6px;
+}
+
+QFrame#wellBeingSettingsPanel {
+    background-color: {{bg_2}};
+    border: none;
+}
+
+QLabel#wellBeingSettingsTitle {
+    color: {{text_1}};
+    font-size: 13px;
+    font-weight: bold;
+    font-family: "Roboto";
+}
+
+QLabel#wellBeingSettingsDescription {
+    color: {{text_3}};
+    font-size: 10px;
+    font-family: "Roboto";
+}
+
+QFrame#wellBeingSettingsRow {
+    background-color: {{bg_4}};
+    border-radius: 9px;
+}
+
+QLabel#wellBeingTrackingLabel {
+    color: {{text_1}};
+    font-size: 11px;
+    font-family: "Roboto";
+}
+
+QPushButton#wellBeingDemoButton {
+    color: {{text_on_accent}};
+    background-color: {{accent_1}};
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-weight: bold;
+}
+
+QPushButton#wellBeingDemoButton:hover {
+    background-color: {{accent_2}};
+}
+
+QPushButton#wellBeingDemoButton:pressed {
+    background-color: {{accent_3}};
+}
+
+QLabel#wellBeingDemoStatus {
+    color: {{text_3}};
+    font-size: 9px;
+    font-family: "Roboto";
+}
+
+QWidget#wellBeingDashboard {
+    background: transparent;
+}
+
+QPushButton#wellBeingModeButton {
+    color: {{text_1}};
+    background-color: {{bg_4}};
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 6px 12px;
+    min-height: 20px;
+}
+
+QPushButton#wellBeingModeButton:hover {
+    background-color: {{bg_hover}};
+}
+
+QPushButton#wellBeingModeButton:focus {
+    border-color: {{accent_1}};
+}
+
+QPushButton#wellBeingModeButton:checked {
+    color: {{text_on_accent}};
+    background-color: {{accent_1}};
+}
+
+QPushButton#wellBeingNavButton {
+    color: {{text_1}};
+    background-color: {{bg_4}};
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 6px 10px;
+    min-height: 20px;
+}
+
+QPushButton#wellBeingNavButton:hover {
+    background-color: {{bg_hover}};
+}
+
+QPushButton#wellBeingNavButton:focus {
+    border-color: {{accent_1}};
+}
+
+QPushButton#wellBeingNavButton:pressed {
+    background-color: {{bg_pressed}};
+}
+
+QPushButton#wellBeingNavButton:disabled {
+    color: {{text_3}};
+}
+
+QFrame#wellBeingPanel, QFrame#wellBeingCard {
+    background-color: {{bg_4}};
+    border-radius: 12px;
+}
+
 QLabel#wellBeingCardTitle {
     color: {{text_2}};
     font-size: 10px;
@@ -460,10 +590,29 @@ QLabel#wellBeingListTotal {
 
 QScrollArea#wellBeingAppScroll,
 QScrollArea#wellBeingAppScroll > QWidget > QWidget,
-QWidget#wellBeingAppContainer,
-QWidget#wellBeingAppRow {
+QWidget#wellBeingAppContainer {
     background: transparent;
     border: none;
+}
+
+QWidget#wellBeingAppRow {
+    background-color: {{bg_4}};
+    border: none;
+    border-radius: 9px;
+}
+
+QWidget#wellBeingAppRow QLabel {
+    background: transparent;
+    border: none;
+}
+
+QLabel#wellBeingAppAvatar {
+    color: {{text_2}};
+    background-color: {{bg_3}};
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: bold;
+    font-family: "Roboto";
 }
 
 QLabel#wellBeingAppName {
@@ -473,7 +622,10 @@ QLabel#wellBeingAppName {
 }
 
 QLabel#wellBeingAppTime {
-    color: {{text_3}};
+    color: {{text_2}};
+    background-color: {{bg_3}};
+    border-radius: 7px;
+    padding: 4px 8px;
     font-size: 10px;
     font-family: "Roboto";
 }
